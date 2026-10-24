@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Download, InfoFilled, Plus, Upload, Warning } from '@element-plus/icons-vue'
+import { Delete, Download, InfoFilled, Plus, Search, Upload, View, Warning } from '@element-plus/icons-vue'
 import AppLayout from '../layouts/AppLayout.vue'
+import PaperFrame from '../components/PaperFrame.vue'
 import TemplateThumb from '../components/TemplateThumb.vue'
 import { configOf } from '../data/templatePresets'
 import { useTemplates } from '../composables/useTemplates'
@@ -21,6 +22,8 @@ const importing = ref(false)
 const busyCode = ref('')
 const packageProblems = ref([])
 const packageDialog = ref(false)
+const previewTarget = ref(null)
+const previewVisible = ref(false)
 
 const LAYOUT_LABELS = {
   minimal: '单栏留白',
@@ -38,6 +41,40 @@ const LAYOUT_LABELS = {
 }
 
 const sharedCount = computed(() => mine.value.filter((item) => item.visibility === 'public').length)
+
+// 模板包是用户自己导入的，数量有限，搜索与排序全在本地做，不额外请求后端。
+const PAGE_SIZE = 9
+const keyword = ref('')
+const sortBy = ref('recent')
+const visibleCount = ref(PAGE_SIZE)
+
+const filteredTemplates = computed(() => {
+  const query = keyword.value.trim().toLowerCase()
+  const list = query
+    ? mine.value.filter((tpl) => [
+      tpl.name,
+      tpl.code,
+      tpl.description,
+      tpl.author,
+      LAYOUT_LABELS[configOf(tpl).layout],
+      ...(tpl.tags || [])
+    ].filter(Boolean).some((text) => String(text).toLowerCase().includes(query)))
+    : [...mine.value]
+  if (sortBy.value === 'usage') {
+    list.sort((a, b) => (b.usageCount ?? 0) - (a.usageCount ?? 0))
+  } else if (sortBy.value === 'name') {
+    list.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hans-CN'))
+  }
+  return list
+})
+
+// 每个卡片都要实时渲染一张简历纸，一次全渲染会很卡，所以按批展开。
+const shownTemplates = computed(() => filteredTemplates.value.slice(0, visibleCount.value))
+const restCount = computed(() => Math.max(0, filteredTemplates.value.length - shownTemplates.value.length))
+
+watch([keyword, sortBy], () => {
+  visibleCount.value = PAGE_SIZE
+})
 
 function openPackagePicker() {
   packageInput.value?.click()
@@ -127,6 +164,11 @@ function useInResume(tpl) {
   router.push({ path: '/dashboard', query: { template: tpl.code } })
 }
 
+function openPreview(tpl) {
+  previewTarget.value = tpl
+  previewVisible.value = true
+}
+
 onMounted(loadTemplates)
 </script>
 
@@ -171,73 +213,172 @@ onMounted(loadTemplates)
         </el-button>
       </div>
 
-      <div v-else class="mine-grid">
-        <article v-for="tpl in mine" :key="tpl.code" class="surface mine-card">
-          <div class="mine-card__thumb">
-            <TemplateThumb :content="sampleContent" :template="tpl" :avatar="sampleAvatar" />
+      <template v-else>
+        <div class="mine-toolbar">
+          <div class="mine-toolbar__search">
+            <el-input v-model="keyword" placeholder="搜索名称、编码、作者或描述" clearable>
+              <template #prefix><el-icon><Search /></el-icon></template>
+            </el-input>
           </div>
-          <div class="mine-card__body">
-            <header>
-              <h2>{{ tpl.name }}</h2>
-              <span class="status-tag" :class="tpl.visibility === 'public' ? 'is-on' : 'is-off'">
+          <div class="mine-toolbar__side">
+            <span class="mine-toolbar__count">{{ keyword.trim() ? '找到' : '共' }} <b>{{ filteredTemplates.length }}</b> 套</span>
+            <el-select v-model="sortBy" size="small" class="mine-toolbar__sort" placeholder="排序">
+              <el-option label="最近导入" value="recent" />
+              <el-option label="使用最多" value="usage" />
+              <el-option label="按名称" value="name" />
+            </el-select>
+          </div>
+        </div>
+
+        <div v-if="!shownTemplates.length" class="surface mine-empty">
+          <el-icon><Search /></el-icon>
+          <h2>没有找到匹配的模板</h2>
+          <p>试试名称、编码、作者或版式里的关键词，比如「qingling」「青领」「头像单栏」。</p>
+          <el-button @click="keyword = ''">清除搜索</el-button>
+        </div>
+
+        <div v-else class="mine-grid">
+          <article
+            v-for="tpl in shownTemplates"
+            :key="tpl.code"
+            class="mine-card"
+            :style="{ '--tpl-accent': configOf(tpl).accent || '#0a7d76' }"
+          >
+            <button type="button" class="mine-card__preview" :aria-label="`预览「${tpl.name}」完整效果`" @click="openPreview(tpl)">
+              <span class="mine-card__label" :class="tpl.visibility === 'public' ? 'is-on' : 'is-off'">
                 <i></i>{{ tpl.visibility === 'public' ? '已分享到模板中心' : '仅自己可见' }}
               </span>
-            </header>
-            <p class="mine-card__meta mono-code">{{ tpl.code }}</p>
-            <p class="mine-card__desc">{{ tpl.description || '未填写模板描述' }}</p>
-            <ul class="mine-card__facts">
-              <li>作者 {{ tpl.author || '未署名' }}</li>
-              <li>v{{ tpl.version || '1.0.0' }}</li>
-              <li>{{ LAYOUT_LABELS[configOf(tpl).layout] || '单栏' }}</li>
-              <li>被 {{ tpl.usageCount ?? 0 }} 份简历使用</li>
-            </ul>
+              <div class="mine-card__thumb">
+                <TemplateThumb :content="sampleContent" :template="tpl" :avatar="sampleAvatar" />
+              </div>
+              <span class="mine-card__view">
+                <el-icon><View /></el-icon> 预览完整版式
+              </span>
+            </button>
 
-            <div class="mine-card__switches">
-              <label class="switch-row">
-                <el-switch
-                  :model-value="tpl.visibility === 'public'"
-                  :loading="busyCode === tpl.code"
-                  @update:model-value="(value) => updateShare(tpl, Boolean(value), tpl.exportable !== false)"
-                />
-                <span>
-                  <strong>分享到模板中心</strong>
-                  <small>本站其他用户可在模板中心看到「{{ tpl.author || '未署名' }} 分享」并选用</small>
+            <div class="mine-card__body">
+              <header class="mine-card__head">
+                <h2>{{ tpl.name }}</h2>
+                <span class="mine-card__layout">
+                  <i :style="{ background: configOf(tpl).accent || 'var(--accent)' }"></i>
+                  {{ LAYOUT_LABELS[configOf(tpl).layout] || '单栏' }}
                 </span>
-              </label>
-              <label class="switch-row" :class="{ 'is-muted': tpl.visibility !== 'public' }">
-                <el-switch
-                  :model-value="tpl.exportable !== false"
-                  :disabled="tpl.visibility !== 'public'"
-                  :loading="busyCode === tpl.code"
-                  @update:model-value="(value) => updateShare(tpl, true, Boolean(value))"
-                />
-                <span>
-                  <strong>允许他人导出模板包</strong>
-                  <small>{{ tpl.visibility === 'public'
-                    ? (tpl.exportable !== false ? '关闭后别人只能选用，下载按钮对他们隐藏' : '别人只能选用，不能把包下载走')
-                    : '分享后才能设置' }}</small>
-                </span>
-              </label>
+              </header>
+
+              <ul class="mine-card__facts">
+                <li class="mono-code">{{ tpl.code }}</li>
+                <li>v{{ tpl.version || '1.0.0' }}</li>
+                <li>{{ tpl.author || '未署名' }}</li>
+                <li><b>{{ tpl.usageCount ?? 0 }}</b> 份简历在用</li>
+              </ul>
+
+              <p class="mine-card__desc">{{ tpl.description || '未填写模板描述' }}</p>
+
+              <div class="mine-card__switches">
+                <label class="switch-row">
+                  <span class="switch-copy">
+                    <strong>分享到模板中心</strong>
+                    <small>本站其他用户可在模板中心看到「{{ tpl.author || '未署名' }} 分享」并选用</small>
+                  </span>
+                  <el-switch
+                    :model-value="tpl.visibility === 'public'"
+                    :loading="busyCode === tpl.code"
+                    @update:model-value="(value) => updateShare(tpl, Boolean(value), tpl.exportable !== false)"
+                  />
+                </label>
+                <label class="switch-row" :class="{ 'is-muted': tpl.visibility !== 'public' }">
+                  <span class="switch-copy">
+                    <strong>允许他人导出模板包</strong>
+                    <small>{{ tpl.visibility === 'public'
+                      ? (tpl.exportable !== false ? '关闭后别人只能选用，下载按钮对他们隐藏' : '别人只能选用，不能把包下载走')
+                      : '分享后才能设置' }}</small>
+                  </span>
+                  <el-switch
+                    :model-value="tpl.exportable !== false"
+                    :disabled="tpl.visibility !== 'public'"
+                    :loading="busyCode === tpl.code"
+                    @update:model-value="(value) => updateShare(tpl, true, Boolean(value))"
+                  />
+                </label>
+              </div>
+
+              <footer class="mine-card__actions">
+                <button type="button" class="use-template" @click="useInResume(tpl)">
+                  用它新建简历<i>→</i>
+                </button>
+                <div class="mine-card__ghosts">
+                  <el-button size="small" link :loading="busyCode === tpl.code" @click="exportPackage(tpl)">
+                    <el-icon><Download /></el-icon> 导出
+                  </el-button>
+                  <span class="ghost-sep" aria-hidden="true"></span>
+                  <el-button size="small" link type="danger" :loading="busyCode === tpl.code" @click="removeTemplate(tpl)">
+                    <el-icon><Delete /></el-icon> 删除
+                  </el-button>
+                </div>
+              </footer>
             </div>
+          </article>
+        </div>
 
-            <footer class="mine-card__actions">
-              <el-button size="small" type="primary" link @click="useInResume(tpl)">用它新建简历</el-button>
-              <el-button size="small" link :loading="busyCode === tpl.code" @click="exportPackage(tpl)">
-                <el-icon><Download /></el-icon> 导出模板包
-              </el-button>
-              <el-button size="small" link type="danger" :loading="busyCode === tpl.code" @click="removeTemplate(tpl)">
-                <el-icon><Delete /></el-icon> 删除
-              </el-button>
-            </footer>
-          </div>
-        </article>
-      </div>
+        <div v-if="restCount" class="mine-more">
+          <el-button plain @click="visibleCount += PAGE_SIZE">
+            显示更多（还有 {{ restCount }} 套）
+          </el-button>
+        </div>
+      </template>
 
       <p class="mine-note">
         <el-icon><Warning /></el-icon>
         <span>删除不会动已经选用它的简历：还有简历在用时服务端会拒绝删除，请先给那些简历换模板。取消分享后，别人已用的简历仍按该版式渲染，只是不再能被新简历选中。</span>
       </p>
     </div>
+
+    <el-dialog
+      v-model="previewVisible"
+      class="preview-dialog"
+      width="980px"
+      align-center
+      destroy-on-close
+    >
+      <template #header>
+        <div v-if="previewTarget" class="preview-dialog__head">
+          <div>
+            <span class="mono">TEMPLATE / {{ previewTarget.code.toUpperCase() }}</span>
+            <h2>{{ previewTarget.name }}</h2>
+          </div>
+          <span class="tag tag--accent">
+            {{ previewTarget.visibility === 'public' ? '已分享到模板中心' : '仅自己可见' }}
+          </span>
+        </div>
+      </template>
+
+      <div v-if="previewTarget" class="preview-dialog__layout">
+        <div class="preview-dialog__paper">
+          <PaperFrame
+            :content="sampleContent"
+            :template="previewTarget"
+            :avatar="sampleAvatar"
+            :style-data="{ showBrandFooter: true }"
+          />
+        </div>
+        <aside class="preview-dialog__side">
+          <p class="preview-dialog__desc">{{ previewTarget.description || '未填写模板描述' }}</p>
+          <ul class="preview-dialog__facts">
+            <li>版式 {{ LAYOUT_LABELS[configOf(previewTarget).layout] || '单栏' }}</li>
+            <li>作者 {{ previewTarget.author || '未署名' }}</li>
+            <li>v{{ previewTarget.version || '1.0.0' }}</li>
+            <li>{{ previewTarget.usageCount ?? 0 }} 份简历在用</li>
+          </ul>
+          <div class="preview-dialog__actions">
+            <el-button type="primary" @click="useInResume(previewTarget)">用它新建简历</el-button>
+            <el-button :loading="busyCode === previewTarget.code" @click="exportPackage(previewTarget)">
+              <el-icon><Download /></el-icon> 导出模板包
+            </el-button>
+          </div>
+          <p class="preview-dialog__hint">预览用的是站内示例简历。分享与导出权限在卡片上的开关里调整。</p>
+        </aside>
+      </div>
+    </el-dialog>
 
     <el-dialog v-model="packageDialog" width="520px" align-center class="package-dialog">
       <template #header>
@@ -333,99 +474,305 @@ onMounted(loadTemplates)
   font-size: 11px;
 }
 
+.mine-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.mine-toolbar__search {
+  width: 300px;
+  max-width: 100%;
+}
+
+.mine-toolbar__side {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mine-toolbar__count {
+  color: var(--faint);
+  font-size: 11.5px;
+}
+
+.mine-toolbar__count b {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.mine-toolbar__sort {
+  width: 118px;
+}
+
+.mine-more {
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
+}
+
+.mine-more :deep(.el-button) {
+  border-style: dashed;
+  color: var(--muted);
+}
+
 .mine-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+  gap: 18px;
 }
 
+/* 卡片改成纵向：预览区在上、信息区在下，正文不再被缩略图挤成窄条。 */
 .mine-card {
   display: flex;
-  gap: 14px;
-  padding: 14px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease, border-color 0.28s ease;
+}
+
+.mine-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow);
+}
+
+/* 预览台：用模板自己的主色做一层很淡的底，卡片之间靠颜色区分，而不是靠边框。 */
+.mine-card__preview {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 200px;
+  padding: 14px 16px 0;
+  overflow: hidden;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background:
+    radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--tpl-accent) 18%, #fff) 0%, var(--paper-deep) 68%);
+  font: inherit;
+  text-align: left;
+  cursor: zoom-in;
+}
+
+.mine-card__preview:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* 悬浮提示：这里是可点的入口，点击后弹窗看完整版式。 */
+.mine-card__view {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  background: rgba(25, 34, 30, 0.82);
+  color: #f6f3ea;
+  font-size: 10.5px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 6px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  backdrop-filter: blur(4px);
+}
+
+.mine-card__preview:hover .mine-card__view,
+.mine-card__preview:focus-visible .mine-card__view {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .mine-card__thumb {
-  flex-shrink: 0;
-  width: 108px;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 8px 8px 0 0;
+}
+
+/* 缩略图在原位只当封面用：去掉它自带的悬浮跳动与「预览版式」蒙层。 */
+.mine-card__thumb :deep(.template-thumb) {
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 14px 28px -18px rgba(25, 34, 30, 0.45);
+}
+
+.mine-card__thumb :deep(.template-thumb__frame) {
+  padding: 10px 10px 0;
+  max-height: none;
+}
+
+.mine-card__thumb :deep(.template-thumb:hover) {
+  transform: none;
+  border-color: var(--line);
+  box-shadow: 0 14px 28px -18px rgba(25, 34, 30, 0.45);
+}
+
+.mine-card__thumb :deep(.template-thumb__shade) {
+  display: none;
+}
+
+.mine-card__label {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 254, 251, 0.86);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(6px);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.mine-card__label i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.mine-card__label.is-on {
+  color: var(--accent);
+}
+
+.mine-card__label.is-off {
+  color: var(--muted);
 }
 
 .mine-card__body {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 7px;
-  min-width: 0;
+  gap: 10px;
+  padding: 14px 16px 16px;
 }
 
-.mine-card__body header {
+.mine-card__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
 }
 
-.mine-card__body h2 {
-  font-size: 16px;
+.mine-card__head h2 {
+  font-family: var(--serif);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
-.mine-card__meta {
-  color: var(--faint);
-  font-size: 10.5px;
-  letter-spacing: 0.03em;
-}
-
-.mine-card__desc {
+/* 版式标签带一个模板主色圆点，和上面的预览底色呼应。 */
+.mine-card__layout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 2px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.7;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.mine-card__layout i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
 }
 
 .mine-card__facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 10px;
+  align-items: center;
+  gap: 2px 8px;
   margin: 0;
   padding: 0;
   list-style: none;
   color: var(--faint);
-  font-size: 11px;
+  font-size: 10.5px;
+}
+
+.mine-card__facts li + li::before {
+  content: "·";
+  margin-right: 8px;
+  color: var(--line-strong);
+}
+
+.mine-card__facts b {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.mine-card__desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.75;
 }
 
 .mine-card__switches {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin-top: 2px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--line);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper-deep);
 }
 
 .switch-row {
   display: flex;
   align-items: flex-start;
-  gap: 9px;
+  justify-content: space-between;
+  gap: 12px;
   cursor: pointer;
 }
 
-.switch-row span {
+.switch-row + .switch-row {
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+
+.switch-copy {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  min-width: 0;
 }
 
-.switch-row strong {
+.switch-copy strong {
+  color: var(--ink-soft);
   font-size: 12px;
   font-weight: 600;
 }
 
-.switch-row small {
+.switch-copy small {
   color: var(--faint);
   font-size: 10.5px;
   line-height: 1.6;
+}
+
+.switch-row :deep(.el-switch) {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .switch-row.is-muted {
@@ -435,9 +782,55 @@ onMounted(loadTemplates)
 
 .mine-card__actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 2px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.use-template {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.use-template i {
+  font-style: normal;
+  transition: transform 0.2s ease;
+}
+
+.use-template:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.use-template:hover i {
+  transform: translateX(2px);
+}
+
+.mine-card__ghosts {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.ghost-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--line);
 }
 
 .mine-note {
@@ -458,34 +851,6 @@ onMounted(loadTemplates)
   flex-shrink: 0;
   margin-top: 2px;
   color: var(--accent);
-}
-
-.status-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 10.5px;
-  font-weight: 600;
-}
-
-.status-tag i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.status-tag.is-on {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.status-tag.is-off {
-  background: rgba(120, 120, 120, 0.12);
-  color: var(--muted);
 }
 
 .package-dialog__head {
@@ -538,5 +903,125 @@ onMounted(loadTemplates)
   color: var(--faint);
   font-size: 9px;
   letter-spacing: 0.04em;
+}
+
+:global(.preview-dialog) {
+  max-width: calc(100vw - 32px);
+  border-radius: 16px;
+}
+
+:global(.preview-dialog .el-dialog__body) {
+  padding-top: 4px;
+}
+
+.preview-dialog__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.preview-dialog__head .mono {
+  color: var(--faint);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+}
+
+.preview-dialog__head h2 {
+  margin-top: 6px;
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.preview-dialog__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
+  gap: 28px;
+}
+
+.preview-dialog__paper {
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--canvas-deep);
+}
+
+.preview-dialog__side {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.preview-dialog__desc {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.85;
+}
+
+.preview-dialog__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 16px 0 0;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.preview-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.preview-dialog__hint {
+  margin-top: auto;
+  padding-top: 18px;
+  color: var(--faint);
+  font-size: 10.5px;
+  line-height: 1.7;
+}
+
+@media (max-width: 760px) {
+  .preview-dialog__layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .preview-dialog__paper {
+    max-height: 52vh;
+    padding: 12px;
+  }
+}
+
+@media (max-width: 560px) {
+  .mine-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mine-toolbar__search {
+    width: 100%;
+  }
+
+  .mine-toolbar__side {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .mine-card__preview {
+    height: 168px;
+  }
+
+  .mine-card__actions {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
 }
 </style>
