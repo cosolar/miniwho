@@ -1,0 +1,15 @@
+{
+  "api": 1,
+  "id": { "namespace": "official", "code": "qinghe", "version": "2.0.0" },
+  "meta": {
+    "name": "青禾",
+    "description": "极简排字版式，只用字号、留白与发丝线分层，日期靠右。",
+    "category": "简约",
+    "tags": ["单栏", "极简", "社招", "通用"],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": { "layout": "minimal", "accent": "#2b3137", "font": "sans", "sectionStyle": "line", "density": "standard" },
+  "capability": { "photo": true, "free": true },
+  "sortWeight": 10
+}

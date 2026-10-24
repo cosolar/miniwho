@@ -1,0 +1,15 @@
+{
+  "api": 1,
+  "id": { "namespace": "official", "code": "jishu", "version": "2.0.0" },
+  "meta": {
+    "name": "技术",
+    "description": "证件照居左，描边圆形图标配虚线分割，联系信息按标签两列排布。",
+    "category": "商务",
+    "tags": ["照片", "单栏", "社招", "技术"],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": { "layout": "profile", "accent": "#2f6f62", "font": "sans", "sectionStyle": "icon", "density": "standard" },
+  "capability": { "photo": true, "free": true },
+  "sortWeight": 70
+}

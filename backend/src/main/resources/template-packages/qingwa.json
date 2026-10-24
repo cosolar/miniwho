@@ -1,0 +1,15 @@
+{
+  "api": 1,
+  "id": { "namespace": "official", "code": "qingwa", "version": "2.0.0" },
+  "meta": {
+    "name": "青瓦",
+    "description": "紧凑页眉与青绿标题短线，通栏细线分区，最传统的中文简历读法。",
+    "category": "简约",
+    "tags": ["照片", "单栏", "校招", "社招"],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": { "layout": "formal", "accent": "#1f9e8f", "font": "sans", "sectionStyle": "rule", "density": "standard" },
+  "capability": { "photo": true, "free": true },
+  "sortWeight": 110
+}

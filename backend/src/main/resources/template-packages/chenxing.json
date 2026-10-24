@@ -1,0 +1,15 @@
+{
+  "api": 1,
+  "id": { "namespace": "official", "code": "chenxing", "version": "2.0.0" },
+  "meta": {
+    "name": "晨星",
+    "description": "白色侧栏配深红圆弧装饰，技能点线对齐，右侧专注履历与成果。",
+    "category": "双栏",
+    "tags": ["照片", "双栏", "校招", "通用"],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": { "layout": "rail", "accent": "#8c1f28", "font": "sans", "sectionStyle": "bar", "density": "standard" },
+  "capability": { "photo": true, "free": true },
+  "sortWeight": 90
+}

@@ -1,0 +1,15 @@
+{
+  "api": 1,
+  "id": { "namespace": "official", "code": "jianya", "version": "2.0.0" },
+  "meta": {
+    "name": "简雅",
+    "description": "低多边形淡青横幅与居中页眉，模块图标配细线，日期独立左栏。",
+    "category": "简约",
+    "tags": ["居中", "通用", "横幅", "单栏"],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": { "layout": "center", "accent": "#1f9e8f", "font": "sans", "sectionStyle": "line", "density": "standard" },
+  "capability": { "photo": true, "free": true },
+  "sortWeight": 50
+}

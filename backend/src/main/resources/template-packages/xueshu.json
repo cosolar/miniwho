@@ -1,0 +1,15 @@
+{
+  "api": 1,
+  "id": { "namespace": "official", "code": "xueshu", "version": "2.0.0" },
+  "meta": {
+    "name": "学术",
+    "description": "角标照片框与制图线装饰，青色实底标签，论文、竞赛与荣誉分区清晰。",
+    "category": "学术",
+    "tags": ["学术", "考研", "论文", "经典"],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": { "layout": "classic", "accent": "#35a9bb", "font": "sans", "sectionStyle": "caps", "density": "standard" },
+  "capability": { "photo": true, "free": true },
+  "sortWeight": 80
+}

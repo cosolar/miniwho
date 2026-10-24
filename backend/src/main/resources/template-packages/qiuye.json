@@ -1,0 +1,15 @@
+{
+  "api": 1,
+  "id": { "namespace": "official", "code": "qiuye", "version": "2.0.0" },
+  "meta": {
+    "name": "秋叶",
+    "description": "证件照居左，青绿方块标题配右对齐日期，条目紧凑、层次清爽，适合技术、产品与运营岗位。",
+    "category": "创意",
+    "tags": ["创意", "青绿", "校招", "技术"],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": { "layout": "timeline", "accent": "#2f6f62", "font": "sans", "sectionStyle": "dot", "density": "standard" },
+  "capability": { "photo": true, "free": true },
+  "sortWeight": 60
+}

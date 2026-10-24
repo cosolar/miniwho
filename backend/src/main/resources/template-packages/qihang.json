@@ -1,0 +1,15 @@
+{
+  "api": 1,
+  "id": { "namespace": "official", "code": "qihang", "version": "2.0.0" },
+  "meta": {
+    "name": "启航",
+    "description": "淡蓝模块底色带配右侧证件照，信息按标签对齐，稳重体面。",
+    "category": "商务",
+    "tags": ["照片", "商务", "社招", "单栏"],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": { "layout": "photoheader", "accent": "#2b7cb8", "font": "sans", "sectionStyle": "block", "density": "standard" },
+  "capability": { "photo": true, "free": true },
+  "sortWeight": 100
+}

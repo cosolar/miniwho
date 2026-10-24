@@ -1,0 +1,15 @@
+{
+  "api": 1,
+  "id": { "namespace": "official", "code": "jinshi", "version": "2.1.0" },
+  "meta": {
+    "name": "金石",
+    "description": "藏青斜切色带与哑金圆徽，模块标牌压在通栏竖线上，教育与工作条目可放校徽 / 公司 LOGO，稳重的工程风格。",
+    "category": "商务",
+    "tags": ["照片", "商务", "工程", "徽标"],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": { "layout": "ribbon", "accent": "#3e5984", "font": "sans", "sectionStyle": "flag", "density": "standard" },
+  "capability": { "photo": true, "free": true },
+  "sortWeight": 120
+}

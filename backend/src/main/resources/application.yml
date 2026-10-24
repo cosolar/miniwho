@@ -1,0 +1,104 @@
+server:
+  port: ${SERVER_PORT:8080}
+  compression:
+    enabled: true
+  error:
+    include-message: never
+
+spring:
+  application:
+    name: miniwho
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    url: jdbc:sqlite:${MINIWHO_DB:./miniwho.db}?journal_mode=WAL&busy_timeout=5000&foreign_keys=on
+    driver-class-name: org.sqlite.JDBC
+    druid:
+      initial-size: 1
+      min-idle: 1
+      max-active: 5
+      max-wait: 5000
+      # SQLite 没有系统表探活，用 SELECT 1 做空闲校验即可
+      validation-query: SELECT 1
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      filters: stat
+      filter:
+        stat:
+          enabled: true
+          log-slow-sql: true
+          slow-sql-millis: 1000
+          merge-sql: false
+      stat-view-servlet:
+        # Druid 监控页涉及 SQL 与连接信息，默认关闭，需要时用环境变量显式打开并设置账号
+        enabled: ${MINIWHO_DRUID_STAT:false}
+        login-username: ${MINIWHO_DRUID_USER:druid}
+        login-password: ${MINIWHO_DRUID_PASSWORD:}
+  cache:
+    type: caffeine
+    cache-names: template-active,template-detail
+    caffeine:
+      # 模板数据变化不频繁：写入 5 分钟过期 + 上限 200 条，写操作会主动清缓存
+      spec: maximumSize=200,expireAfterWrite=300s
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/schema-sqlite.sql
+      continue-on-error: false
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 25MB
+  jackson:
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+springdoc:
+  api-docs:
+    enabled: ${MINIWHO_OPENAPI_ENABLED:true}
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+  packages-to-scan: cn.minims.who.controller
+  paths-to-match: /api/**
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+sa-token:
+  token-name: satoken
+  timeout: 604800
+  active-timeout: -1
+  is-concurrent: true
+  is-share: false
+  token-style: uuid
+  is-log: false
+  is-print: false
+
+app:
+  upload-dir: ${MINIWHO_UPLOAD_DIR:./uploads}
+  cors-origins: ${MINIWHO_CORS_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  media-secret: ${MINIWHO_MEDIA_SECRET:}
+  pdf:
+    enabled: ${MINIWHO_PDF_ENABLED:true}
+    browser-path: ${MINIWHO_PDF_BROWSER_PATH:}
+    render-base-url: ${MINIWHO_PDF_RENDER_BASE_URL:http://127.0.0.1:5173}
+    timeout-seconds: ${MINIWHO_PDF_TIMEOUT:45}
+  seed-demo: ${MINIWHO_SEED_DEMO:true}
+  demo-password: ${MINIWHO_DEMO_PASSWORD:demo123}
+  admin-password: ${MINIWHO_ADMIN_PASSWORD:admin123}
+
+logging:
+  level:
+    root: info
+    cn.minims.who: info
+    com.baomidou: warn

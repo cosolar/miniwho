@@ -1,0 +1,32 @@
+# Build output
+backend/target/
+frontend/dist/
+frontend/.vite/
+
+# Dependencies
+frontend/node_modules/
+.tools/
+
+# Runtime data
+backend/miniwho.db
+backend/miniwho.db-shm
+backend/miniwho.db-wal
+backend/uploads/
+.tmp/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+!frontend/.env.example
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

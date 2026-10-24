@@ -1,0 +1,15 @@
+{
+  "api": 1,
+  "id": { "namespace": "official", "code": "chengshi", "version": "2.0.0" },
+  "meta": {
+    "name": "城市",
+    "description": "白底页眉配深靛蓝模块色带，联系方式分栏对齐，稳健的商务风格。",
+    "category": "商务",
+    "tags": ["商务", "金融", "社招", "单栏"],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": { "layout": "band", "accent": "#1f3864", "font": "sans", "sectionStyle": "block", "density": "standard" },
+  "capability": { "photo": true, "free": true },
+  "sortWeight": 40
+}

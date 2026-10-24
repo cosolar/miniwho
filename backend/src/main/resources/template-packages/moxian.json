@@ -1,0 +1,15 @@
+{
+  "api": 1,
+  "id": { "namespace": "official", "code": "moxian", "version": "2.0.0" },
+  "meta": {
+    "name": "墨线",
+    "description": "日期独立左栏，朱红强调单位与项目，细线分区，适合科研与技术岗位。",
+    "category": "学术",
+    "tags": ["学术", "考研", "日期栏", "单栏"],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": { "layout": "academic", "accent": "#b4232a", "font": "sans", "sectionStyle": "caps", "density": "standard" },
+  "capability": { "photo": true, "free": true },
+  "sortWeight": 20
+}
