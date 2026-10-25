@@ -54,6 +54,11 @@ spring:
   jackson:
     time-zone: Asia/Shanghai
     default-property-inclusion: non_null
+  web:
+    resources:
+      # 前端产物打进 jar 的 static/ 之后，静态映射统一由 StaticSiteConfig 接管：
+      # 它要负责 SPA 回落（/dashboard 返回 index.html），默认映射会和它抢同一个 /** 模式。
+      add-mappings: false
 
 springdoc:
   api-docs:
@@ -86,7 +91,7 @@ sa-token:
 
 app:
   upload-dir: ${MINIWHO_UPLOAD_DIR:./uploads}
-  cors-origins: ${MINIWHO_CORS_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  cors-origins: ${MINIWHO_CORS_ORIGINS:*}
   media-secret: ${MINIWHO_MEDIA_SECRET:}
   pdf:
     enabled: ${MINIWHO_PDF_ENABLED:true}

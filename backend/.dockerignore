@@ -1,7 +1,0 @@
-target/
-*.db
-*.db-shm
-*.db-wal
-uploads/
-.idea/
-*.iml

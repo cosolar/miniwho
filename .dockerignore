@@ -1,0 +1,26 @@
+# 构建上下文是仓库根目录：前端与后端都要参与，所以这里排除掉与镜像无关的东西
+.git
+.gitignore
+.idea
+.vscode
+.tools
+.tmp
+docs
+*.md
+LICENSE
+docker-compose.yml
+.env
+.env.*
+
+**/node_modules
+frontend/dist
+frontend/.vite
+# 本地覆盖会改掉构建期的 API 地址，镜像里只能用默认相对路径 /api
+frontend/.env.local
+frontend/.env.*.local
+# 由构建阶段从 dist 重新拷入，避免本地残留的旧哈希资源混进镜像
+backend/src/main/resources/static
+backend/target
+backend/miniwho.db*
+backend/uploads
+**/*.log

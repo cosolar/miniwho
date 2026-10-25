@@ -2,6 +2,8 @@
 backend/target/
 frontend/dist/
 frontend/.vite/
+# 单镜像构建时由 Dockerfile / 手工命令拷入，生成物不入库
+backend/src/main/resources/static/
 
 # Dependencies
 frontend/node_modules/
