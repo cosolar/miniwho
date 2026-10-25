@@ -98,6 +98,9 @@ app:
     browser-path: ${MINIWHO_PDF_BROWSER_PATH:}
     render-base-url: ${MINIWHO_PDF_RENDER_BASE_URL:http://127.0.0.1:5173}
     timeout-seconds: ${MINIWHO_PDF_TIMEOUT:45}
+    # 同时运行的 Chromium 实例上限与排队等待秒数：宁可让请求排队/快速失败，也不让并发实例把内存吃光。
+    max-concurrent: ${MINIWHO_PDF_MAX_CONCURRENT:2}
+    queue-timeout-seconds: ${MINIWHO_PDF_QUEUE_TIMEOUT:20}
   seed-demo: ${MINIWHO_SEED_DEMO:true}
   demo-password: ${MINIWHO_DEMO_PASSWORD:demo123}
   admin-password: ${MINIWHO_ADMIN_PASSWORD:admin123}

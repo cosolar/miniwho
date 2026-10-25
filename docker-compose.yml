@@ -51,6 +51,8 @@ services:
       # 服务端 PDF：镜像内带 chromium，页面与 API 同属一个容器，直接指向自己
       MINIWHO_PDF_ENABLED: ${MINIWHO_PDF_ENABLED:-true}
       MINIWHO_PDF_RENDER_BASE_URL: ${MINIWHO_PDF_RENDER_BASE_URL:-http://127.0.0.1:8080}
+      MINIWHO_PDF_MAX_CONCURRENT: ${MINIWHO_PDF_MAX_CONCURRENT:-2}
+      MINIWHO_PDF_QUEUE_TIMEOUT: ${MINIWHO_PDF_QUEUE_TIMEOUT:-20}
       TZ: Asia/Shanghai
     shm_size: "512mb"
     volumes:

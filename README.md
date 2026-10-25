@@ -242,6 +242,8 @@ miniwho/
 | `MINIWHO_PDF_BROWSER_PATH` | 空（自动探测） | 指定 Chrome / Edge / Chromium 可执行文件路径 |
 | `MINIWHO_PDF_RENDER_BASE_URL` | `http://127.0.0.1:5173` | 无头浏览器访问前端的地址，容器部署需指向可达的前端源 |
 | `MINIWHO_PDF_TIMEOUT` | `45` | 单次渲染超时秒数 |
+| `MINIWHO_PDF_MAX_CONCURRENT` | `2` | 同时运行的 Chromium 实例上限，超出排队；小内存机器不要再调大 |
+| `MINIWHO_PDF_QUEUE_TIMEOUT` | `20` | 排队等待秒数，超过后返回 429「任务繁忙」 |
 
 ### MySQL profile
 

@@ -12,10 +12,15 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 /**
  * 用系统 Chrome / Edge 的无头模式把渲染页打印成 PDF，避免引入 PDF 库与字体依赖。
+ *
+ * <p>每个导出都会起一个独立的浏览器进程，单个实例峰值可占几百 MB；
+ * 因此用信号量限制同时运行的实例数，超出上限的请求在队列里等待，
+ * 等待超时直接回 429，让前端提示稍后重试，而不是把容器内存打满。</p>
  */
 @Component
 public class ChromePdfRenderer {
@@ -36,13 +41,20 @@ public class ChromePdfRenderer {
     private final String configuredPath;
     private final String executable;
     private final int timeoutSeconds;
+    private final int queueTimeoutSeconds;
+    private final Semaphore slots;
 
     public ChromePdfRenderer(@Value("${app.pdf.enabled:true}") boolean enabled,
                              @Value("${app.pdf.browser-path:}") String configuredPath,
-                             @Value("${app.pdf.timeout-seconds:45}") int timeoutSeconds) {
+                             @Value("${app.pdf.timeout-seconds:45}") int timeoutSeconds,
+                             @Value("${app.pdf.max-concurrent:2}") int maxConcurrent,
+                             @Value("${app.pdf.queue-timeout-seconds:20}") int queueTimeoutSeconds) {
         this.enabled = enabled;
         this.configuredPath = configuredPath == null ? "" : configuredPath.trim();
         this.timeoutSeconds = Math.max(5, timeoutSeconds);
+        this.queueTimeoutSeconds = Math.max(1, queueTimeoutSeconds);
+        // 公平信号量：先到的请求先渲染，避免高并发下个别请求饿死。
+        this.slots = new Semaphore(Math.max(1, maxConcurrent), true);
         this.executable = resolveExecutable();
     }
 
@@ -65,7 +77,26 @@ public class ChromePdfRenderer {
         if (!available()) {
             throw BizException.badRequest("当前环境没有可用的 PDF 渲染引擎，请使用浏览器打印导出");
         }
+        boolean acquired;
+        try {
+            acquired = slots.tryAcquire(queueTimeoutSeconds, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw BizException.tooMany("PDF 生成被中断，请重试");
+        }
+        if (!acquired) {
+            throw BizException.tooMany("PDF 导出任务繁忙，请稍后重试");
+        }
+        try {
+            return renderWithSlot(url);
+        } finally {
+            slots.release();
+        }
+    }
+
+    private byte[] renderWithSlot(String url) {
         Path tempDir = null;
+        Process process = null;
         try {
             tempDir = Files.createTempDirectory("miniwho-pdf-");
             tempDir.resolve("profile").toFile().mkdirs();
@@ -78,6 +109,10 @@ public class ChromePdfRenderer {
             command.add("--no-first-run");
             command.add("--hide-scrollbars");
             command.add("--mute-audio");
+            // /dev/shm 太小时 Chromium 会崩或占满内存；容器里统一走临时文件。
+            command.add("--disable-dev-shm-usage");
+            command.add("--disable-extensions");
+            command.add("--disable-background-networking");
             command.add("--user-data-dir=" + tempDir.resolve("profile"));
             command.add("--virtual-time-budget=12000");
             command.add("--run-all-compositor-stages-before-draw");
@@ -86,13 +121,12 @@ public class ChromePdfRenderer {
             command.add("--print-to-pdf=" + output);
             command.add(url);
 
-            Process process = new ProcessBuilder(command)
+            process = new ProcessBuilder(command)
                     .redirectOutput(ProcessBuilder.Redirect.DISCARD)
                     .redirectError(ProcessBuilder.Redirect.DISCARD)
                     .start();
             boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
             if (!finished) {
-                process.destroyForcibly();
                 throw BizException.tooMany("PDF 生成超时，请稍后重试或改用浏览器打印");
             }
             int exit = process.exitValue();
@@ -107,8 +141,22 @@ public class ChromePdfRenderer {
             Thread.currentThread().interrupt();
             throw BizException.tooMany("PDF 生成被中断，请重试");
         } finally {
+            // 超时/异常时主进程可能已退出但渲染子进程仍在，必须整棵树杀掉，否则内存会一直涨。
+            killTree(process);
             deleteQuietly(tempDir);
         }
+    }
+
+    private void killTree(Process process) {
+        if (process == null) {
+            return;
+        }
+        try {
+            process.descendants().forEach(ProcessHandle::destroyForcibly);
+        } catch (RuntimeException ignored) {
+            // 进程树已经退出时拿不到句柄，忽略即可。
+        }
+        process.destroyForcibly();
     }
 
     private String resolveExecutable() {

@@ -26,7 +26,11 @@ import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * 服务端 PDF 导出：签发一次性渲染凭证 -> 无头浏览器打印前端渲染页 -> 按内容版本缓存结果。
@@ -36,10 +40,13 @@ public class PdfExportService {
 
     private static final long TICKET_TTL_MILLIS = 5 * 60 * 1000L;
     private static final long CACHE_TTL_MILLIS = 24 * 60 * 60 * 1000L;
+    private static final long INFLIGHT_WAIT_SECONDS = 60;
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final List<String> OVERRIDE_KEYS = List.of("filter", "fontSizeStep", "spacingStep", "showBrandFooter");
 
     private final Map<String, Ticket> tickets = new ConcurrentHashMap<>();
+    /** 同一份内容（缓存键相同）只让一个请求去起浏览器，其余请求等它的结果，避免刷新风暴重复渲染。 */
+    private final Map<String, CompletableFuture<byte[]>> inflight = new ConcurrentHashMap<>();
 
     private final ResumeMapper resumeMapper;
     private final TemplateMapper templateMapper;
@@ -83,16 +90,53 @@ public class PdfExportService {
         }
         String resolvedTemplate = templateCode == null || templateCode.isBlank() ? resume.getTemplateCode() : templateCode.trim();
         ObjectNode style = mergeStyle(resume.getStyle(), styleOverrides);
-        String cacheKey = cacheKey(resume, resolvedTemplate, style);        byte[] cached = readCache(cacheKey);
+        String cacheKey = cacheKey(resume, resolvedTemplate, style);
+        byte[] cached = readCache(cacheKey);
         if (cached != null) {
             return cached;
         }
-        String token = issueTicket(resume.getId(), resolvedTemplate, style);
-        String url = renderBaseUrl + "/export/" + token;
-        byte[] pdf = renderer.render(url);
-        writeCache(cacheKey, pdf);
-        sweepCache();
-        return pdf;
+
+        CompletableFuture<byte[]> mine = new CompletableFuture<>();
+        CompletableFuture<byte[]> running = inflight.putIfAbsent(cacheKey, mine);
+        if (running != null) {
+            return awaitInflight(running);
+        }
+        try {
+            // 等锁期间别的请求可能刚写完缓存，再查一次，能省掉一次浏览器启动。
+            cached = readCache(cacheKey);
+            if (cached != null) {
+                mine.complete(cached);
+                return cached;
+            }
+            String token = issueTicket(resume.getId(), resolvedTemplate, style);
+            String url = renderBaseUrl + "/export/" + token;
+            byte[] pdf = renderer.render(url);
+            writeCache(cacheKey, pdf);
+            sweepCache();
+            mine.complete(pdf);
+            return pdf;
+        } catch (RuntimeException e) {
+            mine.completeExceptionally(e);
+            throw e;
+        } finally {
+            inflight.remove(cacheKey, mine);
+        }
+    }
+
+    private byte[] awaitInflight(CompletableFuture<byte[]> running) {
+        try {
+            return running.get(INFLIGHT_WAIT_SECONDS, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw BizException.tooMany("PDF 生成被中断，请重试");
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof BizException biz) {
+                throw biz;
+            }
+            throw BizException.tooMany("PDF 生成失败，请稍后重试");
+        } catch (TimeoutException e) {
+            throw BizException.tooMany("PDF 导出任务繁忙，请稍后重试");
+        }
     }
 
     public ExportPayloadVo payload(String token) {

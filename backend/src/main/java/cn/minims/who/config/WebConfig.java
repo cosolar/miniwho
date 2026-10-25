@@ -16,7 +16,7 @@ import java.util.Arrays;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    @Value("${app.cors-origins}")
+    @Value("${app.cors-origins:*}")
     private String corsOrigins;
 
     @Override
@@ -45,6 +45,12 @@ public class WebConfig implements WebMvcConfigurer {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toArray(String[]::new);
+        // 自部署的域名/IP 千差万别，默认放行任意来源；认证走 satoken 请求头而非 Cookie，
+        // 因此不开 allowCredentials，通配符不会让第三方站点读到登录态数据。
+        // 需要收紧时把 MINIWHO_CORS_ORIGINS 设为逗号分隔的具体来源即可。
+        if (origins.length == 0 || Arrays.asList(origins).contains("*")) {
+            origins = new String[]{"*"};
+        }
         registry.addMapping("/api/**")
                 .allowedOriginPatterns(origins)
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
