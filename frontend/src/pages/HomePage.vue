@@ -60,7 +60,7 @@ const steps = [
 const faqs = [
   {
     q: '这个项目真的免费吗？',
-    a: '是的。极简简历以 MIT License 开源，没有会员、付费模板或导出限制。你可以直接使用，也可以部署到自己的服务器。'
+    a: '是的。极简简历以 Apache License 2.0 开源，没有会员、付费模板或导出限制。你可以直接使用，也可以部署到自己的服务器。'
   },
   {
     q: '简历数据存在哪里？',
@@ -110,7 +110,7 @@ const faqs = [
           </div>
           <div class="hero__meta">
             <span><el-icon><Check /></el-icon> 永久免费</span>
-            <span><el-icon><Check /></el-icon> MIT 开源</span>
+            <span><el-icon><Check /></el-icon> Apache 2.0 开源</span>
             <span><el-icon><Check /></el-icon> 可自托管</span>
           </div>
           <div class="hero__stats">
@@ -363,7 +363,7 @@ const faqs = [
             <span class="share-demo__copy">已复制</span>
           </div>
           <div class="share-demo__paper">
-            <span class="share-demo__name serif">{{ sampleName || '林知远' }}</span>
+            <span class="share-demo__name serif">{{ sampleName || '郝简历' }}</span>
             <span class="share-demo__mask">138 ···· 0000</span>
             <span class="share-demo__mask">lin.····@example.com</span>
           </div>

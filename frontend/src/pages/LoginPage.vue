@@ -132,9 +132,9 @@ onMounted(() => {
       </div>
 
       <div class="auth-aside__bottom">
-        <span>MIT License</span>
+        <span>Apache License 2.0</span>
         <span>数据默认保存在本机</span>
-        <span>无广告 · 无追踪</span>
+        <span>无广告 · 无第三方追踪</span>
       </div>
     </aside>
 

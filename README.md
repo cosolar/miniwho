@@ -17,7 +17,7 @@
 - [API 文档](docs/API.md)
 - [模板包格式](docs/模板包格式.md)
 - [模板主题开发指南](docs/模板主题开发指南.md)
-- [MIT License](LICENSE)
+- [Apache License 2.0](LICENSE)
 
 ---
 
@@ -167,7 +167,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-访问 `http://localhost:8088`。默认仅将后端 `8080` 绑定到宿主机 `127.0.0.1`，外部请统一走 Nginx 的 `/api` 反向代理。
+访问 `http://localhost:8088`。前端页面与 API 打在**同一个镜像**里（前端产物随 jar 发布），对外只暴露一个端口；MySQL 仍是独立服务。
 
 详细参数、数据备份、升级与反向代理配置见 [部署指南](docs/部署指南.md)。
 
@@ -195,7 +195,6 @@ miniwho/
 │   │   ├── db/                     # SQLite / MySQL 建表脚本
 │   │   ├── template-packages/      # 12 套官方模板包（JSON）
 │   │   └── seed/                   # 示例简历
-│   ├── Dockerfile
 │   └── pom.xml
 ├── frontend/                       # Vue 3 SPA
 │   ├── public/                     # 品牌图形 + 示例证件照（按性别挑）
@@ -208,15 +207,15 @@ miniwho/
 │   │   ├── pages/                  # 首页、工作台、预览、分享、报告、后台
 │   │   ├── router/ stores/ styles/ utils/
 │   │   └── main.js
-│   ├── nginx.conf
-│   ├── Dockerfile
 │   └── package.json
 ├── docs/
 │   ├── assets/                     # LOGO 原图与横版导出
 │   ├── 使用教程.md
 │   ├── 部署指南.md
 │   ├── API.md
-│   └── 模板包格式.md               # 作者指南：字段、能力白名单、CSS 规则
+│   ├── 模板包格式.md               # 作者指南：字段、能力白名单、CSS 规则
+│   └── 模板主题开发指南.md          # 从零做一套主题：配方库、分页铁律、验收清单
+├── Dockerfile                      # 单镜像：前端产物 + Spring Boot
 ├── docker-compose.yml
 ├── .env.example
 ├── LICENSE
@@ -234,7 +233,7 @@ miniwho/
 | `SERVER_PORT` | `8080` | 后端端口 |
 | `MINIWHO_DB` | `./miniwho.db` | SQLite 文件路径 |
 | `MINIWHO_UPLOAD_DIR` | `./uploads` | 附件存储目录 |
-| `MINIWHO_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | 允许的前端来源，逗号分隔 |
+| `MINIWHO_CORS_ORIGINS` | `*` | 允许的前端来源，逗号分隔；`*` 表示放行任意来源（不使用 Cookie 鉴权） |
 | `MINIWHO_SEED_DEMO` | `true` | 是否创建 demo / admin 与示例数据 |
 | `MINIWHO_DEMO_PASSWORD` | `demo123` | demo 账号密码 |
 | `MINIWHO_ADMIN_PASSWORD` | `admin123` | admin 账号密码 |
@@ -265,7 +264,7 @@ miniwho/
 - 分享页按白名单移除隐藏字段后返回，前端无法还原被隐藏的手机号或邮箱。
 - 评分在服务端本地计算，不调用第三方 AI 或分析服务。
 - 附件默认保存在本地磁盘；容器部署使用 named volume。
-- 项目不包含埋点、广告或第三方统计脚本。
+- 项目不包含广告或第三方统计脚本。页脚的访问次数与在线人数由本项目自己统计：只用一个前端本地生成的随机访客 id 去重与心跳，不采集 IP、UA 或浏览行为，也不会发往任何外部服务。
 - 演示数据均为虚构，请勿在公开实例中填写真实身份证号等敏感信息。
 
 ---
@@ -295,6 +294,8 @@ miniwho/
 
 ## License
 
-[MIT](LICENSE) © 2026 MiniWho contributors
+[Apache License 2.0](LICENSE) © 2026 MiniWho contributors
+
+可以自由使用、修改、商用与再分发，但必须保留 `LICENSE` 与 [`NOTICE`](NOTICE)，保留原作者的版权与署名信息，并在修改过的文件里注明改动。详见 [NOTICE](NOTICE)。
 
 简历内容归创建者所有；使用本项目时请遵守所在地法律法规与目标企业的投递规范。
