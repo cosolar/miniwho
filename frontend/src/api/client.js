@@ -29,9 +29,18 @@ client.interceptors.response.use(
     error.status = response.status
     throw error
   },
-  (responseError) => {
+  async (responseError) => {
     const response = responseError.response
-    const body = response?.data
+    let body = response?.data
+    // responseType: 'blob' 的请求（PDF / 模板包下载）出错时，错误载荷也是 Blob，
+    // 不解析出来就只剩「请求失败」，看不到「导出任务繁忙」这类具体提示。
+    if (body instanceof Blob && (body.type || '').includes('json')) {
+      try {
+        body = JSON.parse(await body.text())
+      } catch {
+        body = undefined
+      }
+    }
     const error = new Error(body?.message || (response ? '请求失败，请稍后重试' : '无法连接服务器，请确认后端已启动'))
     error.code = body?.code || 'NETWORK_ERROR'
     error.details = body?.data

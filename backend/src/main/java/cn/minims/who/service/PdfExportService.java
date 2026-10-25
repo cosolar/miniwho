@@ -203,9 +203,9 @@ public class PdfExportService {
                 // 模板包可以被重新导入覆盖，编码不变但渲染配置变了；把配置放进键里，
                 // 升级模板后不会继续命中上一版式样的缓存 PDF。
                 template == null || template.getConfig() == null ? "-" : template.getConfig(),
-                style.path("filter").asText("standard"),
-                String.valueOf(style.path("fontSizeStep").asInt(0)),
-                String.valueOf(style.path("spacingStep").asInt(0)));
+                // 整份样式都进键：滤镜、字号、行距、页脚开关，以及以后新增的样式项，
+                // 避免切换其中任何一项后仍命中旧 PDF。
+                json.write(style));
         return "exports/" + sha1(raw) + ".pdf";
     }
 
