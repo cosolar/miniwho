@@ -66,7 +66,7 @@ public class DataInitializer implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         seedTemplates();
         if (seedDemo) {
-            User demo = ensureUser("demo", demoPassword, "林知远", "demo@miniwho.local", "user");
+            User demo = ensureUser("demo", demoPassword, "郝简历", "demo@miniwho.local", "user");
             ensureUser("admin", adminPassword, "管理员", "admin@miniwho.local", "admin");
             seedDemoResume(demo);
             seedFeedback(demo);
@@ -172,7 +172,7 @@ public class DataInitializer implements ApplicationRunner {
             return;
         }
         var resume = resumeService.create(demo.getId(),
-                new CreateResumeRequest("林知远 · AI Agent Harness 研究员", "zh", "qinghe", true));
+                new CreateResumeRequest("郝简历 · AI Agent Harness 研究员", "zh", "qinghe", true));
         resumeMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Resume>()
                 .eq(Resume::getId, resume.id())
                 .set(Resume::getIsSample, 1)

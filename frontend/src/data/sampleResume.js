@@ -17,16 +17,16 @@ export const sampleContent = {
       items: [{
         id: 'itm_basic',
         fields: {
-          name: '林知远',
+          name: '郝简历',
           gender: '男',
           showGender: true,
           phone: '13800000000',
-          email: 'lin.zhiyuan@example.com',
+          email: 'hao.jianli@example.com',
           identity: '应届生',
           city: '北京',
           birthday: '2001-03',
           showAge: true,
-          website: 'https://example.com/linzhiyuan'
+          website: 'https://example.com/haojianli'
         }
       }]
     },
@@ -238,7 +238,7 @@ export const sampleContent = {
       items: [{
         id: 'itm_paper',
         fields: {
-          content: '<ul><li>林知远, 等. <strong>HarnessBench：面向长程软件任务的智能体执行框架评测</strong>. CCF-B 类会议, 2026.（第一作者）</li><li>林知远, 等. <strong>多智能体代码修复中的验证反馈机制</strong>. CCF-C 类会议, 2025.（第二作者）</li></ul>'
+          content: '<ul><li>郝简历, 等. <strong>HarnessBench：面向长程软件任务的智能体执行框架评测</strong>. CCF-B 类会议, 2026.（第一作者）</li><li>郝简历, 等. <strong>多智能体代码修复中的验证反馈机制</strong>. CCF-C 类会议, 2025.（第二作者）</li></ul>'
         }
       }]
     },

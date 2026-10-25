@@ -16,7 +16,7 @@ export const SECTION_META = {
     single: true,
     hideable: false,
     fields: [
-      field('name', '姓名', 'text', { span: 12, placeholder: '例如：林知远', maxlength: 20 }),
+      field('name', '姓名', 'text', { span: 12, placeholder: '例如：郝简历', maxlength: 20 }),
       field('gender', '性别', 'select', { span: 6, options: ['男', '女', '不公开'] }),
       field('showGender', '展示性别', 'switch', { span: 6 }),
       field('phone', '手机号', 'tel', { span: 12, placeholder: '用于接收面试通知', maxlength: 30 }),

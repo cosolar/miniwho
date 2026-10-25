@@ -194,7 +194,7 @@ satoken: <token>
 {
   "id": 1,
   "username": "demo",
-  "nickname": "林知远",
+  "nickname": "郝简历",
   "email": "demo@miniwho.local",
   "role": "user",
   "status": 1,
@@ -389,7 +389,7 @@ Content-Type: application/json
 ```json
 {
   "id": 1,
-  "title": "林知远 · 后端开发工程师",
+  "title": "郝简历 · 后端开发工程师",
   "language": "zh",
   "templateCode": "qinghe",
   "templateName": "青禾",
@@ -405,7 +405,7 @@ Content-Type: application/json
 ```json
 {
   "id": 1,
-  "title": "林知远 · 后端开发工程师",
+  "title": "郝简历 · 后端开发工程师",
   "language": "zh",
   "templateCode": "qinghe",
   "templateName": "青禾",
@@ -840,7 +840,7 @@ satoken: <token>
         {
           "id": "itm_basic_info",
           "fields": {
-            "name": "林知远",
+            "name": "郝简历",
             "gender": "男",
             "showGender": true,
             "phone": "13800000000",
@@ -1066,7 +1066,7 @@ Content-Type: application/json
 {
   "id": 3,
   "token": "Yk9v...43字符随机串",
-  "resumeTitle": "林知远 · 后端开发工程师",
+  "resumeTitle": "郝简历 · 后端开发工程师",
   "expiresAt": 1795238790000,
   "allowDownload": true,
   "hiddenFields": ["phone", "email", "city", "website"],
@@ -1130,7 +1130,7 @@ Content-Type: application/json
 ```json
 {
   "token": "Yk9v...",
-  "title": "林知远 · 后端开发工程师",
+  "title": "郝简历 · 后端开发工程师",
   "language": "zh",
   "templateCode": "qinghe",
   "content": { "schemaVersion": 1, "language": "zh", "sections": [] },
@@ -1140,7 +1140,7 @@ Content-Type: application/json
   "allowDownload": true,
   "expiresAt": 1795238790000,
   "updatedAt": 1792646790000,
-  "ownerName": "林知远",
+  "ownerName": "郝简历",
   "brandFooter": true,
   "avatar": { "shape": "circle", "url": "/api/public/avatars/1?token=<签名链接>", "sizeBytes": 37423, "updatedAt": 1792662105397 }
 }
@@ -1262,7 +1262,7 @@ GET /api/admin/users
   {
     "id": 1,
     "username": "demo",
-    "nickname": "林知远",
+    "nickname": "郝简历",
     "email": "demo@miniwho.local",
     "role": "user",
     "status": 1,
