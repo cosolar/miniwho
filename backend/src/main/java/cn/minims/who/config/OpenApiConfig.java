@@ -49,6 +49,7 @@ public class OpenApiConfig {
                         new Tag().name("反馈").description("用户反馈提交"),
                         new Tag().name("管理后台").description("管理员用户、模板与反馈管理"),
                         new Tag().name("导出").description("PDF 导出与渲染能力状态"),
+                        new Tag().name("站点统计").description("页脚展示的访问次数与在线人数"),
                         new Tag().name("系统").description("健康检查")
                 ));
     }

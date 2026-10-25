@@ -101,6 +101,13 @@ export const feedbackApi = {
   submit: (payload) => client.post('/feedback', payload)
 }
 
+export const statsApi = {
+  /** 公开统计：累计访问次数 + 最近 5 分钟在线人数。 */
+  get: () => client.get('/public/stats'),
+  visit: (visitorId) => client.post('/public/stats/visit', { visitorId }),
+  ping: (visitorId) => client.post('/public/stats/ping', { visitorId })
+}
+
 export const adminApi = {
   stats: () => client.get('/admin/stats'),
   users: () => client.get('/admin/users'),

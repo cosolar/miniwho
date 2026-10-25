@@ -112,3 +112,10 @@ CREATE TABLE IF NOT EXISTS feedback (
     created_at BIGINT,
     updated_at BIGINT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 站点统计只存累计值，在线人数由应用内存里的心跳窗口计算，不落库。
+CREATE TABLE IF NOT EXISTS site_stats (
+    stat_key   VARCHAR(50) PRIMARY KEY,
+    stat_value BIGINT      NOT NULL DEFAULT 0,
+    updated_at BIGINT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -168,4 +168,12 @@ public final class Dtos {
      */
     public record SampleResume(String templateCode, JsonNode content) {
     }
+
+    /** 页脚统计：累计访问次数与最近 5 分钟内有心跳的在线人数。 */
+    public record SiteStatsVo(long visits, int online) {
+    }
+
+    /** 访客 id 由前端本地生成，只用于去重与心跳，服务端不落库。 */
+    public record SiteVisitRequest(@Size(max = 64, message = "访客标识过长") String visitorId) {
+    }
 }
