@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Download, Search, View, Check } from '@element-plus/icons-vue'
+import { Download, Search, User, View, Check } from '@element-plus/icons-vue'
 import TemplateThumb from '../components/TemplateThumb.vue'
 import PaperFrame from '../components/PaperFrame.vue'
 import { TEMPLATE_CATEGORIES } from '../data/templatePresets'
@@ -136,7 +136,7 @@ onMounted(async () => {
             <p>{{ templates.length }} 套模板，全部免费。官方版式随应用发版，社区版式由本站用户分享；每一份预览都由真实结构化内容渲染，不是示意图。选好后可以随时切换，内容不会丢；允许导出的版式还能下载成模板包，改一改再分享。</p>
           </div>
           <div class="templates-hero__meta">
-            <span class="mono">ALL FREE / MIT</span>
+            <span class="mono">ALL FREE / OPEN SOURCE</span>
             <strong>{{ templates.length }}</strong>
             <small>套版式 · 官方 {{ officialCount }} / 社区 {{ communityCount }}</small>
           </div>
@@ -179,7 +179,9 @@ onMounted(async () => {
                 <h2>{{ tpl.name }}</h2>
                 <span class="tag tag--accent">{{ tpl.category }}</span>
                 <span v-if="tpl.source !== 'imported'" class="tag">官方</span>
-                <span v-else class="tag">{{ tpl.author || '未署名' }} 分享{{ tpl.isMine ? ' · 我的' : '' }}</span>
+                <span v-else class="tag">
+                  <el-icon><User /></el-icon>{{ tpl.author || '未署名' }}
+                </span>
               </div>
               <p>{{ tpl.description }}</p>
               <div class="template-card__tags">

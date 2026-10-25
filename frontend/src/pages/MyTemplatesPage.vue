@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Download, InfoFilled, Plus, Search, Upload, View, Warning } from '@element-plus/icons-vue'
+import { Delete, Download, Edit, InfoFilled, Plus, Search, Upload, View, Warning } from '@element-plus/icons-vue'
 import AppLayout from '../layouts/AppLayout.vue'
 import PaperFrame from '../components/PaperFrame.vue'
 import TemplateThumb from '../components/TemplateThumb.vue'
@@ -24,6 +24,12 @@ const packageProblems = ref([])
 const packageDialog = ref(false)
 const previewTarget = ref(null)
 const previewVisible = ref(false)
+const editingTpl = ref(null)
+const editorVisible = ref(false)
+const editorText = ref('')
+const editorLoading = ref(false)
+const editorSaving = ref(false)
+const editorProblems = ref([])
 
 const LAYOUT_LABELS = {
   minimal: '单栏留白',
@@ -169,6 +175,65 @@ function openPreview(tpl) {
   previewVisible.value = true
 }
 
+/** 在线编辑：把作者自己的模板包原文取回来，改完直接重新导入同名编码即可原地更新。 */
+async function openJsonEditor(tpl) {
+  editingTpl.value = tpl
+  editorText.value = ''
+  editorProblems.value = []
+  editorLoading.value = true
+  editorVisible.value = true
+  try {
+    const blob = await templateApi.exportPackage(tpl.code)
+    editorText.value = await blob.text()
+  } catch (error) {
+    editorVisible.value = false
+    notifyError(error, '读取模板包失败')
+  } finally {
+    editorLoading.value = false
+  }
+}
+
+function formatEditor() {
+  try {
+    editorText.value = JSON.stringify(JSON.parse(editorText.value), null, 2)
+  } catch (error) {
+    ElMessage.error(`JSON 语法错误：${error.message}`)
+  }
+}
+
+async function saveEditor() {
+  let payload
+  try {
+    payload = JSON.parse(editorText.value)
+  } catch (error) {
+    ElMessage.error(`JSON 语法错误：${error.message}`)
+    return
+  }
+  const composed = `${payload?.id?.namespace ?? ''}--${payload?.id?.code ?? ''}`
+  if (composed !== editingTpl.value?.code) {
+    ElMessage.error('不能修改 id.namespace 与 id.code，否则会变成另一个模板')
+    return
+  }
+  editorProblems.value = []
+  editorSaving.value = true
+  try {
+    const saved = await templateApi.importPackage(payload)
+    await loadTemplates()
+    editorVisible.value = false
+    ElMessage.success(`「${saved.name}」已更新，新版式立即生效`)
+  } catch (error) {
+    const problems = error?.details?.problems
+    if (Array.isArray(problems) && problems.length) {
+      editorProblems.value = problems
+      ElMessage.error('模板包未通过校验，按下面提示改完再保存')
+    } else {
+      notifyError(error, '模板包保存失败')
+    }
+  } finally {
+    editorSaving.value = false
+  }
+}
+
 onMounted(loadTemplates)
 </script>
 
@@ -307,6 +372,10 @@ onMounted(loadTemplates)
                   用它新建简历<i>→</i>
                 </button>
                 <div class="mine-card__ghosts">
+                  <el-button size="small" link @click="openJsonEditor(tpl)">
+                    <el-icon><Edit /></el-icon> 编辑
+                  </el-button>
+                  <span class="ghost-sep" aria-hidden="true"></span>
                   <el-button size="small" link :loading="busyCode === tpl.code" @click="exportPackage(tpl)">
                     <el-icon><Download /></el-icon> 导出
                   </el-button>
@@ -378,6 +447,57 @@ onMounted(loadTemplates)
           <p class="preview-dialog__hint">预览用的是站内示例简历。分享与导出权限在卡片上的开关里调整。</p>
         </aside>
       </div>
+    </el-dialog>
+
+    <el-dialog
+      v-model="editorVisible"
+      class="json-dialog"
+      width="880px"
+      align-center
+      destroy-on-close
+    >
+      <template #header>
+        <div class="json-dialog__head">
+          <div>
+            <span class="mono">EDIT PACKAGE / {{ editingTpl?.code }}</span>
+            <h2>{{ editingTpl?.name || '编辑模板包' }}</h2>
+          </div>
+          <span class="tag">保存后立即生效</span>
+        </div>
+      </template>
+
+      <p class="json-dialog__hint">
+        直接改模板包 JSON：字段与校验规则见 <code>docs/模板包格式.md</code>。
+        不能修改 <code>id.namespace</code> / <code>id.code</code>，否则会变成另一个模板；CSS 仍会由服务端逐条重新生成。
+      </p>
+
+      <el-input
+        v-model="editorText"
+        type="textarea"
+        :rows="22"
+        :disabled="editorLoading"
+        :placeholder="editorLoading ? '正在读取模板包…' : ''"
+        class="json-editor"
+        spellcheck="false"
+      />
+
+      <div v-if="editorProblems.length" class="json-problems">
+        <p>未通过校验（{{ editorProblems.length }} 处）：</p>
+        <ol>
+          <li v-for="(problem, index) in editorProblems" :key="index">{{ problem }}</li>
+        </ol>
+      </div>
+
+      <template #footer>
+        <div class="json-dialog__foot">
+          <el-button link :disabled="editorLoading" @click="formatEditor">格式化</el-button>
+          <span class="json-dialog__spacer" />
+          <el-button @click="editorVisible = false">取消</el-button>
+          <el-button type="primary" :loading="editorSaving" :disabled="editorLoading" @click="saveEditor">
+            保存并生效
+          </el-button>
+        </div>
+      </template>
     </el-dialog>
 
     <el-dialog v-model="packageDialog" width="520px" align-center class="package-dialog">
@@ -827,6 +947,11 @@ onMounted(loadTemplates)
   gap: 2px;
 }
 
+.mine-card__ghosts :deep(.el-button) {
+  margin-left: 0;
+  padding: 0 4px;
+}
+
 .ghost-sep {
   width: 1px;
   height: 10px;
@@ -903,6 +1028,86 @@ onMounted(loadTemplates)
   color: var(--faint);
   font-size: 9px;
   letter-spacing: 0.04em;
+}
+
+:global(.json-dialog) {
+  max-width: calc(100vw - 32px);
+  border-radius: 16px;
+}
+
+.json-dialog__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.json-dialog__head .mono {
+  color: var(--faint);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+}
+
+.json-dialog__head h2 {
+  margin-top: 6px;
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.json-dialog__hint {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.8;
+}
+
+.json-dialog__hint code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+
+.json-editor :deep(.el-textarea__inner) {
+  max-height: 54vh;
+  padding: 12px 14px;
+  background: var(--paper-deep);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.65;
+  tab-size: 2;
+}
+
+.json-problems {
+  max-height: 140px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  overflow-y: auto;
+  border: 1px solid rgba(181, 72, 63, 0.25);
+  border-radius: 10px;
+  background: #fbeeec;
+  color: var(--danger);
+  font-size: 11.5px;
+  line-height: 1.7;
+}
+
+.json-problems ol {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.json-dialog__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.json-dialog__spacer {
+  flex: 1;
 }
 
 :global(.preview-dialog) {
