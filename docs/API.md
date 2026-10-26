@@ -2,7 +2,7 @@
 
 面向需要二次开发、编写脚本或对接前端的开发者。所有接口均以 `/api` 为前缀，默认返回 JSON（附件预览与下载除外）。
 
-- 后端版本：`1.0.0`
+- 后端版本：`1.0.1`
 - 默认地址：`http://localhost:8080/api`
 - 鉴权方式：Sa-Token，请求头 `satoken`
 - 数据格式：`application/json; charset=utf-8`

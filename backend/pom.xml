@@ -13,7 +13,7 @@
 
     <groupId>cn.minims.who</groupId>
     <artifactId>miniwho</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <name>miniwho</name>
     <description>极简简历 MiniWho - 开源在线简历工作台</description>
 

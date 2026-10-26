@@ -172,7 +172,7 @@ docker run -d --name miniwho \
   -e MINIWHO_DEMO_PASSWORD='改成强密码' \
   -e MINIWHO_MEDIA_SECRET="$(openssl rand -hex 32)" \
   --shm-size=512m \
-  cosolar/miniwho:1.0.0
+  cosolar/miniwho:1.0.1
 ```
 
 访问 `http://localhost:8088`。镜像仅 `linux/amd64`，内置 Chromium 与 Noto CJK 字体，服务端 PDF 开箱可用；`MINIWHO_DB` 指向卷内，删容器不丢数据。
@@ -187,7 +187,7 @@ docker compose up -d --build
 
 访问 `http://localhost:8088`。前端页面与 API 打在**同一个镜像**里（前端产物随 jar 发布），对外只暴露一个端口；MySQL 仍是独立服务。
 
-只想用 MySQL、又不想本地构建时，把 compose 里的 `app` 改成 `image: cosolar/miniwho:1.0.0` 即可，现成文件与全部参数见 [部署指南](docs/部署指南.md)。
+只想用 MySQL、又不想本地构建时，把 compose 里的 `app` 改成 `image: cosolar/miniwho:1.0.1` 即可，现成文件与全部参数见 [部署指南](docs/部署指南.md)。
 
 ---
 
