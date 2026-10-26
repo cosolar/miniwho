@@ -10,15 +10,9 @@
 
 前端 Vue 3 + Element Plus，后端 Java 17 + Spring Boot 3 + Sa-Token + MyBatis-Plus，默认 SQLite、可选 MySQL 8。**全部功能免费，无会员、无付费模板、无外部 AI 调用。**
 
-品牌域名：**[who.minims.cn](https://who.minims.cn)**（官方演示站；若暂时打不开，说明演示实例未开放，按下面的快速开始自建即可）
+简历制作：**[who.minims.cn](https://who.minims.cn)**（官方站点）
 
-- [使用教程](docs/使用教程.md)
-- [部署指南](docs/部署指南.md)
-- [API 文档](docs/API.md)
-- [模板包格式](docs/模板包格式.md)
-- [模板主题开发指南](docs/模板主题开发指南.md)
-- [Apache License 2.0](LICENSE)
-
+![logo-cover.png](docs/assets/logo-cover.png)
 ---
 
 ## 名字的含义
@@ -112,6 +106,12 @@
 | 数据库 | SQLite（默认）/ MySQL 8 |
 | 部署 | Docker 镜像（`cosolar/miniwho`）/ Docker Compose、Nginx、Maven、npm |
 
+- [使用教程](docs/使用教程.md)
+- [部署指南](docs/部署指南.md)
+- [API 文档](docs/API.md)
+- [模板包格式](docs/模板包格式.md)
+- [模板主题开发指南](docs/模板主题开发指南.md)
+- [Apache License 2.0](LICENSE)
 ---
 
 ## 快速开始
@@ -304,6 +304,7 @@ miniwho/
 欢迎通过 Issue / PR 补充能力，也欢迎直接 Fork 改造成团队内部工具。
 
 ---
+
 
 ## 贡献
 
