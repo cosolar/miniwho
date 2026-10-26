@@ -19,7 +19,8 @@ COPY backend/pom.xml ./
 RUN mvn -q -DskipTests dependency:go-offline
 COPY backend/src ./src
 COPY --from=web /build/frontend/dist ./src/main/resources/static
-RUN mvn -q -DskipTests package
+# jar 名带版本号，统一改名为 app.jar，升版本不用动 Dockerfile
+RUN mvn -q -DskipTests package && mv target/miniwho-*.jar target/app.jar
 
 FROM eclipse-temurin:17-jre-alpine
 
@@ -28,7 +29,7 @@ RUN apk add --no-cache chromium font-noto-cjk font-noto \
   && addgroup -S app && adduser -S app -G app
 WORKDIR /app
 
-COPY --from=api /build/target/miniwho-1.0.0.jar app.jar
+COPY --from=api /build/target/app.jar app.jar
 RUN mkdir -p /app/uploads && chown -R app:app /app
 
 USER app
