@@ -2,9 +2,8 @@ package cn.minims.who.controller;
 
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
-import cn.minims.who.dto.Dtos.ItemMediaVo;
+import cn.minims.who.dto.MediaDtos.ItemMediaVo;
 import cn.minims.who.service.ItemMediaService;
-import cn.minims.who.service.ResumeService;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,18 +22,16 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/resumes")
 public class ItemMediaController {
 
-    private final ResumeService resumeService;
     private final ItemMediaService itemMediaService;
     private final AuthUtil authUtil;
 
-    public ItemMediaController(ResumeService resumeService, ItemMediaService itemMediaService, AuthUtil authUtil) {
-        this.resumeService = resumeService;
+    public ItemMediaController(ItemMediaService itemMediaService, AuthUtil authUtil) {
         this.itemMediaService = itemMediaService;
         this.authUtil = authUtil;
     }
 
     @PostMapping("/{id}/media")
     public ApiResponse<ItemMediaVo> upload(@PathVariable long id, @RequestParam("file") MultipartFile file) {
-        return ApiResponse.ok(itemMediaService.upload(resumeService.findOwned(authUtil.userId(), id), file));
+        return ApiResponse.ok(itemMediaService.upload(authUtil.userId(), id, file));
     }
 }

@@ -62,7 +62,8 @@ spring:
 
 springdoc:
   api-docs:
-    enabled: ${MINIWHO_OPENAPI_ENABLED:true}
+    # 默认关：接口清单不该匿名暴露在公网；本地调试时设 MINIWHO_OPENAPI_ENABLED=true。
+    enabled: ${MINIWHO_OPENAPI_ENABLED:false}
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
@@ -103,7 +104,8 @@ app:
     queue-timeout-seconds: ${MINIWHO_PDF_QUEUE_TIMEOUT:20}
   seed-demo: ${MINIWHO_SEED_DEMO:true}
   demo-password: ${MINIWHO_DEMO_PASSWORD:demo123}
-  admin-password: ${MINIWHO_ADMIN_PASSWORD:admin123}
+  # 管理员密码没有默认值：首次启动（库里还没有 admin 账号）时未设置会直接拒绝启动
+  admin-password: ${MINIWHO_ADMIN_PASSWORD:}
 
 logging:
   level:

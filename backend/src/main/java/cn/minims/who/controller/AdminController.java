@@ -3,12 +3,16 @@ package cn.minims.who.controller;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
-import cn.minims.who.dto.Dtos.AdminFeedbackRequest;
-import cn.minims.who.dto.Dtos.AdminSampleRequest;
-import cn.minims.who.dto.Dtos.AdminTemplateStatusRequest;
-import cn.minims.who.dto.Dtos.AdminUserStatusRequest;
-import cn.minims.who.entity.Feedback;
-import cn.minims.who.entity.Template;
+import cn.minims.who.common.RequireAdmin;
+import cn.minims.who.dto.AdminDtos.AdminFeedbackRequest;
+import cn.minims.who.dto.AdminDtos.AdminFeedbackVo;
+import cn.minims.who.dto.AdminDtos.AdminSampleRequest;
+import cn.minims.who.dto.AdminDtos.AdminSampleVo;
+import cn.minims.who.dto.AdminDtos.AdminStatsVo;
+import cn.minims.who.dto.AdminDtos.AdminTemplateStatusRequest;
+import cn.minims.who.dto.AdminDtos.AdminTemplateVo;
+import cn.minims.who.dto.AdminDtos.AdminUserStatusRequest;
+import cn.minims.who.dto.AdminDtos.AdminUserVo;
 import cn.minims.who.service.AdminService;
 import cn.minims.who.service.TemplateService;
 import cn.minims.who.template.TemplatePackageCodec;
@@ -26,9 +30,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 
 @Tag(name = "管理后台")
+@RequireAdmin
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
@@ -47,34 +51,29 @@ public class AdminController {
     }
 
     @GetMapping("/stats")
-    public ApiResponse<Map<String, Object>> stats() {
-        authUtil.requireAdmin();
+    public ApiResponse<AdminStatsVo> stats() {
         return ApiResponse.ok(adminService.stats());
     }
 
     @GetMapping("/users")
-    public ApiResponse<List<Map<String, Object>>> users() {
-        authUtil.requireAdmin();
+    public ApiResponse<List<AdminUserVo>> users() {
         return ApiResponse.ok(adminService.users());
     }
 
     @PutMapping("/users/{id}/status")
     public ApiResponse<Void> updateUser(@PathVariable long id,
                                         @Valid @RequestBody AdminUserStatusRequest request) {
-        authUtil.requireAdmin();
         adminService.updateUserStatus(authUtil.userId(), id, request.status());
         return ApiResponse.ok();
     }
 
     @GetMapping("/templates")
-    public ApiResponse<List<Template>> templates() {
-        authUtil.requireAdmin();
+    public ApiResponse<List<AdminTemplateVo>> templates() {
         return ApiResponse.ok(adminService.templates());
     }
 
     @GetMapping("/templates/export")
     public ResponseEntity<String> exportTemplates() {
-        authUtil.requireAdmin();
         ArrayNode bundle = templateService.officialPackages();
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"miniwho-official-templates.json\"")
@@ -86,28 +85,24 @@ public class AdminController {
     @PutMapping("/templates/{code}/status")
     public ApiResponse<Void> updateTemplate(@PathVariable String code,
                                             @Valid @RequestBody AdminTemplateStatusRequest request) {
-        authUtil.requireAdmin();
         adminService.updateTemplateStatus(code, request.status());
         return ApiResponse.ok();
     }
 
     @GetMapping("/feedback")
-    public ApiResponse<List<Feedback>> feedback() {
-        authUtil.requireAdmin();
+    public ApiResponse<List<AdminFeedbackVo>> feedback() {
         return ApiResponse.ok(adminService.feedback());
     }
 
     /** 当前被设为首页示例的那份简历，未设置时 data 为 null。 */
     @GetMapping("/sample")
-    public ApiResponse<Map<String, Object>> sample() {
-        authUtil.requireAdmin();
+    public ApiResponse<AdminSampleVo> sample() {
         return ApiResponse.ok(adminService.sampleInfo());
     }
 
     @PutMapping("/resumes/{id}/sample")
     public ApiResponse<Void> updateSample(@PathVariable long id,
                                           @Valid @RequestBody AdminSampleRequest request) {
-        authUtil.requireAdmin();
         adminService.updateSample(id, Boolean.TRUE.equals(request.sample()));
         return ApiResponse.ok();
     }
@@ -115,7 +110,6 @@ public class AdminController {
     @PutMapping("/feedback/{id}")
     public ApiResponse<Void> updateFeedback(@PathVariable long id,
                                             @Valid @RequestBody AdminFeedbackRequest request) {
-        authUtil.requireAdmin();
         adminService.updateFeedback(id, request);
         return ApiResponse.ok();
     }

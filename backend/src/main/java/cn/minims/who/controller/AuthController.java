@@ -2,12 +2,12 @@ package cn.minims.who.controller;
 
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
-import cn.minims.who.dto.Dtos.ChangePasswordRequest;
-import cn.minims.who.dto.Dtos.LoginRequest;
-import cn.minims.who.dto.Dtos.LoginResponse;
-import cn.minims.who.dto.Dtos.RegisterRequest;
-import cn.minims.who.dto.Dtos.UpdateProfileRequest;
-import cn.minims.who.dto.Dtos.UserVo;
+import cn.minims.who.dto.AuthDtos.ChangePasswordRequest;
+import cn.minims.who.dto.AuthDtos.LoginRequest;
+import cn.minims.who.dto.AuthDtos.LoginResponse;
+import cn.minims.who.dto.AuthDtos.RegisterRequest;
+import cn.minims.who.dto.AuthDtos.UpdateProfileRequest;
+import cn.minims.who.dto.AuthDtos.UserVo;
 import cn.minims.who.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;

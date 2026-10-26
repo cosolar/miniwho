@@ -2,11 +2,9 @@ package cn.minims.who.controller;
 
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
-import cn.minims.who.dto.Dtos.AvatarShapeRequest;
-import cn.minims.who.dto.Dtos.AvatarVo;
-import cn.minims.who.entity.Resume;
+import cn.minims.who.dto.MediaDtos.AvatarShapeRequest;
+import cn.minims.who.dto.MediaDtos.AvatarVo;
 import cn.minims.who.service.AvatarService;
-import cn.minims.who.service.ResumeService;
 import jakarta.validation.Valid;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
@@ -27,43 +25,36 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/resumes")
 public class AvatarController {
 
-    private final ResumeService resumeService;
     private final AvatarService avatarService;
     private final AuthUtil authUtil;
 
-    public AvatarController(ResumeService resumeService, AvatarService avatarService, AuthUtil authUtil) {
-        this.resumeService = resumeService;
+    public AvatarController(AvatarService avatarService, AuthUtil authUtil) {
         this.avatarService = avatarService;
         this.authUtil = authUtil;
     }
 
     @PostMapping("/{id}/avatar")
     public ApiResponse<AvatarVo> upload(@PathVariable long id, @RequestParam("file") MultipartFile file) {
-        Resume resume = resumeService.findOwned(authUtil.userId(), id);
-        return ApiResponse.ok(avatarService.upload(resume, file));
+        return ApiResponse.ok(avatarService.upload(authUtil.userId(), id, file));
     }
 
     @GetMapping("/{id}/avatar")
     public ResponseEntity<Resource> file(@PathVariable long id) {
-        return avatarService.file(resumeService.findOwned(authUtil.userId(), id));
+        return avatarService.file(authUtil.userId(), id);
     }
 
     @GetMapping("/{id}/avatar/info")
     public ApiResponse<AvatarVo> info(@PathVariable long id) {
-        Resume resume = resumeService.findOwned(authUtil.userId(), id);
-        return ApiResponse.ok(avatarService.toVo(resume, null));
+        return ApiResponse.ok(avatarService.toVo(authUtil.userId(), id));
     }
 
     @PutMapping("/{id}/avatar-shape")
     public ApiResponse<AvatarVo> shape(@PathVariable long id, @Valid @RequestBody AvatarShapeRequest request) {
-        Resume resume = resumeService.findOwned(authUtil.userId(), id);
-        return ApiResponse.ok(avatarService.updateShape(resume, request));
+        return ApiResponse.ok(avatarService.updateShape(authUtil.userId(), id, request));
     }
 
     @DeleteMapping("/{id}/avatar")
     public ApiResponse<AvatarVo> delete(@PathVariable long id) {
-        Resume resume = resumeService.findOwned(authUtil.userId(), id);
-        avatarService.delete(resume);
-        return ApiResponse.ok(avatarService.toVo(resume, null));
+        return ApiResponse.ok(avatarService.delete(authUtil.userId(), id));
     }
 }

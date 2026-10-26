@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import cn.minims.who.common.BizException;
-import cn.minims.who.dto.Dtos.TemplateVo;
+import cn.minims.who.dto.TemplateDtos.TemplateVo;
 import cn.minims.who.entity.Resume;
 import cn.minims.who.entity.Template;
 import cn.minims.who.mapper.ResumeMapper;
@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongSupplier;
 
 @Service
 public class TemplateService {
@@ -104,7 +105,14 @@ public class TemplateService {
             target.setUsageCount(0);
             target.setVisibility(VISIBILITY_PRIVATE);
             target.setExportable(1);
-            templateMapper.insert(target);
+            try {
+                templateMapper.insert(target);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                // 先查后插之间编码被并发导入抢注，唯一索引兜底。
+                throw new BizException("TEMPLATE_CODE_TAKEN",
+                        "模板编码 " + code + " 已被占用，请修改包里的 id.code 或 id.namespace",
+                        HttpStatus.CONFLICT, Map.of("code", code));
+            }
         } else {
             // 重新导入只换版式，分享状态与导出权限由作者上一次的选择决定，不在这里重置。
             templateMapper.updateById(target);
@@ -150,7 +158,7 @@ public class TemplateService {
     }
 
     @Cacheable(cacheNames = "template-detail", key = "#code")
-    public TemplateVo getActive(String code) {
+    public TemplateVo getActive(String code, LongSupplier viewerId, boolean admin) {
         Template template = templateMapper.selectOne(new LambdaQueryWrapper<Template>()
                 .eq(Template::getCode, code)
                 .eq(Template::getStatus, 1)
@@ -158,7 +166,33 @@ public class TemplateService {
         if (template == null) {
             throw BizException.notFound("模板不存在或已下架");
         }
+        // 私有导入包不能只凭编码就读到配置；但已被任何简历在用的模板除外——
+        // 作者取消分享后，别人已有的简历仍要能渲染，与 requireUsable 的放行口径一致。
+        if (!canViewConfig(template, viewerId, admin)) {
+            throw BizException.notFound("模板不存在或已下架");
+        }
         return toVo(template);
+    }
+
+    private boolean canViewConfig(Template template, LongSupplier viewerId, boolean admin) {
+        String source = template.getSource() == null || template.getSource().isBlank()
+                ? "builtin" : template.getSource();
+        if ("builtin".equals(source) || VISIBILITY_PUBLIC.equals(template.getVisibility())) {
+            return true;
+        }
+        if (admin) {
+            return true;
+        }
+        if (template.getUsageCount() != null && template.getUsageCount() > 0) {
+            return true;
+        }
+        try {
+            return template.getOwnerUserId() != null
+                    && viewerId.getAsLong() == template.getOwnerUserId();
+        } catch (Exception e) {
+            // 未登录时取不到身份；私有且无人在用的模板一律 404，不暴露存在性。
+            return false;
+        }
     }
 
     public Template requireAny(String code) {
@@ -199,6 +233,34 @@ public class TemplateService {
                 || "builtin".equals(template.getSource())
                 || admin
                 || Long.valueOf(userId).equals(template.getOwnerUserId());
+    }
+
+    /**
+     * 导出包原文：官方包与作者开放的社区包对所有人开放，其余只认作者与管理员。
+     *
+     * <p>viewerId 延迟到私有包分支才取值：公开包不需要登录，未登录时也不该提前抛 401；
+     * 私有包在未登录时由取身份的一方抛出未登录异常，与改造前的行为保持一致。
+     */
+    public TemplateExport download(String code, LongSupplier viewerId, boolean admin) {
+        Template template = findByCode(code);
+        if (template == null) {
+            throw BizException.notFound("模板不存在");
+        }
+        boolean official = template.getSource() == null || "builtin".equals(template.getSource());
+        if (!official && !isPubliclyExportable(template)
+                && !canExport(template, viewerId.getAsLong(), admin)) {
+            throw BizException.forbidden("作者没有开放这个模板包的导出");
+        }
+        if (template.getPkg() == null || template.getPkg().isBlank()) {
+            throw BizException.notFound("该模板没有可导出的包文件");
+        }
+        String version = template.getVersion() == null || template.getVersion().isBlank()
+                ? "1.0.0" : template.getVersion();
+        return new TemplateExport(template.getCode() + "-" + version + ".json", codec.pretty(template.getPkg()));
+    }
+
+    /** 模板包下载体：文件名与格式化后的包原文都由服务层给出。 */
+    public record TemplateExport(String fileName, String content) {
     }
 
     /** 官方区备份：随发版进来的内置包原样打成一个数组，供部署迁移时一次导入。 */

@@ -2,7 +2,7 @@ package cn.minims.who.controller;
 
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
-import cn.minims.who.dto.Dtos.ReportVo;
+import cn.minims.who.dto.ResumeDtos.ReportVo;
 import cn.minims.who.service.ReportService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

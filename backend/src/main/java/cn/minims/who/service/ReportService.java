@@ -3,7 +3,7 @@ package cn.minims.who.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import cn.minims.who.content.ScoreEngine;
-import cn.minims.who.dto.Dtos.ReportVo;
+import cn.minims.who.dto.ResumeDtos.ReportVo;
 import cn.minims.who.entity.Resume;
 import cn.minims.who.entity.ResumeReport;
 import cn.minims.who.mapper.ResumeMapper;
@@ -12,8 +12,13 @@ import cn.minims.who.util.Json;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 public class ReportService {
+
+    /** 每份简历只保留最近 10 份报告，诊断是高频操作，表不能只增不删。 */
+    private static final int KEEP_PER_RESUME = 10;
 
     private final ResumeService resumeService;
     private final ResumeMapper resumeMapper;
@@ -43,6 +48,7 @@ public class ReportService {
         report.setDimensions(json.write(json.mapper().valueToTree(analysis.dimensions())));
         report.setIssues(json.write(json.mapper().valueToTree(analysis.issues())));
         reportMapper.insert(report);
+        pruneOldReports(resumeId);
 
         long now = System.currentTimeMillis();
         resumeMapper.update(null, new LambdaUpdateWrapper<Resume>()
@@ -63,6 +69,19 @@ public class ReportService {
             return null;
         }
         return toVo(report, report.getContentVersion().equals(resume.getContentVersion()));
+    }
+
+    private void pruneOldReports(long resumeId) {
+        List<ResumeReport> keep = reportMapper.selectList(new LambdaQueryWrapper<ResumeReport>()
+                .eq(ResumeReport::getResumeId, resumeId)
+                .orderByDesc(ResumeReport::getId)
+                .last("limit " + KEEP_PER_RESUME));
+        if (keep.size() < KEEP_PER_RESUME) {
+            return;
+        }
+        reportMapper.delete(new LambdaQueryWrapper<ResumeReport>()
+                .eq(ResumeReport::getResumeId, resumeId)
+                .lt(ResumeReport::getId, keep.get(keep.size() - 1).getId()));
     }
 
     private ReportVo toVo(ResumeReport report, boolean current) {

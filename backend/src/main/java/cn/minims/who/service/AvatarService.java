@@ -3,8 +3,8 @@ package cn.minims.who.service;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import cn.minims.who.common.BizException;
-import cn.minims.who.dto.Dtos.AvatarShapeRequest;
-import cn.minims.who.dto.Dtos.AvatarVo;
+import cn.minims.who.dto.MediaDtos.AvatarShapeRequest;
+import cn.minims.who.dto.MediaDtos.AvatarVo;
 import cn.minims.who.entity.Resume;
 import cn.minims.who.mapper.ResumeMapper;
 import cn.minims.who.util.Json;
@@ -47,19 +47,25 @@ public class AvatarService {
     public static final String MEDIA_SCOPE = "avatar";
 
     private final ResumeMapper resumeMapper;
+    private final ResumeAccessService accessService;
     private final AttachmentStore store;
     private final MediaTokenService mediaTokenService;
     private final Json json;
 
-    public AvatarService(ResumeMapper resumeMapper, AttachmentStore store, MediaTokenService mediaTokenService,
-                         Json json) {
+    public AvatarService(ResumeMapper resumeMapper, ResumeAccessService accessService, AttachmentStore store,
+                         MediaTokenService mediaTokenService, Json json) {
         this.resumeMapper = resumeMapper;
+        this.accessService = accessService;
         this.store = store;
         this.mediaTokenService = mediaTokenService;
         this.json = json;
     }
 
-    public AvatarVo upload(Resume resume, MultipartFile file) {
+    public AvatarVo upload(long userId, long resumeId, MultipartFile file) {
+        return upload(accessService.findOwned(userId, resumeId), file);
+    }
+
+    private AvatarVo upload(Resume resume, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw BizException.badRequest("请选择要上传的头像图片");
         }
@@ -91,7 +97,11 @@ public class AvatarService {
         return toVo(resume, (long) encoded.length);
     }
 
-    public AvatarVo updateShape(Resume resume, AvatarShapeRequest request) {
+    public AvatarVo updateShape(long userId, long resumeId, AvatarShapeRequest request) {
+        return updateShape(accessService.findOwned(userId, resumeId), request);
+    }
+
+    private AvatarVo updateShape(Resume resume, AvatarShapeRequest request) {
         resumeMapper.update(null, new LambdaUpdateWrapper<Resume>()
                 .eq(Resume::getId, resume.getId())
                 .set(Resume::getAvatarShape, request.shape())
@@ -100,7 +110,14 @@ public class AvatarService {
         return toVo(resume, null);
     }
 
-    public void delete(Resume resume) {
+    /** 删除后返回剩余的头像信息，前端可直接拿它刷新。 */
+    public AvatarVo delete(long userId, long resumeId) {
+        Resume resume = accessService.findOwned(userId, resumeId);
+        delete(resume);
+        return toVo(resume, null);
+    }
+
+    private void delete(Resume resume) {
         dropStoredFiles(resume.getId());
         resumeMapper.update(null, new LambdaUpdateWrapper<Resume>()
                 .eq(Resume::getId, resume.getId())
@@ -109,7 +126,17 @@ public class AvatarService {
         resume.setAvatarKey(null);
     }
 
-    public ResponseEntity<Resource> file(Resume resume) {
+    public ResponseEntity<Resource> file(long userId, long resumeId) {
+        return file(accessService.findOwned(userId, resumeId));
+    }
+
+    /** 签名媒体通道：<img> 带不了登录头，靠短时签名 token 放行，不做登录校验。 */
+    public ResponseEntity<Resource> publicFile(long resumeId, String token) {
+        mediaTokenService.verify(token, MEDIA_SCOPE, resumeId);
+        return file(accessService.requireExisting(resumeId));
+    }
+
+    private ResponseEntity<Resource> file(Resume resume) {
         Path path = currentPath(resume);
         if (path == null) {
             throw BizException.notFound("简历还没有头像");
@@ -129,7 +156,11 @@ public class AvatarService {
         }
     }
 
-    public AvatarVo toVo(Resume resume, Long knownSize) {
+    public AvatarVo toVo(long userId, long resumeId) {
+        return toVo(accessService.findOwned(userId, resumeId), null);
+    }
+
+    private AvatarVo toVo(Resume resume, Long knownSize) {
         Path path = currentPath(resume);
         if (path == null) {
             return new AvatarVo(false, shapeOf(resume), null, null, resume.getUpdatedAt());
@@ -146,7 +177,7 @@ public class AvatarService {
         return new AvatarVo(true, shapeOf(resume), url, size, resume.getUpdatedAt());
     }
 
-    public String shapeOf(Resume resume) {
+    private String shapeOf(Resume resume) {
         return "circle".equals(resume.getAvatarShape()) ? "circle" : "rect";
     }
 
@@ -164,7 +195,7 @@ public class AvatarService {
         return node;
     }
 
-    public Path currentPath(Resume resume) {
+    private Path currentPath(Resume resume) {
         String key = resume.getAvatarKey();
         if (key == null || key.isBlank()) {
             return null;

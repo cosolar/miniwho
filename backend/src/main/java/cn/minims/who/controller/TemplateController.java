@@ -3,12 +3,10 @@ package cn.minims.who.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
-import cn.minims.who.common.BizException;
-import cn.minims.who.dto.Dtos.TemplateShareRequest;
-import cn.minims.who.dto.Dtos.TemplateVo;
-import cn.minims.who.entity.Template;
+import cn.minims.who.dto.TemplateDtos.TemplateShareRequest;
+import cn.minims.who.dto.TemplateDtos.TemplateVo;
 import cn.minims.who.service.TemplateService;
-import cn.minims.who.template.TemplatePackageCodec;
+import cn.minims.who.service.TemplateService.TemplateExport;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -34,12 +32,10 @@ public class TemplateController {
     private static final MediaType JSON_UTF8 = new MediaType(MediaType.APPLICATION_JSON, StandardCharsets.UTF_8);
 
     private final TemplateService templateService;
-    private final TemplatePackageCodec codec;
     private final AuthUtil authUtil;
 
-    public TemplateController(TemplateService templateService, TemplatePackageCodec codec, AuthUtil authUtil) {
+    public TemplateController(TemplateService templateService, AuthUtil authUtil) {
         this.templateService = templateService;
-        this.codec = codec;
         this.authUtil = authUtil;
     }
 
@@ -80,30 +76,16 @@ public class TemplateController {
      */
     @GetMapping("/{code}/export")
     public ResponseEntity<String> export(@PathVariable String code) {
-        Template template = templateService.findByCode(code);
-        if (template == null) {
-            throw BizException.notFound("模板不存在");
-        }
-        boolean official = template.getSource() == null || "builtin".equals(template.getSource());
-        if (!official && !templateService.isPubliclyExportable(template)
-                && !templateService.canExport(template, authUtil.userId(), authUtil.isAdmin())) {
-            throw BizException.forbidden("作者没有开放这个模板包的导出");
-        }
-        if (template.getPkg() == null || template.getPkg().isBlank()) {
-            throw BizException.notFound("该模板没有可导出的包文件");
-        }
-        String version = template.getVersion() == null || template.getVersion().isBlank()
-                ? "1.0.0" : template.getVersion();
-        String fileName = template.getCode() + "-" + version + ".json";
+        TemplateExport export = templateService.download(code, authUtil::userId, authUtil.isAdmin());
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + export.fileName() + "\"")
                 .header(HttpHeaders.CACHE_CONTROL, "private, no-store")
                 .contentType(JSON_UTF8)
-                .body(codec.pretty(template.getPkg()));
+                .body(export.content());
     }
 
     @GetMapping("/{code}")
     public ApiResponse<TemplateVo> get(@PathVariable String code) {
-        return ApiResponse.ok(templateService.getActive(code));
+        return ApiResponse.ok(templateService.getActive(code, authUtil::userId, authUtil.isAdmin()));
     }
 }

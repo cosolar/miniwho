@@ -3,10 +3,16 @@ package cn.minims.who.config;
 import cn.dev33.satoken.interceptor.SaInterceptor;
 import cn.dev33.satoken.router.SaRouter;
 import cn.dev33.satoken.stp.StpUtil;
+import cn.minims.who.common.AdminInterceptor;
+import cn.minims.who.common.PayloadLimitFilter;
+import cn.minims.who.common.RateLimitInterceptor;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -19,8 +25,29 @@ public class WebConfig implements WebMvcConfigurer {
     @Value("${app.cors-origins:*}")
     private String corsOrigins;
 
+    private final AdminInterceptor adminInterceptor;
+    private final RateLimitInterceptor rateLimitInterceptor;
+
+    public WebConfig(AdminInterceptor adminInterceptor, RateLimitInterceptor rateLimitInterceptor) {
+        this.adminInterceptor = adminInterceptor;
+        this.rateLimitInterceptor = rateLimitInterceptor;
+    }
+
+    @Bean
+    public FilterRegistrationBean<PayloadLimitFilter> templateImportBodyLimit() {
+        // 只挂在导入接口上：包内容是 CSS + 结构化 JSON，2MB 已远超正常大小。
+        FilterRegistrationBean<PayloadLimitFilter> registration = new FilterRegistrationBean<>(
+                new PayloadLimitFilter(PayloadLimitFilter.DEFAULT_MAX_BYTES));
+        registration.addUrlPatterns("/api/templates/import");
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        return registration;
+    }
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        // 排在最前：登录爆破、密码爆破与统计刷量要在进业务之前就被挡下来。
+        registry.addInterceptor(rateLimitInterceptor).addPathPatterns("/api/**");
+
         registry.addInterceptor(new SaInterceptor(handle -> SaRouter
                 .match("/api/**")
                 .notMatch("/api/auth/login", "/api/auth/register", "/api/health",
@@ -37,6 +64,9 @@ public class WebConfig implements WebMvcConfigurer {
                 return super.preHandle(request, response, handler);
             }
         }).addPathPatterns("/api/**");
+
+        // 排在登录拦截器之后：先保证已登录（401），再按注解判断角色（403）。
+        registry.addInterceptor(adminInterceptor).addPathPatterns("/api/**");
     }
 
     @Override

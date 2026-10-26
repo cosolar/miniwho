@@ -956,6 +956,7 @@ onBeforeRouteLeave(async () => {
                   :draft="drafts[section.type]"
                   :saving="Boolean(savingTypes[section.type])"
                   :resume-id="resumeId"
+                  :template-layout="template?.config?.layout || ''"
                   embedded
                   @save="saveSection(section.type)"
                   @cancel="cancelEditor(section.type)"

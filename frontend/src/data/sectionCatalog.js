@@ -11,7 +11,7 @@ export const SECTION_META = {
   basic_info: {
     label: '基本信息',
     icon: 'User',
-    hint: '只保留必要的联系方式。分享时可以将手机号与邮箱隐藏。',
+    hint: '联系方式与个人情况按需填写，留空的字段不会出现在简历上。',
     emptyHint: '填写姓名、手机和邮箱，让 HR 能联系到你。',
     single: true,
     hideable: false,
@@ -25,7 +25,14 @@ export const SECTION_META = {
       field('city', '所在城市', 'text', { span: 8, placeholder: '例如：上海', maxlength: 30 }),
       field('birthday', '出生年月', 'month', { span: 8 }),
       field('showAge', '展示出生年月', 'switch', { span: 8 }),
-      field('website', '个人主页', 'url', { span: 16, placeholder: 'https://（选填）' })
+      field('website', '个人主页', 'url', { span: 16, placeholder: 'https://（选填）' }),
+      field('nativePlace', '籍贯', 'text', { span: 6, placeholder: '例如：浙江杭州', maxlength: 30 }),
+      field('ethnicity', '民族', 'text', { span: 6, placeholder: '例如：汉族', maxlength: 20 }),
+      field('politics', '政治面貌', 'select', {
+        span: 6,
+        options: ['中共党员', '中共预备党员', '共青团员', '民主党派', '群众']
+      }),
+      field('maritalStatus', '婚姻状况', 'select', { span: 6, options: ['未婚', '已婚'] })
     ]
   },
   job_intention: {

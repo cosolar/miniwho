@@ -78,9 +78,9 @@ function linkSegments(url) {
   return parts
 }
 
+// 城市已经在头部单独成栏，副行再列一遍就是重复；副行只留薪资与状态。
 function intentionParts(f) {
   return [
-    f.city,
     salaryText(f),
     f.status
   ].filter(Boolean)
@@ -129,7 +129,7 @@ function skillLevel(level) {
           <div v-for="item in items" :key="item.id" class="paper-item paper-item--intention">
             <div class="paper-item-head">
               <div class="paper-item-title">{{ item.fields.jobTitle || '目标岗位' }}</div>
-              <div class="paper-item-period">{{ item.fields.city }}</div>
+              <div v-if="item.fields.city" class="paper-item-period">{{ item.fields.city }}</div>
             </div>
             <div v-if="salaryText(item.fields) || item.fields.status" class="paper-item-sub">
               <span v-for="part in intentionParts(item.fields)" :key="part">{{ part }}</span>

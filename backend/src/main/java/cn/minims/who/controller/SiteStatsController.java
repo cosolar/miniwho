@@ -1,8 +1,8 @@
 package cn.minims.who.controller;
 
 import cn.minims.who.common.ApiResponse;
-import cn.minims.who.dto.Dtos.SiteStatsVo;
-import cn.minims.who.dto.Dtos.SiteVisitRequest;
+import cn.minims.who.dto.SiteDtos.SiteStatsVo;
+import cn.minims.who.dto.SiteDtos.SiteVisitRequest;
 import cn.minims.who.service.SiteStatsService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;

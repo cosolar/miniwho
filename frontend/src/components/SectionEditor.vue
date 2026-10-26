@@ -9,11 +9,14 @@ const props = defineProps({
   draft: { type: Object, required: true },
   saving: { type: Boolean, default: false },
   embedded: { type: Boolean, default: false },
-  resumeId: { type: [Number, String], default: null }
+  resumeId: { type: [Number, String], default: null },
+  templateLayout: { type: String, default: '' }
 })
 
 const emit = defineEmits(['save', 'cancel'])
 const meta = computed(() => metaOf(props.draft.type))
+// 金石版式把求职意向固定摊成模块，没有「姓名下方」这一档，选它也不会生效。
+const modeLocked = computed(() => props.templateLayout === 'ribbon')
 const isSingle = computed(() => meta.value.single)
 const maxItems = computed(() => meta.value.maxItems || 20)
 
@@ -64,7 +67,7 @@ function labelFor(index) {
         <p>{{ meta.hint }}</p>
       </div>
       <el-select
-        v-if="draft.type === 'job_intention'"
+        v-if="draft.type === 'job_intention' && !modeLocked"
         v-model="draft.meta.displayMode"
         size="small"
         class="display-mode"
@@ -75,11 +78,14 @@ function labelFor(index) {
       </el-select>
     </div>
     <div v-else-if="draft.type === 'job_intention'" class="embedded-mode">
-      <span>求职意向展示方式</span>
-      <el-select v-model="draft.meta.displayMode" size="small" class="display-mode">
-        <el-option label="显示在姓名下方" value="title_only" />
-        <el-option label="作为独立模块展示" value="full" />
-      </el-select>
+      <span v-if="modeLocked">当前模板固定按独立模块展示</span>
+      <template v-else>
+        <span>求职意向展示方式</span>
+        <el-select v-model="draft.meta.displayMode" size="small" class="display-mode">
+          <el-option label="显示在姓名下方" value="title_only" />
+          <el-option label="作为独立模块展示" value="full" />
+        </el-select>
+      </template>
     </div>
 
     <div class="editor-items">

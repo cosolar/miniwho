@@ -2,9 +2,16 @@ package cn.minims.who.service;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import cn.minims.who.common.BizException;
-import cn.minims.who.dto.Dtos.AdminFeedbackRequest;
+import cn.minims.who.dto.AdminDtos.AdminFeedbackRequest;
+import cn.minims.who.dto.AdminDtos.AdminFeedbackVo;
+import cn.minims.who.dto.AdminDtos.AdminRecentUserVo;
+import cn.minims.who.dto.AdminDtos.AdminSampleVo;
+import cn.minims.who.dto.AdminDtos.AdminStatsVo;
+import cn.minims.who.dto.AdminDtos.AdminTemplateVo;
+import cn.minims.who.dto.AdminDtos.AdminUserVo;
 import cn.minims.who.entity.Feedback;
 import cn.minims.who.entity.Resume;
 import cn.minims.who.entity.Template;
@@ -17,9 +24,10 @@ import cn.minims.who.mapper.TemplateMapper;
 import cn.minims.who.mapper.UserMapper;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -46,50 +54,43 @@ public class AdminService {
         this.templateService = templateService;
     }
 
-    public Map<String, Object> stats() {
-        long now = System.currentTimeMillis();
-        long weekAgo = now - 7L * 24 * 60 * 60 * 1000;
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("users", userMapper.selectCount(null));
-        map.put("resumes", resumeMapper.selectCount(null));
-        map.put("shares", shareMapper.selectCount(null));
-        map.put("reports", reportMapper.selectCount(null));
-        map.put("templates", templateMapper.selectCount(new LambdaQueryWrapper<Template>().eq(Template::getStatus, 1)));
-        map.put("feedbackPending", feedbackMapper.selectCount(new LambdaQueryWrapper<Feedback>().eq(Feedback::getStatus, 0)));
-        map.put("newUsers7d", userMapper.selectCount(new LambdaQueryWrapper<User>().ge(User::getCreatedAt, weekAgo)));
-        map.put("newResumes7d", resumeMapper.selectCount(new LambdaQueryWrapper<Resume>().ge(Resume::getCreatedAt, weekAgo)));
-        List<User> recent = userMapper.selectList(new LambdaQueryWrapper<User>()
-                .orderByDesc(User::getCreatedAt).last("limit 6"));
-        List<Map<String, Object>> recentUsers = new ArrayList<>();
-        for (User user : recent) {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("id", user.getId());
-            item.put("username", user.getUsername());
-            item.put("nickname", user.getNickname());
-            item.put("role", user.getRole());
-            item.put("createdAt", user.getCreatedAt());
-            recentUsers.add(item);
-        }
-        map.put("recentUsers", recentUsers);
-        return map;
+    public AdminStatsVo stats() {
+        long weekAgo = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000;
+        long users = userMapper.selectCount(null);
+        long resumes = resumeMapper.selectCount(null);
+        long shares = shareMapper.selectCount(null);
+        long reports = reportMapper.selectCount(null);
+        long templates = templateMapper.selectCount(new LambdaQueryWrapper<Template>().eq(Template::getStatus, 1));
+        long feedbackPending = feedbackMapper.selectCount(new LambdaQueryWrapper<Feedback>().eq(Feedback::getStatus, 0));
+        long newUsers7d = userMapper.selectCount(new LambdaQueryWrapper<User>().ge(User::getCreatedAt, weekAgo));
+        long newResumes7d = resumeMapper.selectCount(new LambdaQueryWrapper<Resume>().ge(Resume::getCreatedAt, weekAgo));
+        List<AdminRecentUserVo> recentUsers = userMapper.selectList(new LambdaQueryWrapper<User>()
+                        .orderByDesc(User::getCreatedAt).last("limit 6"))
+                .stream()
+                .map(user -> new AdminRecentUserVo(user.getId(), user.getUsername(), user.getNickname(),
+                        user.getRole(), user.getCreatedAt()))
+                .toList();
+        return new AdminStatsVo(users, resumes, shares, reports, templates,
+                feedbackPending, newUsers7d, newResumes7d, recentUsers);
     }
 
-    public List<Map<String, Object>> users() {
+    public List<AdminUserVo> users() {
         List<User> users = userMapper.selectList(new LambdaQueryWrapper<User>()
                 .orderByDesc(User::getCreatedAt).last("limit 200"));
-        List<Map<String, Object>> result = new ArrayList<>();
+        // 一条 group by 拿全量简历数，替代逐个 selectCount 的 N+1。
+        Map<Long, Long> resumeCounts = new HashMap<>();
+        for (Map<String, Object> row : resumeMapper.selectMaps(new QueryWrapper<Resume>()
+                .select("user_id", "count(*) as cnt")
+                .groupBy("user_id"))) {
+            if (row.get("user_id") instanceof Number id && row.get("cnt") instanceof Number cnt) {
+                resumeCounts.put(id.longValue(), cnt.longValue());
+            }
+        }
+        List<AdminUserVo> result = new ArrayList<>(users.size());
         for (User user : users) {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("id", user.getId());
-            item.put("username", user.getUsername());
-            item.put("nickname", user.getNickname());
-            item.put("email", user.getEmail());
-            item.put("role", user.getRole());
-            item.put("status", user.getStatus());
-            item.put("createdAt", user.getCreatedAt());
-            item.put("resumeCount", resumeMapper.selectCount(new LambdaQueryWrapper<Resume>()
-                    .eq(Resume::getUserId, user.getId())));
-            result.add(item);
+            result.add(new AdminUserVo(user.getId(), user.getUsername(), user.getNickname(), user.getEmail(),
+                    user.getRole(), user.getStatus(), user.getCreatedAt(),
+                    resumeCounts.getOrDefault(user.getId(), 0L)));
         }
         return result;
     }
@@ -112,14 +113,22 @@ public class AdminService {
         }
     }
 
-    public List<Template> templates() {
-        return templateService.all();
+    public List<AdminTemplateVo> templates() {
+        return templateService.all().stream()
+                .map(template -> new AdminTemplateVo(template.getId(), template.getCode(), template.getName(),
+                        template.getDescription(), template.getCategory(), template.getTags(), template.getVersion(),
+                        template.getAuthor(), template.getSource(), template.getStatus(), template.getUsageCount(),
+                        template.getCreatedAt(), template.getUpdatedAt()))
+                .toList();
     }
 
     @CacheEvict(cacheNames = {"template-active", "template-detail"}, allEntries = true)
     public void updateTemplateStatus(String code, int status) {
         if (status != 1 && status != 2) {
             throw BizException.badRequest("模板状态不正确");
+        }
+        if (templateMapper.selectCount(new LambdaQueryWrapper<Template>().eq(Template::getCode, code)) == 0) {
+            throw BizException.notFound("模板不存在");
         }
         templateMapper.update(null, new LambdaUpdateWrapper<Template>()
                 .eq(Template::getCode, code)
@@ -131,6 +140,7 @@ public class AdminService {
      * 示例简历会通过无鉴权接口公开显示，全站只允许一份：设新的自动清掉旧的。
      * 刻意不碰 updated_at，否则管理员点个开关就把别人的简历排序搅乱了。
      */
+    @Transactional
     public void updateSample(long resumeId, boolean sample) {
         Resume resume = resumeMapper.selectById(resumeId);
         if (resume == null) {
@@ -146,7 +156,7 @@ public class AdminService {
                 .set(Resume::getIsSample, sample ? 1 : 0));
     }
 
-    public Map<String, Object> sampleInfo() {
+    public AdminSampleVo sampleInfo() {
         Resume resume = resumeMapper.selectOne(new LambdaQueryWrapper<Resume>()
                 .eq(Resume::getIsSample, 1)
                 .orderByDesc(Resume::getUpdatedAt)
@@ -155,21 +165,19 @@ public class AdminService {
             return null;
         }
         User owner = userMapper.selectById(resume.getUserId());
-        Map<String, Object> info = new LinkedHashMap<>();
-        info.put("resumeId", resume.getId());
-        info.put("title", resume.getTitle());
-        info.put("templateCode", resume.getTemplateCode());
-        info.put("ownerId", resume.getUserId());
-        info.put("owner", owner == null ? "" : owner.getNickname());
-        info.put("updatedAt", resume.getUpdatedAt());
-        return info;
+        return new AdminSampleVo(resume.getId(), resume.getTitle(), resume.getTemplateCode(), resume.getUserId(),
+                owner == null ? "" : owner.getNickname(), resume.getUpdatedAt());
     }
 
-    public List<Feedback> feedback() {
+    public List<AdminFeedbackVo> feedback() {
         return feedbackMapper.selectList(new LambdaQueryWrapper<Feedback>()
-                .orderByAsc(Feedback::getStatus)
-                .orderByDesc(Feedback::getCreatedAt)
-                .last("limit 200"));
+                        .orderByAsc(Feedback::getStatus)
+                        .orderByDesc(Feedback::getCreatedAt)
+                        .last("limit 200"))
+                .stream()
+                .map(item -> new AdminFeedbackVo(item.getId(), item.getUserId(), item.getContent(), item.getContact(),
+                        item.getStatus(), item.getReply(), item.getCreatedAt(), item.getUpdatedAt()))
+                .toList();
     }
 
     public void updateFeedback(long id, AdminFeedbackRequest request) {

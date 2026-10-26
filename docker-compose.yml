@@ -44,7 +44,8 @@ services:
       MINIWHO_UPLOAD_DIR: /app/uploads
       MINIWHO_SEED_DEMO: ${MINIWHO_SEED_DEMO:-true}
       MINIWHO_DEMO_PASSWORD: ${MINIWHO_DEMO_PASSWORD:-demo123}
-      MINIWHO_ADMIN_PASSWORD: ${MINIWHO_ADMIN_PASSWORD:-admin123}
+      # 管理员密码必填：缺失时 compose 直接报错，不给你一个 admin/admin123 的公网后台
+      MINIWHO_ADMIN_PASSWORD: ${MINIWHO_ADMIN_PASSWORD:?请在 .env 里设置 MINIWHO_ADMIN_PASSWORD}
       MINIWHO_CORS_ORIGINS: ${MINIWHO_CORS_ORIGINS:-*}
       # 媒体链接签名密钥：留空则每次启动随机生成（重启后旧的头像链接失效）
       MINIWHO_MEDIA_SECRET: ${MINIWHO_MEDIA_SECRET:-}

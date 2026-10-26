@@ -2,7 +2,7 @@ package cn.minims.who.controller;
 
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
-import cn.minims.who.dto.Dtos.AttachmentVo;
+import cn.minims.who.dto.MediaDtos.AttachmentVo;
 import cn.minims.who.service.AttachmentService;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;

@@ -1,7 +1,7 @@
 package cn.minims.who.controller;
 
 import cn.minims.who.common.ApiResponse;
-import cn.minims.who.dto.Dtos.ExportPayloadVo;
+import cn.minims.who.dto.ExportDtos.ExportPayloadVo;
 import cn.minims.who.service.PdfExportService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

@@ -90,6 +90,10 @@ public class ContentDefaults {
                 fields.put("city", "");
                 fields.put("birthday", "");
                 fields.put("showAge", false);
+                fields.put("nativePlace", "");
+                fields.put("ethnicity", "");
+                fields.put("politics", "");
+                fields.put("maritalStatus", "");
                 fields.put("website", "");
             } else if (SectionTypes.INTENTION.equals(type)) {
                 fields.put("jobTitle", "");

@@ -5,7 +5,6 @@ import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import cn.minims.who.common.BizException;
-import cn.minims.who.dto.Dtos;
 import cn.minims.who.entity.Resume;
 import cn.minims.who.entity.User;
 import cn.minims.who.mapper.ResumeMapper;
@@ -13,13 +12,13 @@ import cn.minims.who.mapper.UserMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import static cn.minims.who.dto.Dtos.ChangePasswordRequest;
-import static cn.minims.who.dto.Dtos.CreateResumeRequest;
-import static cn.minims.who.dto.Dtos.LoginRequest;
-import static cn.minims.who.dto.Dtos.LoginResponse;
-import static cn.minims.who.dto.Dtos.RegisterRequest;
-import static cn.minims.who.dto.Dtos.UpdateProfileRequest;
-import static cn.minims.who.dto.Dtos.UserVo;
+import static cn.minims.who.dto.AuthDtos.ChangePasswordRequest;
+import static cn.minims.who.dto.ResumeDtos.CreateResumeRequest;
+import static cn.minims.who.dto.AuthDtos.LoginRequest;
+import static cn.minims.who.dto.AuthDtos.LoginResponse;
+import static cn.minims.who.dto.AuthDtos.RegisterRequest;
+import static cn.minims.who.dto.AuthDtos.UpdateProfileRequest;
+import static cn.minims.who.dto.AuthDtos.UserVo;
 
 @Service
 public class AuthService {
@@ -49,7 +48,12 @@ public class AuthService {
         user.setNickname(nickname.isBlank() ? username : nickname);
         user.setRole("user");
         user.setStatus(1);
-        userMapper.insert(user);
+        try {
+            userMapper.insert(user);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // 先查后插之间被并发注册抢注，唯一索引兜底。
+            throw BizException.badRequest("该用户名已被使用");
+        }
 
         var firstResume = resumeService.create(user.getId(),
                 new CreateResumeRequest("我的第一份简历", "zh", "qinghe", false));
@@ -118,6 +122,8 @@ public class AuthService {
                 .eq(User::getId, userId)
                 .set(User::getPasswordHash, BCrypt.hashpw(request.newPassword()))
                 .set(User::getUpdatedAt, System.currentTimeMillis()));
+        // 旧密码可能已经泄露：改完立即作废该账号的全部登录态，包括当前这次请求的 token。
+        StpUtil.logout(userId);
     }
 
     public UserVo toVo(User user) {

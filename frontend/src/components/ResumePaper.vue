@@ -80,8 +80,11 @@ const intention = computed(() => intentionSection.value?.items?.[0]?.fields || {
 const titleOnly = computed(() => (intentionSection.value?.meta?.displayMode || 'title_only') === 'title_only')
 
 const name = computed(() => basic.value.name?.trim() || '你的姓名')
-const jobTitle = computed(() => intention.value.jobTitle?.trim() || '')
 const isRibbon = computed(() => config.value.layout === 'ribbon')
+// 岗位只在「显示在姓名下方」这一档进页眉；独立模块模式由正文自己带岗位，重复一次反而像两份。
+const jobTitle = computed(() => (
+  titleOnly.value && !isRibbon.value ? intention.value.jobTitle?.trim() || '' : ''
+))
 // 金石把性别与身份读在姓名后面，联系方式那一行留给手机、邮箱与生日。
 const identity = computed(() => {
   const parts = []
@@ -91,11 +94,25 @@ const identity = computed(() => {
 })
 const monogram = computed(() => name.value.slice(0, 1))
 
+// 籍贯、民族、政治面貌按需填写，写进页眉的同一行；窄栏版式另起一个「基本信息」块。
+const basicFacts = computed(() => {
+  const list = []
+  const add = (type, value) => {
+    if (value?.trim()) list.push({ type, value: value.trim(), plainLabel: true })
+  }
+  add('nativePlace', basic.value.nativePlace)
+  add('ethnicity', basic.value.ethnicity)
+  add('politics', basic.value.politics)
+  add('maritalStatus', basic.value.maritalStatus)
+  return list
+})
+
 const contacts = computed(() => {
   const list = []
   if (basic.value.phone) list.push({ type: 'phone', value: basic.value.phone })
   if (basic.value.email) list.push({ type: 'email', value: basic.value.email })
   if (basic.value.city) list.push({ type: 'city', value: basic.value.city })
+  list.push(...basicFacts.value)
   if (basic.value.website) list.push({ type: 'website', value: basic.value.website })
   if (basic.value.showGender && basic.value.gender && !isRibbon.value) list.push({ type: 'gender', value: basic.value.gender })
   if (basic.value.showAge && basic.value.birthday) {
@@ -103,11 +120,17 @@ const contacts = computed(() => {
   }
   return list
 })
+// 侧栏已经把联系方式单独成块，籍贯等不该混在「联系方式」标题下。
+const railContacts = computed(() => contacts.value.filter((item) => !item.plainLabel))
 
 const contactLabels = {
   phone: '手机',
   email: '邮箱',
   city: '居住地',
+  nativePlace: '籍贯',
+  ethnicity: '民族',
+  politics: '政治面貌',
+  maritalStatus: '婚姻状况',
   website: '主页',
   gender: '性别',
   birthday: '生日'
@@ -254,7 +277,7 @@ function breakable(value) {
       <div class="rail-block">
         <h3 class="rail-title">联系方式</h3>
         <ul class="rail-contacts">
-          <li v-for="item in contacts" :key="item.type">
+          <li v-for="item in railContacts" :key="item.type">
             <span class="rail-label">{{ contactLabels[item.type] }}</span>
             <a v-if="contactHref(item)" :href="contactHref(item)">
               <template v-for="(segment, index) in breakable(item.type === 'website' ? displayUrl(item.value) : item.value)" :key="index"><wbr v-if="index" />{{ segment }}</template>
@@ -262,6 +285,15 @@ function breakable(value) {
             <span v-else>
               <template v-for="(segment, index) in breakable(item.value)" :key="index"><wbr v-if="index" />{{ segment }}</template>
             </span>
+          </li>
+        </ul>
+      </div>
+      <div v-if="basicFacts.length" class="rail-block">
+        <h3 class="rail-title">基本信息</h3>
+        <ul class="rail-contacts">
+          <li v-for="item in basicFacts" :key="item.type">
+            <span class="rail-label">{{ contactLabels[item.type] }}</span>
+            <span>{{ item.value }}</span>
           </li>
         </ul>
       </div>
@@ -302,15 +334,15 @@ function breakable(value) {
           <div v-if="!isRail" class="paper-contacts" :class="{ 'paper-contacts--labeled': labeledContacts }">
             <template v-for="item in contacts" :key="item.type">
               <a v-if="contactHref(item)" :href="contactHref(item)" class="paper-contact">
-                <span v-if="labeledContacts" class="paper-contact__label">
-                  <PaperIcon v-if="contactIcons" :type="item.type" />
+                <span v-if="labeledContacts" class="paper-contact__label" :class="{ 'paper-contact__label--text': item.plainLabel }">
+                  <PaperIcon v-if="contactIcons && !item.plainLabel" :type="item.type" />
                   <template v-else>{{ contactLabels[item.type] }}</template>
                 </span>
                 <template v-for="(segment, index) in breakable(item.type === 'website' ? displayUrl(item.value) : item.value)" :key="index"><wbr v-if="index" />{{ segment }}</template>
               </a>
               <span v-else class="paper-contact">
-                <span v-if="labeledContacts" class="paper-contact__label">
-                  <PaperIcon v-if="contactIcons" :type="item.type" />
+                <span v-if="labeledContacts" class="paper-contact__label" :class="{ 'paper-contact__label--text': item.plainLabel }">
+                  <PaperIcon v-if="contactIcons && !item.plainLabel" :type="item.type" />
                   <template v-else>{{ contactLabels[item.type] }}</template>
                 </span>
                 <template v-for="(segment, index) in breakable(item.value)" :key="index"><wbr v-if="index" />{{ segment }}</template>
@@ -488,8 +520,10 @@ function breakable(value) {
 }
 
 .paper-contact__label {
+  flex: none;
   margin-right: 1.8mm;
   color: #8a949b;
+  white-space: nowrap;
 }
 
 .paper-monogram {
@@ -1377,6 +1411,13 @@ function breakable(value) {
   height: 100%;
 }
 
+/* 籍贯等文字标签在图标位里只有 3.4mm 宽，会压到数值上，这里放开成正常文字。 */
+.layout-timeline .paper-contact__label--text {
+  width: auto;
+  height: auto;
+  color: #8a949b;
+}
+
 .layout-timeline .paper-header__summary {
   flex: 0 0 100%;
   margin-top: 2.8mm;
@@ -1785,11 +1826,6 @@ function breakable(value) {
   border: none;
   color: #1d2733;
   font-size: var(--paper-base-size);
-}
-
-/* 期望职位已经在求职意向模块里，页眉不再重复一次。 */
-.layout-ribbon .paper-role {
-  display: none;
 }
 
 /* 联系方式一行三栏，标签与值同色，读作「手机：138…」。 */

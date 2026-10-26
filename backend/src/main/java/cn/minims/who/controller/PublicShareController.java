@@ -1,8 +1,8 @@
 package cn.minims.who.controller;
 
 import cn.minims.who.common.ApiResponse;
-import cn.minims.who.dto.Dtos.PublicShareVo;
-import cn.minims.who.dto.Dtos.SharePasswordRequest;
+import cn.minims.who.dto.ShareDtos.PublicShareVo;
+import cn.minims.who.dto.ShareDtos.SharePasswordRequest;
 import cn.minims.who.service.ShareService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;

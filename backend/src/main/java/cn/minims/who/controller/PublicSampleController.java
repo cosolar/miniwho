@@ -1,7 +1,7 @@
 package cn.minims.who.controller;
 
 import cn.minims.who.common.ApiResponse;
-import cn.minims.who.dto.Dtos.SampleResume;
+import cn.minims.who.dto.ResumeDtos.SampleResume;
 import cn.minims.who.service.ResumeService;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;

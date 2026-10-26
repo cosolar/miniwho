@@ -98,7 +98,7 @@
 - 服务端内容清洗与长度 / 数量限制；单份简历最多 30 个模块、单模块 20 条内容。
 - 导入模板包的 CSS 由服务端逐条规则重新生成后注入：选择器强制限定在该模板的作用域类下，属性名走白名单，`url()` 只接受 `data:`，`<`、`@import`、`expression()`、`behavior`、`-moz-binding`、`!important` 直接拒绝；模板包格式本身不给 HTML / JS 留任何入口。
 - 分享密码 BCrypt 存储，公开接口失败码区分「需要密码 / 密码错误 / 已过期 / 已撤销」。
-- Docker Compose 一键部署：MySQL 8 + 后端 + Nginx 前端，数据与上传持久化。
+- Docker 一键部署：官方镜像 `cosolar/miniwho` 或 Compose 源码构建，MySQL 8 / SQLite 二选一，数据与上传持久化。
 - 所有页面响应式适配，打印样式独立处理。
 
 ---
@@ -110,7 +110,7 @@
 | 前端 | Vue 3.5、Vite 6、Element Plus 2.9、Pinia、Vue Router、Axios、vuedraggable、DOMPurify |
 | 后端 | Java 17、Spring Boot 3.3、Sa-Token 1.39、MyBatis-Plus 3.5、Hutool、jsoup、Jackson |
 | 数据库 | SQLite（默认）/ MySQL 8 |
-| 部署 | Docker Compose、Nginx、Maven、npm |
+| 部署 | Docker 镜像（`cosolar/miniwho`）/ Docker Compose、Nginx、Maven、npm |
 
 ---
 
@@ -159,7 +159,25 @@ npm run dev
 
 > 以上账号仅用于本地演示。公开部署前请修改密码，或设置 `MINIWHO_SEED_DEMO=false` 并自行创建管理员。
 
-### Docker Compose 一键启动（MySQL 8）
+### Docker 一键启动
+
+**方式 A：直接用已发布镜像（不用装 JDK / Maven / Node）**
+
+```bash
+docker run -d --name miniwho \
+  -p 8088:8080 \
+  -v miniwho-uploads:/app/uploads \
+  -e MINIWHO_DB=/app/uploads/miniwho.db \
+  -e MINIWHO_ADMIN_PASSWORD='改成强密码' \
+  -e MINIWHO_DEMO_PASSWORD='改成强密码' \
+  -e MINIWHO_MEDIA_SECRET="$(openssl rand -hex 32)" \
+  --shm-size=512m \
+  cosolar/miniwho:1.0.0
+```
+
+访问 `http://localhost:8088`。镜像仅 `linux/amd64`，内置 Chromium 与 Noto CJK 字体，服务端 PDF 开箱可用；`MINIWHO_DB` 指向卷内，删容器不丢数据。
+
+**方式 B：Compose + MySQL 8（生产推荐，从源码构建）**
 
 ```bash
 cp .env.example .env
@@ -169,7 +187,7 @@ docker compose up -d --build
 
 访问 `http://localhost:8088`。前端页面与 API 打在**同一个镜像**里（前端产物随 jar 发布），对外只暴露一个端口；MySQL 仍是独立服务。
 
-详细参数、数据备份、升级与反向代理配置见 [部署指南](docs/部署指南.md)。
+只想用 MySQL、又不想本地构建时，把 compose 里的 `app` 改成 `image: cosolar/miniwho:1.0.0` 即可，现成文件与全部参数见 [部署指南](docs/部署指南.md)。
 
 ---
 

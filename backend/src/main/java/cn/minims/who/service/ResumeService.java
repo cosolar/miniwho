@@ -10,7 +10,6 @@ import cn.minims.who.content.ContentDefaults;
 import cn.minims.who.content.ContentSanitizer;
 import cn.minims.who.content.ScoreEngine;
 import cn.minims.who.content.SectionTypes;
-import cn.minims.who.dto.Dtos;
 import cn.minims.who.entity.Resume;
 import cn.minims.who.entity.ResumeAttachment;
 import cn.minims.who.entity.ResumeReport;
@@ -33,17 +32,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static cn.minims.who.dto.Dtos.AttachmentVo;
-import static cn.minims.who.dto.Dtos.CreateResumeRequest;
-import static cn.minims.who.dto.Dtos.ModuleAddRequest;
-import static cn.minims.who.dto.Dtos.PrefsSaveRequest;
-import static cn.minims.who.dto.Dtos.RenameRequest;
-import static cn.minims.who.dto.Dtos.ResumeDetail;
-import static cn.minims.who.dto.Dtos.ResumeSummary;
-import static cn.minims.who.dto.Dtos.SaveResult;
-import static cn.minims.who.dto.Dtos.SectionSaveRequest;
-import static cn.minims.who.dto.Dtos.StyleSaveRequest;
-import static cn.minims.who.dto.Dtos.WorkbenchResponse;
+import static cn.minims.who.dto.MediaDtos.AttachmentVo;
+import static cn.minims.who.dto.ResumeDtos.CreateResumeRequest;
+import static cn.minims.who.dto.ResumeDtos.ModuleAddRequest;
+import static cn.minims.who.dto.ResumeDtos.PrefsSaveRequest;
+import static cn.minims.who.dto.ResumeDtos.RenameRequest;
+import static cn.minims.who.dto.ResumeDtos.SampleResume;
+import static cn.minims.who.dto.ResumeDtos.ResumeDetail;
+import static cn.minims.who.dto.ResumeDtos.ResumeSummary;
+import static cn.minims.who.dto.ResumeDtos.SaveResult;
+import static cn.minims.who.dto.ResumeDtos.SectionSaveRequest;
+import static cn.minims.who.dto.ResumeDtos.StyleSaveRequest;
+import static cn.minims.who.dto.ResumeDtos.WorkbenchResponse;
 
 @Service
 public class ResumeService {
@@ -63,6 +63,7 @@ public class ResumeService {
     private final AttachmentStore store;
     private final AvatarService avatarService;
     private final ItemMediaService itemMediaService;
+    private final ResumeAccessService accessService;
     private final Json json;
 
     public ResumeService(ResumeMapper resumeMapper, TemplateMapper templateMapper,
@@ -70,7 +71,7 @@ public class ResumeService {
                          ResumeReportMapper reportMapper,
                          ContentDefaults defaults, ContentSanitizer sanitizer, ScoreEngine scoreEngine,
                          TemplateService templateService, AttachmentStore store, AvatarService avatarService,
-                         ItemMediaService itemMediaService, Json json) {
+                         ItemMediaService itemMediaService, ResumeAccessService accessService, Json json) {
         this.resumeMapper = resumeMapper;
         this.templateMapper = templateMapper;
         this.attachmentMapper = attachmentMapper;
@@ -83,6 +84,7 @@ public class ResumeService {
         this.store = store;
         this.avatarService = avatarService;
         this.itemMediaService = itemMediaService;
+        this.accessService = accessService;
         this.json = json;
     }
 
@@ -102,7 +104,7 @@ public class ResumeService {
     }
 
     /** 全站唯一示例简历；没有设置时返回 null，由前端回落到打包的默认示例。 */
-    public Dtos.SampleResume sampleResume() {
+    public SampleResume sampleResume() {
         Resume resume = resumeMapper.selectOne(new LambdaQueryWrapper<Resume>()
                 .eq(Resume::getIsSample, 1)
                 .orderByDesc(Resume::getUpdatedAt)
@@ -110,7 +112,7 @@ public class ResumeService {
         if (resume == null) {
             return null;
         }
-        return new Dtos.SampleResume(resume.getTemplateCode(), json.read(resume.getContent()));
+        return new SampleResume(resume.getTemplateCode(), json.read(resume.getContent()));
     }
 
     @Transactional
@@ -221,6 +223,8 @@ public class ResumeService {
         resumeMapper.insert(copy);
         avatarService.copy(source, copy);
         itemMediaService.copyInto(source, copy);
+        // 复制体与源简历同模板，使用数要一起算。
+        templateService.refreshUsage(source.getTemplateCode());
         return detail(userId, copy.getId());
     }
 
@@ -475,11 +479,7 @@ public class ResumeService {
     }
 
     public Resume findOwned(long userId, long id) {
-        Resume resume = resumeMapper.selectById(id);
-        if (resume == null || !Objects.equals(resume.getUserId(), userId)) {
-            throw BizException.notFound("简历不存在或无权访问");
-        }
-        return resume;
+        return accessService.findOwned(userId, id);
     }
 
     public ResumeDetail toDetail(Resume resume) {

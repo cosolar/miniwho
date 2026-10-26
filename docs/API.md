@@ -849,6 +849,10 @@ satoken: <token>
             "city": "上海",
             "birthday": "1998-06",
             "showAge": false,
+            "nativePlace": "浙江杭州",
+            "ethnicity": "汉族",
+            "politics": "中共党员",
+            "maritalStatus": "未婚",
             "website": "https://example.com"
           }
         }

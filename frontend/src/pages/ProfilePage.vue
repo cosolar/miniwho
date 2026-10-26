@@ -129,8 +129,10 @@ async function savePassword() {
       oldPassword: password.oldPassword,
       newPassword: password.newPassword
     })
-    ElMessage.success('密码已更新，下次登录请使用新密码')
-    passwordRef.value.resetFields()
+    // 服务端改完密码会作废该账号全部登录态，这里同步退出到登录页。
+    auth.clear()
+    ElMessage.success('密码已更新，请重新登录')
+    router.push('/login')
   } catch (error) {
     notifyError(error, '修改密码失败')
   } finally {

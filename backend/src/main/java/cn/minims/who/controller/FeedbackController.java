@@ -2,7 +2,7 @@ package cn.minims.who.controller;
 
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
-import cn.minims.who.dto.Dtos.FeedbackRequest;
+import cn.minims.who.dto.FeedbackDtos.FeedbackRequest;
 import cn.minims.who.service.FeedbackService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;

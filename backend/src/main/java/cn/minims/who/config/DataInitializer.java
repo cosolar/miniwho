@@ -3,7 +3,7 @@ package cn.minims.who.config;
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import cn.minims.who.dto.Dtos.CreateResumeRequest;
+import cn.minims.who.dto.ResumeDtos.CreateResumeRequest;
 import cn.minims.who.entity.Feedback;
 import cn.minims.who.entity.Resume;
 import cn.minims.who.entity.Template;
@@ -46,7 +46,8 @@ public class DataInitializer implements ApplicationRunner {
     @Value("${app.demo-password:demo123}")
     private String demoPassword;
 
-    @Value("${app.admin-password:admin123}")
+    /** 无默认值：首次创建 admin 时必须由 MINIWHO_ADMIN_PASSWORD 显式提供，缺失则拒绝启动。 */
+    @Value("${app.admin-password:}")
     private String adminPassword;
 
     public DataInitializer(TemplateMapper templateMapper, UserMapper userMapper, ResumeMapper resumeMapper,
@@ -67,11 +68,32 @@ public class DataInitializer implements ApplicationRunner {
         seedTemplates();
         if (seedDemo) {
             User demo = ensureUser("demo", demoPassword, "郝简历", "demo@miniwho.local", "user");
-            ensureUser("admin", adminPassword, "管理员", "admin@miniwho.local", "admin");
+            ensureAdmin();
             seedDemoResume(demo);
             seedFeedback(demo);
         }
         syncUsageCounts();
+    }
+
+    /**
+     * 管理员是公网入口上权限最高的账号，不允许默认口令：账号还不存在且未提供
+     * MINIWHO_ADMIN_PASSWORD 时直接拒绝启动，而不是静默建出 admin/admin123。
+     */
+    private void ensureAdmin() {
+        User existing = userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .eq(User::getUsername, "admin").last("limit 1"));
+        if (existing != null) {
+            return;
+        }
+        if (adminPassword == null || adminPassword.isBlank()) {
+            throw new IllegalStateException(
+                    "首次启动需要创建管理员账号，请通过环境变量 MINIWHO_ADMIN_PASSWORD 设置强密码"
+                            + "（Docker Compose 部署请在 .env 里填写后再 up）");
+        }
+        if ("admin123".equalsIgnoreCase(adminPassword.trim())) {
+            log.warn("MINIWHO_ADMIN_PASSWORD 仍是示例值 admin123，公网部署前请务必更换");
+        }
+        ensureUser("admin", adminPassword.trim(), "管理员", "admin@miniwho.local", "admin");
     }
 
     /**

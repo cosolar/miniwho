@@ -4,8 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import cn.minims.who.common.BizException;
-import cn.minims.who.dto.Dtos.ExportPayloadVo;
-import cn.minims.who.dto.Dtos.PdfStatusVo;
+import cn.minims.who.dto.ExportDtos.ExportPayloadVo;
+import cn.minims.who.dto.ExportDtos.PdfStatusVo;
 import cn.minims.who.entity.Resume;
 import cn.minims.who.entity.Template;
 import cn.minims.who.mapper.ResumeMapper;
@@ -49,18 +49,23 @@ public class PdfExportService {
     private final Map<String, CompletableFuture<byte[]>> inflight = new ConcurrentHashMap<>();
 
     private final ResumeMapper resumeMapper;
+    private final ResumeAccessService accessService;
     private final TemplateMapper templateMapper;
+    private final TemplateService templateService;
     private final AvatarService avatarService;
     private final ChromePdfRenderer renderer;
     private final AttachmentStore store;
     private final Json json;
     private final String renderBaseUrl;
 
-    public PdfExportService(ResumeMapper resumeMapper, TemplateMapper templateMapper, AvatarService avatarService,
-                            ChromePdfRenderer renderer, AttachmentStore store, Json json,
+    public PdfExportService(ResumeMapper resumeMapper, ResumeAccessService accessService, TemplateMapper templateMapper,
+                            TemplateService templateService, AvatarService avatarService, ChromePdfRenderer renderer,
+                            AttachmentStore store, Json json,
                             @Value("${app.pdf.render-base-url:}") String renderBaseUrl) {
         this.resumeMapper = resumeMapper;
+        this.accessService = accessService;
         this.templateMapper = templateMapper;
+        this.templateService = templateService;
         this.avatarService = avatarService;
         this.renderer = renderer;
         this.store = store;
@@ -77,6 +82,27 @@ public class PdfExportService {
             return new PdfStatusVo(false, renderer.engine(), "未找到可用的无头浏览器，请使用浏览器打印导出");
         }
         return new PdfStatusVo(true, renderer.engine(), null);
+    }
+
+    /** 归属校验、模板解析与文件名统一收在服务层，控制器只做 HTTP 头与字节流。 */
+    public PdfFile exportFor(long userId, long resumeId, String templateCode, JsonNode styleOverrides) {
+        Resume resume = accessService.findOwned(userId, resumeId);
+        String resolved = templateCode == null || templateCode.isBlank()
+                ? resume.getTemplateCode() : templateCode.trim();
+        if (!resolved.equals(resume.getTemplateCode())) {
+            // 查询参数里的模板编码同样要过可见性关卡，防止借导出渲染别人的私有模板配置。
+            templateService.requireUsable(resolved, userId);
+        }
+        byte[] pdf = export(resume, resolved, styleOverrides);
+        return new PdfFile(fileName(resume.getTitle()), pdf);
+    }
+
+    private String fileName(String title) {
+        String cleaned = title == null ? "" : title.replaceAll("[\\\\/:*?\"<>|\\r\\n\\t]", "").trim();
+        if (cleaned.isBlank()) {
+            cleaned = "极简简历";
+        }
+        return (cleaned.length() > 40 ? cleaned.substring(0, 40) : cleaned) + ".pdf";
     }
 
     public byte[] export(Resume resume, String templateCode, JsonNode styleOverrides) {
@@ -257,5 +283,9 @@ public class PdfExportService {
     }
 
     private record Ticket(long resumeId, String templateCode, ObjectNode style, long expiresAt) {
+    }
+
+    /** 导出结果：文件名已清洗并带 .pdf 后缀，字节流由控制器直接写进响应。 */
+    public record PdfFile(String fileName, byte[] bytes) {
     }
 }

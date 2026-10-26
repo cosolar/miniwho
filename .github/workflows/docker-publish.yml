@@ -14,6 +14,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      # 测试不过就不发镜像：防止坏代码覆盖 Docker Hub 上的 latest。
+      - name: Run backend tests
+        run: mvn -B test --file backend/pom.xml
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub

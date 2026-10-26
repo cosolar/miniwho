@@ -2,8 +2,8 @@ package cn.minims.who.controller;
 
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
-import cn.minims.who.dto.Dtos.ShareCreateRequest;
-import cn.minims.who.dto.Dtos.ShareVo;
+import cn.minims.who.dto.ShareDtos.ShareCreateRequest;
+import cn.minims.who.dto.ShareDtos.ShareVo;
 import cn.minims.who.service.ShareService;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;

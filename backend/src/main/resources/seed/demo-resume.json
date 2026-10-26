@@ -22,6 +22,10 @@
             "city": "北京",
             "birthday": "2001-03",
             "showAge": true,
+            "nativePlace": "浙江杭州",
+            "ethnicity": "汉族",
+            "politics": "中共党员",
+            "maritalStatus": "未婚",
             "website": "https://example.com/haojianli"
           }
         }

@@ -1,6 +1,6 @@
 package cn.minims.who.service;
 
-import cn.minims.who.dto.Dtos.FeedbackRequest;
+import cn.minims.who.dto.FeedbackDtos.FeedbackRequest;
 import cn.minims.who.entity.Feedback;
 import cn.minims.who.mapper.FeedbackMapper;
 import org.springframework.stereotype.Service;

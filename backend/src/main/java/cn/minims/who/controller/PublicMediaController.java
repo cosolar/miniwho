@@ -1,10 +1,6 @@
 package cn.minims.who.controller;
 
-import cn.minims.who.common.BizException;
-import cn.minims.who.entity.Resume;
-import cn.minims.who.mapper.ResumeMapper;
 import cn.minims.who.service.AvatarService;
-import cn.minims.who.service.MediaTokenService;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,24 +18,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RequestMapping("/api/public/avatars")
 public class PublicMediaController {
 
-    private final MediaTokenService mediaTokenService;
-    private final ResumeMapper resumeMapper;
     private final AvatarService avatarService;
 
-    public PublicMediaController(MediaTokenService mediaTokenService, ResumeMapper resumeMapper,
-                                AvatarService avatarService) {
-        this.mediaTokenService = mediaTokenService;
-        this.resumeMapper = resumeMapper;
+    public PublicMediaController(AvatarService avatarService) {
         this.avatarService = avatarService;
     }
 
     @GetMapping("/{resumeId}")
     public ResponseEntity<Resource> avatar(@PathVariable long resumeId, @RequestParam("token") String token) {
-        mediaTokenService.verify(token, AvatarService.MEDIA_SCOPE, resumeId);
-        Resume resume = resumeMapper.selectById(resumeId);
-        if (resume == null) {
-            throw BizException.notFound("头像不存在");
-        }
-        return avatarService.file(resume);
+        return avatarService.publicFile(resumeId, token);
     }
 }

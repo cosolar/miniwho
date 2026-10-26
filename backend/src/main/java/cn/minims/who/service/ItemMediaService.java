@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import cn.minims.who.common.BizException;
-import cn.minims.who.dto.Dtos.ItemMediaVo;
+import cn.minims.who.dto.MediaDtos.ItemMediaVo;
 import cn.minims.who.entity.Resume;
 import cn.minims.who.mapper.ResumeMapper;
 import cn.minims.who.util.Json;
@@ -67,15 +67,22 @@ public class ItemMediaService {
 
     private final AttachmentStore store;
     private final ResumeMapper resumeMapper;
+    private final ResumeAccessService accessService;
     private final Json json;
 
-    public ItemMediaService(AttachmentStore store, ResumeMapper resumeMapper, Json json) {
+    public ItemMediaService(AttachmentStore store, ResumeMapper resumeMapper, ResumeAccessService accessService,
+                            Json json) {
         this.store = store;
         this.resumeMapper = resumeMapper;
+        this.accessService = accessService;
         this.json = json;
     }
 
-    public ItemMediaVo upload(Resume resume, MultipartFile file) {
+    public ItemMediaVo upload(long userId, long resumeId, MultipartFile file) {
+        return upload(accessService.findOwned(userId, resumeId), file);
+    }
+
+    private ItemMediaVo upload(Resume resume, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw BizException.badRequest("请选择要上传的图片");
         }

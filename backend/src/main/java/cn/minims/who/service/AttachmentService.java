@@ -2,7 +2,7 @@ package cn.minims.who.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import cn.minims.who.common.BizException;
-import cn.minims.who.dto.Dtos.AttachmentVo;
+import cn.minims.who.dto.MediaDtos.AttachmentVo;
 import cn.minims.who.entity.ResumeAttachment;
 import cn.minims.who.mapper.ResumeAttachmentMapper;
 import org.springframework.core.io.FileSystemResource;

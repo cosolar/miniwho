@@ -3,6 +3,7 @@ package cn.minims.who.service;
 import cn.minims.who.common.BizException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -26,8 +27,16 @@ public class MediaTokenService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final byte[] secret;
+    private final long ttlMillis;
 
+    @Autowired
     public MediaTokenService(@Value("${app.media-secret:}") String configuredSecret) {
+        this(configuredSecret, TTL_MILLIS);
+    }
+
+    /** 有效期可注入，测试过期分支时不必真的等六小时。 */
+    MediaTokenService(String configuredSecret, long ttlMillis) {
+        this.ttlMillis = ttlMillis;
         if (configuredSecret == null || configuredSecret.isBlank()) {
             this.secret = new byte[32];
             RANDOM.nextBytes(this.secret);
@@ -38,7 +47,7 @@ public class MediaTokenService {
     }
 
     public String issue(String scope, long resumeId) {
-        long expiresAt = System.currentTimeMillis() + TTL_MILLIS;
+        long expiresAt = System.currentTimeMillis() + ttlMillis;
         byte[] nonce = new byte[8];
         RANDOM.nextBytes(nonce);
         String payload = scope + ":" + resumeId + ":" + expiresAt + ":" + URL_ENCODER.encodeToString(nonce);

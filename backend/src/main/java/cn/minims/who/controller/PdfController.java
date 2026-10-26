@@ -3,10 +3,9 @@ package cn.minims.who.controller;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
-import cn.minims.who.dto.Dtos.PdfStatusVo;
-import cn.minims.who.entity.Resume;
+import cn.minims.who.dto.ExportDtos.PdfStatusVo;
 import cn.minims.who.service.PdfExportService;
-import cn.minims.who.service.ResumeService;
+import cn.minims.who.service.PdfExportService.PdfFile;
 import cn.minims.who.util.Json;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
@@ -27,13 +26,11 @@ import java.nio.charset.StandardCharsets;
 @RestController
 public class PdfController {
 
-    private final ResumeService resumeService;
     private final PdfExportService pdfExportService;
     private final AuthUtil authUtil;
     private final Json json;
 
-    public PdfController(ResumeService resumeService, PdfExportService pdfExportService, AuthUtil authUtil, Json json) {
-        this.resumeService = resumeService;
+    public PdfController(PdfExportService pdfExportService, AuthUtil authUtil, Json json) {
         this.pdfExportService = pdfExportService;
         this.authUtil = authUtil;
         this.json = json;
@@ -51,7 +48,6 @@ public class PdfController {
                                            @RequestParam(required = false) Integer fontSizeStep,
                                            @RequestParam(required = false) Integer spacingStep,
                                            @RequestParam(required = false) Boolean showBrandFooter) {
-        Resume resume = resumeService.findOwned(authUtil.userId(), id);
         ObjectNode overrides = json.object();
         if (filter != null && !filter.isBlank()) {
             overrides.put("filter", filter);
@@ -65,22 +61,13 @@ public class PdfController {
         if (showBrandFooter != null) {
             overrides.put("showBrandFooter", showBrandFooter);
         }
-        byte[] pdf = pdfExportService.export(resume, templateCode, overrides);
-        String fileName = sanitize(resume.getTitle()) + ".pdf";
-        String encoded = URLEncoder.encode(fileName, StandardCharsets.UTF_8).replace("+", "%20");
+        PdfFile file = pdfExportService.exportFor(authUtil.userId(), id, templateCode, overrides);
+        String encoded = URLEncoder.encode(file.fileName(), StandardCharsets.UTF_8).replace("+", "%20");
         return ResponseEntity.status(HttpStatus.OK)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"resume.pdf\"; filename*=UTF-8''" + encoded)
                 .header(HttpHeaders.CACHE_CONTROL, "private, no-store")
                 .contentType(MediaType.APPLICATION_PDF)
-                .contentLength(pdf.length)
-                .body(new ByteArrayResource(pdf));
-    }
-
-    private String sanitize(String title) {
-        String cleaned = title == null ? "" : title.replaceAll("[\\\\/:*?\"<>|\\r\\n\\t]", "").trim();
-        if (cleaned.isBlank()) {
-            cleaned = "极简简历";
-        }
-        return cleaned.length() > 40 ? cleaned.substring(0, 40) : cleaned;
+                .contentLength(file.bytes().length)
+                .body(new ByteArrayResource(file.bytes()));
     }
 }

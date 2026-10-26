@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Download, Edit, InfoFilled, Plus, Search, Upload, View, Warning } from '@element-plus/icons-vue'
+import { Delete, Download, Edit, InfoFilled, Search, Upload, UploadFilled, View, Warning } from '@element-plus/icons-vue'
 import AppLayout from '../layouts/AppLayout.vue'
 import PaperFrame from '../components/PaperFrame.vue'
 import TemplateThumb from '../components/TemplateThumb.vue'
@@ -19,6 +19,7 @@ const { content: sampleContent, avatar: sampleAvatar } = useSampleResume()
 
 const packageInput = ref(null)
 const importing = ref(false)
+const dragging = ref(false)
 const busyCode = ref('')
 const packageProblems = ref([])
 const packageDialog = ref(false)
@@ -89,7 +90,21 @@ function openPackagePicker() {
 async function onPackageFile(event) {
   const file = event.target.files?.[0]
   event.target.value = ''
-  if (!file) return
+  if (file) await importPackageFile(file)
+}
+
+// 空状态整块都是投放区，拖进来的文件在松手时走同一条导入链路。
+function onDragLeave(event) {
+  if (!event.currentTarget.contains(event.relatedTarget)) dragging.value = false
+}
+
+async function onDrop(event) {
+  dragging.value = false
+  const file = event.dataTransfer?.files?.[0]
+  if (file && !importing.value) await importPackageFile(file)
+}
+
+async function importPackageFile(file) {
   let payload
   try {
     payload = JSON.parse(await file.text())
@@ -265,17 +280,38 @@ onMounted(loadTemplates)
         </div>
       </header>
 
-      <div v-if="!mine.length" class="surface mine-empty">
-        <el-icon><InfoFilled /></el-icon>
+      <div
+        v-if="!mine.length"
+        class="surface mine-empty"
+        :class="{ 'is-dragging': dragging }"
+        @dragenter.prevent="dragging = true"
+        @dragover.prevent
+        @dragleave.prevent="onDragLeave"
+        @drop.prevent="onDrop"
+      >
+        <span class="mine-empty__badge"><el-icon><InfoFilled /></el-icon></span>
         <h2>还没有导入过模板包</h2>
         <p>
-          收到别人的 <code>.json</code> 模板包，点上面的「导入模板包」即可；
+          收到别人的 <code>.json</code> 模板包后，拖进下面的方框或点它选择文件即可；
           也可以从模板中心把喜欢的官方版式导出成包，改改配色与间距再导回来。
           字段含义与可写的 CSS 见项目里的 <code>docs/模板包格式.md</code>。
         </p>
-        <el-button @click="openPackagePicker">
-          <el-icon><Plus /></el-icon> 导入模板包
-        </el-button>
+        <button
+          type="button"
+          class="package-drop"
+          :class="{ 'is-busy': importing }"
+          :disabled="importing"
+          @click="openPackagePicker"
+        >
+          <span class="package-drop__icon"><el-icon><UploadFilled /></el-icon></span>
+          <span class="package-drop__title">
+            {{ importing ? '正在校验模板包…' : (dragging ? '松开鼠标即可导入' : '选择 .json 模板包') }}
+          </span>
+          <span class="package-drop__hint">
+            <template v-if="dragging">导入后服务端会逐条重写规则，不会执行多余脚本</template>
+            <template v-else>或直接把文件拖到这里 · 只接受 .json</template>
+          </span>
+        </button>
       </div>
 
       <template v-else>
@@ -296,7 +332,7 @@ onMounted(loadTemplates)
         </div>
 
         <div v-if="!shownTemplates.length" class="surface mine-empty">
-          <el-icon><Search /></el-icon>
+          <span class="mine-empty__badge"><el-icon><Search /></el-icon></span>
           <h2>没有找到匹配的模板</h2>
           <p>试试名称、编码、作者或版式里的关键词，比如「qingling」「青领」「头像单栏」。</p>
           <el-button @click="keyword = ''">清除搜索</el-button>
@@ -563,23 +599,37 @@ onMounted(loadTemplates)
 }
 
 .mine-empty {
-  padding: 44px 28px;
+  padding: 46px 28px 42px;
   text-align: center;
+  transition: border-color 0.22s ease, background 0.22s ease;
 }
 
-.mine-empty .el-icon {
+/* 拖文件进来时整块空状态都可投放，边框与底色亮一下作为反馈。 */
+.mine-empty.is-dragging {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+  background: color-mix(in srgb, var(--accent) 4%, var(--paper));
+}
+
+.mine-empty__badge {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: var(--accent-soft);
   color: var(--accent);
-  font-size: 30px;
+  font-size: 22px;
 }
 
 .mine-empty h2 {
-  margin: 12px 0 8px;
+  margin: 14px 0 8px;
   font-size: 18px;
 }
 
 .mine-empty p {
-  max-width: 520px;
-  margin: 0 auto 18px;
+  max-width: 540px;
+  margin: 0 auto 22px;
   color: var(--muted);
   font-size: 12.5px;
   line-height: 1.9;
@@ -592,6 +642,118 @@ onMounted(loadTemplates)
   color: var(--accent);
   font-family: var(--mono);
   font-size: 11px;
+}
+
+/* 导入入口做成投放区：虚线框 + 圆形图标，鼠标悬停时抬起来，看起来就是「往这里放」。 */
+.package-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: min(440px, 100%);
+  margin: 0 auto;
+  padding: 24px 24px 20px;
+  border: 1.5px dashed color-mix(in srgb, var(--accent) 32%, var(--line-strong));
+  border-radius: 16px;
+  background:
+    radial-gradient(130% 120% at 50% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 72%),
+    var(--paper-deep);
+  color: var(--ink-soft);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.22s ease,
+    background 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.package-drop:hover {
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--line-strong));
+  box-shadow: 0 18px 34px -26px rgba(10, 125, 118, 0.55);
+  transform: translateY(-2px);
+}
+
+.package-drop:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.mine-empty.is-dragging .package-drop {
+  border-style: solid;
+  border-color: var(--accent);
+  background:
+    radial-gradient(130% 120% at 50% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 72%),
+    var(--accent-soft);
+  box-shadow: 0 20px 40px -26px rgba(10, 125, 118, 0.6);
+  transform: translateY(-2px) scale(1.01);
+}
+
+.package-drop:disabled {
+  cursor: progress;
+  opacity: 0.8;
+}
+
+.package-drop__icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--line), 0 12px 22px -16px rgba(10, 125, 118, 0.7);
+  font-size: 21px;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), background 0.22s ease, color 0.22s ease;
+}
+
+.package-drop:hover .package-drop__icon,
+.mine-empty.is-dragging .package-drop__icon {
+  background: var(--accent);
+  color: #fff;
+  transform: translateY(-3px);
+}
+
+.package-drop.is-busy .package-drop__icon {
+  animation: package-pulse 1.2s ease-in-out infinite;
+}
+
+.package-drop__title {
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.package-drop__hint {
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.mine-empty.is-dragging .package-drop__hint {
+  color: var(--accent-dark);
+}
+
+@keyframes package-pulse {
+  50% {
+    opacity: 0.6;
+    transform: scale(0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .package-drop,
+  .package-drop__icon {
+    transition: none;
+  }
+
+  .package-drop.is-busy .package-drop__icon {
+    animation: none;
+  }
 }
 
 .mine-toolbar {

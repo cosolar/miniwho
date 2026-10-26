@@ -1,6 +1,6 @@
 package cn.minims.who.service;
 
-import cn.minims.who.dto.Dtos.SiteStatsVo;
+import cn.minims.who.dto.SiteDtos.SiteStatsVo;
 import cn.minims.who.mapper.SiteStatsMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -53,11 +53,7 @@ public class SiteStatsService {
         if (visitorId == null) {
             return;
         }
-        long now = System.currentTimeMillis();
-        onlineSeen.put(visitorId, now);
-        if (onlineSeen.size() > MAX_TRACKED) {
-            prune(onlineSeen, now, ONLINE_WINDOW_MS);
-        }
+        track(onlineSeen, visitorId, System.currentTimeMillis(), ONLINE_WINDOW_MS);
     }
 
     /** 计一次访问，并在同一请求里完成一次心跳。 */
@@ -68,15 +64,29 @@ public class SiteStatsService {
             return;
         }
         long now = System.currentTimeMillis();
-        Long lastCounted = visitSeen.get(visitorId);
-        if (lastCounted != null && now - lastCounted < VISIT_DEDUPE_MS) {
+        if (!track(visitSeen, visitorId, now, VISIT_DEDUPE_MS)) {
             return;
         }
-        visitSeen.put(visitorId, now);
-        if (visitSeen.size() > MAX_TRACKED) {
-            prune(visitSeen, now, VISIT_DEDUPE_MS);
-        }
         incrementVisits(now);
+    }
+
+    /**
+     * 已在跟踪的访客直接刷新时间戳；新访客超过容量上限时先清过期项，还满就拒绝记录。
+     * 上限是防内存被随机 id 撑爆的硬闸，不是精确统计：被灌满后宁可少算极端访客。
+     */
+    private boolean track(Map<String, Long> map, String visitorId, long now, long ttl) {
+        if (map.containsKey(visitorId)) {
+            map.put(visitorId, now);
+            return true;
+        }
+        if (map.size() >= MAX_TRACKED) {
+            prune(map, now, ttl);
+            if (map.size() >= MAX_TRACKED) {
+                return false;
+            }
+        }
+        map.put(visitorId, now);
+        return true;
     }
 
     private void incrementVisits(long now) {
