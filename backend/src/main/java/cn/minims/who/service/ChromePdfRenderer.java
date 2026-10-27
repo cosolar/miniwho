@@ -16,7 +16,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 用系统 Chrome / Edge 的无头模式把渲染页打印成 PDF，避免引入 PDF 库与字体依赖。
+ * 用系统 Chrome / Edge 的无头模式把渲染页打印成 PDF，版面与字体都交给浏览器，服务端不参与排版。
  *
  * <p>每个导出都会起一个独立的浏览器进程，单个实例峰值可占几百 MB；
  * 因此用信号量限制同时运行的实例数，超出上限的请求在队列里等待，

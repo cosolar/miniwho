@@ -54,12 +54,14 @@ public class PdfExportService {
     private final TemplateService templateService;
     private final AvatarService avatarService;
     private final ChromePdfRenderer renderer;
+    private final PdfToUnicodeNormalizer toUnicodeNormalizer;
     private final AttachmentStore store;
     private final Json json;
     private final String renderBaseUrl;
 
     public PdfExportService(ResumeMapper resumeMapper, ResumeAccessService accessService, TemplateMapper templateMapper,
                             TemplateService templateService, AvatarService avatarService, ChromePdfRenderer renderer,
+                            PdfToUnicodeNormalizer toUnicodeNormalizer,
                             AttachmentStore store, Json json,
                             @Value("${app.pdf.render-base-url:}") String renderBaseUrl) {
         this.resumeMapper = resumeMapper;
@@ -68,6 +70,7 @@ public class PdfExportService {
         this.templateService = templateService;
         this.avatarService = avatarService;
         this.renderer = renderer;
+        this.toUnicodeNormalizer = toUnicodeNormalizer;
         this.store = store;
         this.json = json;
         this.renderBaseUrl = renderBaseUrl == null ? "" : renderBaseUrl.trim();
@@ -136,7 +139,8 @@ public class PdfExportService {
             }
             String token = issueTicket(resume.getId(), resolvedTemplate, style);
             String url = renderBaseUrl + "/export/" + token;
-            byte[] pdf = renderer.render(url);
+            // 浏览器打印出来的中文 PDF 里，复制文字会拿到康熙部首码点，进缓存前统一修正一次。
+            byte[] pdf = toUnicodeNormalizer.normalize(renderer.render(url));
             writeCache(cacheKey, pdf);
             sweepCache();
             mine.complete(pdf);

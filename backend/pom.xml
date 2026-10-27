@@ -24,6 +24,7 @@
         <hutool.version>5.8.32</hutool.version>
         <sqlite.version>3.46.1.3</sqlite.version>
         <jsoup.version>1.18.1</jsoup.version>
+        <pdfbox.version>3.0.7</pdfbox.version>
         <druid.version>1.2.23</druid.version>
         <springdoc.version>2.6.0</springdoc.version>
     </properties>
@@ -98,6 +99,13 @@
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
             <version>${jsoup.version}</version>
+        </dependency>
+
+        <!-- 只用于改写导出 PDF 的 ToUnicode 码点映射，不参与渲染，见 PdfToUnicodeNormalizer -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>${pdfbox.version}</version>
         </dependency>
 
         <dependency>
