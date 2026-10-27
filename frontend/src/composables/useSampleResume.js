@@ -1,10 +1,12 @@
 import { computed, ref } from 'vue'
-import { sampleApi } from '../api'
+import { sampleApi, templateApi } from '../api'
 import { sampleContent as bundledSample } from '../data/sampleResume'
 import { TEMPLATE_FALLBACKS } from '../data/templatePresets'
 
 const content = ref(bundledSample)
 const templateCode = ref(TEMPLATE_FALLBACKS[0].code)
+/** 示例用了导入模板时的真实配置（含净化 CSS + scopeClass），取不到就回退官方预设。 */
+const customTemplate = ref(null)
 let inflight
 
 /** 示例照片不占后端头像通道（那要签名链接，十几张缩略图会反复过期），按性别挑打包的静态照。 */
@@ -21,14 +23,24 @@ export function useSampleResume() {
       .then((data) => {
         if (!Array.isArray(data?.content?.sections)) return
         content.value = data.content
-        if (data.templateCode) templateCode.value = data.templateCode
+        if (!data.templateCode) return
+        templateCode.value = data.templateCode
+        // 打包预设只含官方 12 套；示例换成导入模板时补拉一次详情，
+        // ResumePaper 会用 config 里的 scopeClass + styleCss 注入净化 CSS。
+        // 模板私有或已下架时详情接口 404，保持官方回退样式（作者本人可见）。
+        if (TEMPLATE_FALLBACKS.some((tpl) => tpl.code === data.templateCode)) return
+        templateApi.detail(data.templateCode)
+          .then((detail) => { if (detail?.code === data.templateCode) customTemplate.value = detail })
+          .catch(() => {})
       })
       .catch(() => {})
       .finally(() => { inflight = null })
   }
 
-  const template = computed(
-    () => TEMPLATE_FALLBACKS.find((tpl) => tpl.code === templateCode.value) || TEMPLATE_FALLBACKS[0]
+  const template = computed(() =>
+    TEMPLATE_FALLBACKS.find((tpl) => tpl.code === templateCode.value)
+    || customTemplate.value
+    || TEMPLATE_FALLBACKS[0]
   )
   const basicFields = computed(() => {
     const basic = content.value.sections?.find((section) => section.type === 'basic_info')
