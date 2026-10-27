@@ -39,15 +39,28 @@ public class AttachmentService {
             "txt", "text/plain"
     );
 
+    /** 允许为空表示该扩展名没有可靠的文件特征，不做内容校验。 */
+    private static final Map<String, byte[]> SIGNATURES = Map.of(
+            "jpg", new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF},
+            "jpeg", new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF},
+            "png", new byte[]{(byte) 0x89, 'P', 'N', 'G'},
+            "pdf", new byte[]{'%', 'P', 'D', 'F'},
+            "docx", new byte[]{'P', 'K', 0x03, 0x04},
+            "doc", new byte[]{(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0,
+                    (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1}
+    );
+
     private final ResumeAttachmentMapper attachmentMapper;
     private final ResumeService resumeService;
     private final AttachmentStore store;
+    private final StorageUsageService usage;
 
     public AttachmentService(ResumeAttachmentMapper attachmentMapper, ResumeService resumeService,
-                             AttachmentStore store) {
+                             AttachmentStore store, StorageUsageService usage) {
         this.attachmentMapper = attachmentMapper;
         this.resumeService = resumeService;
         this.store = store;
+        this.usage = usage;
     }
 
     public List<AttachmentVo> list(long userId, long resumeId) {
@@ -86,6 +99,7 @@ public class AttachmentService {
         if (!magicMatches(file, ext)) {
             throw BizException.badRequest("文件内容与扩展名不一致，请重新选择");
         }
+        usage.assertRoom(userId, file.getSize());
         if (original.length() > 120) {
             String name = original.substring(0, dot > 0 ? dot : original.length());
             if (name.length() > 100) name = name.substring(0, 100);
@@ -153,21 +167,31 @@ public class AttachmentService {
                 attachment.getSizeBytes(), attachment.getCreatedAt());
     }
 
+    /**
+     * 只认扩展名等于把上传目录当免费网盘：任意文件都能改名成 .docx 存进来。
+     * docx 本质是 zip，doc 是 OLE2 复合文档，两者都有固定的文件头。
+     * txt 没有可校验的特征（任何字节都合法），但它只会以 text/plain 加 nosniff 回给浏览器。
+     */
     private boolean magicMatches(MultipartFile file, String ext) {
-        if (!List.of("jpg", "jpeg", "png", "pdf").contains(ext)) {
+        if ("txt".equals(ext)) {
             return true;
         }
         try (InputStream input = file.getInputStream()) {
-            byte[] head = input.readNBytes(8);
-            if (head.length < 4) return false;
-            return switch (ext) {
-                case "jpg", "jpeg" -> (head[0] & 0xFF) == 0xFF && (head[1] & 0xFF) == 0xD8 && (head[2] & 0xFF) == 0xFF;
-                case "png" -> (head[0] & 0xFF) == 0x89 && head[1] == 0x50 && head[2] == 0x4E && head[3] == 0x47;
-                case "pdf" -> head[0] == 0x25 && head[1] == 0x50 && head[2] == 0x44 && head[3] == 0x46;
-                default -> true;
-            };
+            return startsWith(input.readNBytes(8), SIGNATURES.get(ext));
         } catch (IOException e) {
             return false;
         }
+    }
+
+    private static boolean startsWith(byte[] head, byte[] signature) {
+        if (signature == null || head.length < signature.length) {
+            return false;
+        }
+        for (int i = 0; i < signature.length; i++) {
+            if (head[i] != signature[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 }

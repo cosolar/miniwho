@@ -42,4 +42,12 @@ public class BizException extends RuntimeException {
     public static BizException tooMany(String message) {
         return new BizException("TOO_MANY_REQUESTS", message, HttpStatus.TOO_MANY_REQUESTS);
     }
+
+    /**
+     * 存储配额已满。用 413 而不是 400：卡点不是这一次上传的文件太大，
+     * 而是这个账号已经没有地方放它，前端据此能给出「先清理再上传」的提示。
+     */
+    public static BizException storageFull(String message) {
+        return new BizException("STORAGE_QUOTA_EXCEEDED", message, HttpStatus.PAYLOAD_TOO_LARGE);
+    }
 }

@@ -11,11 +11,14 @@ import cn.minims.who.dto.AdminDtos.AdminFeedbackVo;
 import cn.minims.who.dto.AdminDtos.AdminSampleRequest;
 import cn.minims.who.dto.AdminDtos.AdminSampleVo;
 import cn.minims.who.dto.AdminDtos.AdminStatsVo;
+import cn.minims.who.dto.AdminDtos.AdminSystemVo;
 import cn.minims.who.dto.AdminDtos.AdminTemplateStatusRequest;
 import cn.minims.who.dto.AdminDtos.AdminTemplateVo;
+import cn.minims.who.dto.AdminDtos.AdminUserPasswordRequest;
 import cn.minims.who.dto.AdminDtos.AdminUserStatusRequest;
 import cn.minims.who.dto.AdminDtos.AdminUserVo;
 import cn.minims.who.service.AdminService;
+import cn.minims.who.service.HealthService;
 import cn.minims.who.service.TemplateService;
 import cn.minims.who.template.TemplatePackageCodec;
 import jakarta.validation.Valid;
@@ -42,19 +45,27 @@ public class AdminController {
     private final AdminService adminService;
     private final TemplateService templateService;
     private final TemplatePackageCodec codec;
+    private final HealthService healthService;
     private final AuthUtil authUtil;
 
     public AdminController(AdminService adminService, TemplateService templateService,
-                           TemplatePackageCodec codec, AuthUtil authUtil) {
+                           TemplatePackageCodec codec, HealthService healthService, AuthUtil authUtil) {
         this.adminService = adminService;
         this.templateService = templateService;
         this.codec = codec;
+        this.healthService = healthService;
         this.authUtil = authUtil;
     }
 
     @GetMapping("/stats")
     public ApiResponse<AdminStatsVo> stats() {
         return ApiResponse.ok(adminService.stats());
+    }
+
+    /** 运行环境与磁盘水位：路径、容量这些细节只在这个需要管理员的接口里出现。 */
+    @GetMapping("/system")
+    public ApiResponse<AdminSystemVo> system() {
+        return ApiResponse.ok(healthService.adminView());
     }
 
     @GetMapping("/users")
@@ -66,6 +77,14 @@ public class AdminController {
     public ApiResponse<Void> updateUser(@PathVariable long id,
                                         @Valid @RequestBody AdminUserStatusRequest request) {
         adminService.updateUserStatus(authUtil.userId(), id, request.status());
+        return ApiResponse.ok();
+    }
+
+    /** 给单个账号设新密码：自助重置走不通（邮箱未验证 / 收不到信）时的兜底，设完该账号需重新登录。 */
+    @PutMapping("/users/{id}/password")
+    public ApiResponse<Void> resetUserPassword(@PathVariable long id,
+                                               @Valid @RequestBody AdminUserPasswordRequest request) {
+        adminService.resetUserPassword(authUtil.userId(), id, request.password());
         return ApiResponse.ok();
     }
 

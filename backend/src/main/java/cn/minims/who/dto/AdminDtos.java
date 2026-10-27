@@ -1,5 +1,6 @@
 package cn.minims.who.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -17,14 +18,28 @@ public final class AdminDtos {
 
     public record AdminStatsVo(long users, long resumes, long shares, long reports, long templates,
                                long feedbackPending, long newUsers7d, long newResumes7d,
+                               long storageBytes, long orphanBytes, long quotaBytes,
                                List<AdminRecentUserVo> recentUsers) {
+    }
+
+    /**
+     * 运行环境自检与磁盘水位，只给后台看：这里可以出现路径与容量数字。
+     *
+     * @param uploadDir 上传目录绝对路径，运维排查挂载问题时要用
+     */
+    public record AdminSystemVo(String status, boolean coreOk, List<AdminCheckVo> checks,
+                                String uploadDir, long freeBytes, long storageBytes, long orphanBytes,
+                                long quotaBytes) {
+    }
+
+    public record AdminCheckVo(String name, boolean ok, String detail) {
     }
 
     public record AdminRecentUserVo(Long id, String username, String nickname, String role, Long createdAt) {
     }
 
     public record AdminUserVo(Long id, String username, String nickname, String email, Boolean emailVerified,
-                              String role, Integer status, Long createdAt, Long resumeCount) {
+                              String role, Integer status, Long createdAt, Long resumeCount, Long storageBytes) {
     }
 
     public record AdminTemplateVo(Long id, String code, String name, String description, String category,
@@ -41,6 +56,12 @@ public final class AdminDtos {
     }
 
     public record AdminUserStatusRequest(@NotNull Integer status) {
+    }
+
+    /** 后台给单个账号设新密码：收不到验证码、又忘了原密码的账号只剩这条兜底路径。 */
+    public record AdminUserPasswordRequest(
+            @NotBlank(message = "请输入新密码")
+            @Size(min = 6, max = 32, message = "密码长度需为 6-32 位") String password) {
     }
 
     public record AdminTemplateStatusRequest(@NotNull Integer status) {

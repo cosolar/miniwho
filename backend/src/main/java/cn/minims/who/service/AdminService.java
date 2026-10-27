@@ -1,6 +1,7 @@
 package cn.minims.who.service;
 
 import cn.dev33.satoken.stp.StpUtil;
+import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -44,11 +45,12 @@ public class AdminService {
     private final ResumeReportMapper reportMapper;
     private final TemplateService templateService;
     private final AuthSettingsService authSettingsService;
+    private final StorageUsageService storageUsage;
 
     public AdminService(UserMapper userMapper, ResumeMapper resumeMapper, TemplateMapper templateMapper,
                         FeedbackMapper feedbackMapper, ResumeShareMapper shareMapper,
                         ResumeReportMapper reportMapper, TemplateService templateService,
-                        AuthSettingsService authSettingsService) {
+                        AuthSettingsService authSettingsService, StorageUsageService storageUsage) {
         this.userMapper = userMapper;
         this.resumeMapper = resumeMapper;
         this.templateMapper = templateMapper;
@@ -57,6 +59,7 @@ public class AdminService {
         this.reportMapper = reportMapper;
         this.templateService = templateService;
         this.authSettingsService = authSettingsService;
+        this.storageUsage = storageUsage;
     }
 
     /** 注册 / 登录方式面板：管理员要看的不是三个孤立开关，而是「开没开 + 还差什么」。 */
@@ -85,8 +88,10 @@ public class AdminService {
                 .map(user -> new AdminRecentUserVo(user.getId(), user.getUsername(), user.getNickname(),
                         user.getRole(), user.getCreatedAt()))
                 .toList();
+        StorageUsageService.SiteUsage scan = storageUsage.scanSite();
         return new AdminStatsVo(users, resumes, shares, reports, templates,
-                feedbackPending, newUsers7d, newResumes7d, recentUsers);
+                feedbackPending, newUsers7d, newResumes7d,
+                scan.totalBytes(), scan.orphanBytes(), storageUsage.quotaBytes(), recentUsers);
     }
 
     public List<AdminUserVo> users() {
@@ -102,11 +107,13 @@ public class AdminService {
             }
         }
         List<AdminUserVo> result = new ArrayList<>(users.size());
+        // 盘上的用量整个后台共用一次扫描，别按用户各扫一遍。
+        StorageUsageService.SiteUsage scan = storageUsage.scanSite();
         for (User user : users) {
             result.add(new AdminUserVo(user.getId(), user.getUsername(), user.getNickname(), user.getEmail(),
                     Integer.valueOf(1).equals(user.getEmailVerified()),
                     user.getRole(), user.getStatus(), user.getCreatedAt(),
-                    resumeCounts.getOrDefault(user.getId(), 0L)));
+                    resumeCounts.getOrDefault(user.getId(), 0L), scan.userBytes(user.getId())));
         }
         return result;
     }
@@ -127,6 +134,25 @@ public class AdminService {
         if (status == 2) {
             StpUtil.logout(userId);
         }
+    }
+
+    /**
+     * 后台给单个账号设新密码：邮箱未验证或收不到验证码的用户，自助重置走不通，这是唯一兜底。
+     * <p>不给管理员改自己的密码：这条路径会连带踢掉当前会话，改完立刻掉线反而像操作失败，
+     * 自己改密码有个人中心那条「验原密码」的正路。
+     */
+    public void resetUserPassword(long adminId, long userId, String newPassword) {
+        if (adminId == userId) {
+            throw BizException.badRequest("请改用个人中心的「修改密码」修改自己的密码");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) throw BizException.notFound("用户不存在");
+        userMapper.update(null, new LambdaUpdateWrapper<User>()
+                .eq(User::getId, userId)
+                .set(User::getPasswordHash, BCrypt.hashpw(newPassword))
+                .set(User::getHasPassword, 1)
+                .set(User::getUpdatedAt, System.currentTimeMillis()));
+        StpUtil.logout(userId);
     }
 
     public List<AdminTemplateVo> templates() {

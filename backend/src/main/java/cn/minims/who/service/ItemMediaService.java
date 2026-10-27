@@ -68,13 +68,15 @@ public class ItemMediaService {
     private final AttachmentStore store;
     private final ResumeMapper resumeMapper;
     private final ResumeAccessService accessService;
+    private final StorageUsageService usage;
     private final Json json;
 
     public ItemMediaService(AttachmentStore store, ResumeMapper resumeMapper, ResumeAccessService accessService,
-                            Json json) {
+                            StorageUsageService usage, Json json) {
         this.store = store;
         this.resumeMapper = resumeMapper;
         this.accessService = accessService;
+        this.usage = usage;
         this.json = json;
     }
 
@@ -97,6 +99,7 @@ public class ItemMediaService {
         boolean alpha = hasAlpha(decoded);
         byte[] encoded = encode(prepare(decoded, alpha), alpha);
         String extension = alpha ? "png" : "jpg";
+        usage.assertRoom(resume.getUserId(), encoded.length);
         String key = path(resume.getId(), UUID.randomUUID() + "." + extension);
         try (InputStream input = new ByteArrayInputStream(encoded)) {
             store.write(key, input);
