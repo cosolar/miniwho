@@ -1,9 +1,5 @@
 package cn.minims.who.config;
 
-import jakarta.servlet.Filter;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
@@ -55,18 +51,5 @@ public class StaticSiteConfig implements WebMvcConfigurer {
             Resource index = location.createRelative("index.html");
             return index.exists() && index.isReadable() ? index : null;
         }
-    }
-
-    /** 原来由 Nginx 统一加的三个响应头；单镜像后由应用补上，换部署方式不至于少一层防护。 */
-    @Bean
-    public FilterRegistrationBean<Filter> siteSecurityHeaders() {
-        Filter filter = (request, response, chain) -> {
-            HttpServletResponse res = (HttpServletResponse) response;
-            res.setHeader("X-Content-Type-Options", "nosniff");
-            res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-            res.setHeader("X-Frame-Options", "SAMEORIGIN");
-            chain.doFilter(request, response);
-        };
-        return new FilterRegistrationBean<>(filter);
     }
 }

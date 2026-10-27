@@ -6,6 +6,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import cn.minims.who.common.AdminInterceptor;
 import cn.minims.who.common.PayloadLimitFilter;
 import cn.minims.who.common.RateLimitInterceptor;
+import cn.minims.who.common.SecurityHeadersFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -43,6 +44,16 @@ public class WebConfig implements WebMvcConfigurer {
         return registration;
     }
 
+    @Bean
+    public FilterRegistrationBean<SecurityHeadersFilter> securityHeaders() {
+        // 排在限流与业务之前：无论请求最终是 200、401 还是 500，响应头都得带上。
+        FilterRegistrationBean<SecurityHeadersFilter> registration =
+                new FilterRegistrationBean<>(new SecurityHeadersFilter());
+        registration.addUrlPatterns("/*");
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
+        return registration;
+    }
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         // 排在最前：登录爆破、密码爆破与统计刷量要在进业务之前就被挡下来。
@@ -51,7 +62,8 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(new SaInterceptor(handle -> SaRouter
                 .match("/api/**")
                 .notMatch("/api/auth/login", "/api/auth/register", "/api/auth/register-email",
-                        "/api/auth/email-code", "/api/auth/oauth/**", "/api/health",
+                        "/api/auth/email-code", "/api/auth/password-code", "/api/auth/password-reset",
+                        "/api/auth/oauth/**", "/api/health",
                         "/api/templates/**", "/api/public/**")
                 .check(route -> StpUtil.checkLogin())
         ) {
