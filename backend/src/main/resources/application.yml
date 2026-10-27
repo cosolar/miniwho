@@ -92,7 +92,18 @@ sa-token:
 
 app:
   upload-dir: ${MINIWHO_UPLOAD_DIR:./uploads}
+  # 单个账号在上传目录里最多占多少 MB，0 表示不设限。
+  # 附件、头像、条目 logo 都计入，回收站里的简历也算——那些文件同样压在部署者的盘上。
+  storage-quota-mb: ${MINIWHO_STORAGE_QUOTA_MB:512}
+  rate-limit:
+    # auto：直连对端是回环/内网地址时才相信 X-Forwarded-For（反向代理部署的常见形态）。
+    # 站点直接暴露公网时保持 auto 即可；代理来源是公网地址的部署改成 always，纯直连改 never。
+    trust-forwarded-for: ${MINIWHO_TRUST_FORWARDED_FOR:auto}
   cors-origins: ${MINIWHO_CORS_ORIGINS:*}
+  # 到期注销账号的清库扫描：默认每 6 小时一次，进程启动 90 秒后先跑一次。
+  # 宽限期本身固定在代码里（7 天），这里只调扫描频率，别让重启窗口里的到期账号一直没人管。
+  deletion-purge-delay: ${MINIWHO_DELETION_PURGE_DELAY:21600000}
+  deletion-purge-initial-delay: ${MINIWHO_DELETION_PURGE_INITIAL_DELAY:90000}
   media-secret: ${MINIWHO_MEDIA_SECRET:}
   # 站点对外地址：GitHub 的回调地址、以及第三方登录完成后把浏览器送回哪个前端，都从它拼出来。
   # 留空时 GitHub 功能视为未配置，后台会给出提示。
