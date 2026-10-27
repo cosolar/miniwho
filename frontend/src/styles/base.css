@@ -646,6 +646,12 @@ ul, ol {
     break-inside: avoid;
   }
 
+  /* 长条目在 bullet 间被切开时必须允许分片；与 .paper-item 同优先级，必须写在它后面才不被 avoid 覆盖，
+     否则打印时整条被挪到下页，断点回退到模块边界留下大段空白（预览是屏幕媒体不走分片，看不出差异）。 */
+  .resume-paper .paper-item--frag {
+    break-inside: auto;
+  }
+
   .resume-paper .paper-header {
     break-after: avoid;
   }
@@ -656,9 +662,14 @@ ul, ol {
     widows: 2;
   }
 
+  /* 标题不能设 avoid：社区模板的单行 grid 会把标题格拉伸到整行高度，avoid 让整行不可分片，
+     模块就被整体挪到下页留下大段空白。auto 后单行标题没有内部断点仍是原子的，
+     多行标题靠 orphans/widows=2 防止 1+1 拆分。 */
   .resume-paper .paper-section__title {
     break-after: avoid;
-    break-inside: avoid;
+    break-inside: auto;
+    orphans: 2;
+    widows: 2;
   }
 
   .resume-paper .paper-rich p,

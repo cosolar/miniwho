@@ -1,6 +1,7 @@
 const PAGE_MM = { width: 210, height: 297 }
 const BREAK_CLASS = 'paper-page-break'
 const TIGHT_CLASS = 'paper-footer-tight'
+const FRAG_CLASS = 'paper-item--frag'
 const FOOTER_MIN_GAP = 8
 /** 断点与块起点的高度比对容差（未缩放 px）。 */
 const EPS = 0.6
@@ -12,6 +13,23 @@ function num(value) {
 
 function visibleChildren(el) {
   return el ? Array.from(el.children).filter((child) => child.offsetHeight > 0) : []
+}
+
+/** 富文本块的 p 与各 li 各自成块：长条目能在 bullet 之间落刀，bullet 本身不被拦腰截断。 */
+function flowBlocks(el) {
+  const out = []
+  if (!el) return out
+  Array.from(el.children).forEach((child) => {
+    if (child.offsetHeight <= 0) return
+    if (child.tagName === 'UL' || child.tagName === 'OL') {
+      Array.from(child.children).forEach((li) => {
+        if (li.offsetHeight > 0) out.push(li)
+      })
+    } else {
+      out.push(child)
+    }
+  })
+  return out
 }
 
 function columnUnits(elements, geo) {
@@ -71,7 +89,7 @@ function cutAt(candidates, blocks, floor, ceiling) {
  * 各列各自记账，但共用同一批页边界：每次只在整个 flex 行都能落刀的位置断页。
  * 返回断点列表（未缩放 px），页数即断点数 + 1。
  */
-function packColumns(columns, page, root, forceAsideBreak = false) {
+function packColumns(columns, page, root, forceAsideBreak = false, splittables = []) {
   // 通栏版式把页眉铺到纸边，根节点没有上内边距；续页仍要留出 15mm 页边。
   const minPadTop = (root.offsetWidth / PAGE_MM.width) * 15
   const cols = columns.filter((column) => column.units.length).map(({ units, spans }) => ({
@@ -138,6 +156,11 @@ function packColumns(columns, page, root, forceAsideBreak = false) {
     // 单块内容高过整页时无处落刀，交给浏览器自然断页。
     if (cut == null) break
     breaks.push(cut)
+    // 断点落在长条目内部时，打印里要允许该条目分片；
+    // 否则整条 break-inside: avoid 会被挪到下页，留出一大段空白。
+    splittables.forEach(({ el, start, end }) => {
+      if (start + EPS < cut && cut + EPS < end) el.classList.add(FRAG_CLASS)
+    })
 
     cols.forEach((col, colIndex) => {
       const index = col.units.findIndex((unit) => unit.top >= cut - EPS)
@@ -167,10 +190,13 @@ function packColumns(columns, page, root, forceAsideBreak = false) {
 /**
  * 模块与模块内条目都作为可落点：条目从第二条起独立成块，
  * 标题与首条绑成一个不可拆的块，只有第二条起的条目能单独落到下一页。
+ * 长条目的正文再按 p / li 拆成可落点（首条内容仍与标题行绑死），
+ * 整条挪不动时就在 bullet 之间落刀，页面填到装得下的最后一条为止。
  */
 function mainElements(root, geo) {
   const elements = []
   const blocks = []
+  const splittables = []
   const header = root.querySelector('.paper-header')
   if (header) elements.push(header)
   const scope = root.querySelector('.sidebar-main') || root.querySelector('.paper-flow') || root
@@ -180,9 +206,20 @@ function mainElements(root, geo) {
     const items = visibleChildren(body)
     blocks.push([range(section, geo, 'top'), items.length ? range(items[0], geo, 'top') : range(section, geo, 'bottom')])
     items.slice(1).forEach((item) => elements.push(item))
+    items.forEach((item) => {
+      // 自我评价 / 个人技能等模块的正文是一整段富文本，段落与 bullet 同样可拆。
+      const box = item.classList.contains('paper-rich') || item.classList.contains('paper-plain')
+        ? item
+        : item.querySelector('.paper-rich')
+      const children = flowBlocks(box)
+      if (children.length <= 1) return
+      elements.push(...children.slice(1))
+      blocks.push([range(item, geo, 'top'), range(children[1], geo, 'top')])
+      if (box !== item) splittables.push({ el: item, start: range(item, geo, 'top'), end: range(item, geo, 'bottom') })
+    })
   })
   const footer = root.querySelector('.paper-footer')
-  return { elements, blocks, footer }
+  return { elements, blocks, footer, splittables }
 }
 
 function asideOf(root) {
@@ -207,11 +244,17 @@ export function paginatePaper(root) {
     el.style.removeProperty('--paper-page-pad-top')
   })
   root.querySelectorAll(`.${TIGHT_CLASS}`).forEach((el) => el.classList.remove(TIGHT_CLASS))
+  root.querySelectorAll(`.${FRAG_CLASS}`).forEach((el) => el.classList.remove(FRAG_CLASS))
 
-  const { elements, blocks, footer } = mainElements(root, geo)
+  const { elements, blocks, footer, splittables } = mainElements(root, geo)
   if (footer) elements.push(footer)
+  const splitEls = new Set(splittables.map((item) => item.el))
   const mainUnits = columnUnits(elements, geo)
-  mainUnits.forEach((unit) => { unit.isFooter = unit.el === footer })
+  mainUnits.forEach((unit) => {
+    // 可拆的长条目不再是整块原子：落刀点由它内部的 p / li 提供。
+    if (splitEls.has(unit.el)) unit.container = true
+    unit.isFooter = unit.el === footer
+  })
 
   const asideUnits = columnUnits(visibleChildren(asideOf(root)), geo)
 
@@ -220,6 +263,7 @@ export function paginatePaper(root) {
     pageHeight,
     root,
     Boolean(root.querySelector('.paper-rail')),
+    splittables,
   )
 
   return { pages: breaks.length + 1, marks: breaks }
