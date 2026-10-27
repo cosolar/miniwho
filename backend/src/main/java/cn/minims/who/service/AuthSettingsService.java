@@ -47,9 +47,23 @@ public class AuthSettingsService {
         return settings.enabled(SettingsService.GITHUB_LOGIN) && github.configured();
     }
 
+    /**
+     * 自助找回密码只看邮件通道，不看注册开关：管理员完全可以关掉注册但保留重置密码，
+     * 否则存量用户一旦忘了密码就只剩「重装系统」这一条路。
+     */
+    public boolean passwordResetEnabled() {
+        return mailService.available();
+    }
+
+    /** 换绑邮箱的验证码走同一条 SMTP 通道；通道不在，新地址的归属就无从证明，换绑整体不可用。 */
+    public boolean changeEmailEnabled() {
+        return mailService.available();
+    }
+
     /** 登录页读的公开配置：只说结论，不暴露通道配到什么程度。 */
     public AuthConfigVo publicConfig() {
-        return new AuthConfigVo(usernameRegisterEnabled(), emailRegisterEnabled(), githubLoginEnabled());
+        return new AuthConfigVo(usernameRegisterEnabled(), emailRegisterEnabled(),
+                githubLoginEnabled(), passwordResetEnabled());
     }
 
     /** 后台面板：除了开关，还要把依赖状态、当前生效的通道配置和回调地址一起给出，管理员才知道下一步该填什么。 */

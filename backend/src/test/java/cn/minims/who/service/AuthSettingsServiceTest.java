@@ -94,6 +94,27 @@ class AuthSettingsServiceTest {
         assertThat(mail.available()).isFalse();
     }
 
+    /**
+     * 找回密码只认邮件通道，不跟着邮箱注册开关一起关：
+     * 关掉注册是为了挡新用户，不该顺带把老用户「忘了密码还能自己改回来」这条路也堵死。
+     */
+    @Test
+    void 关掉邮箱注册也不影响自助找回密码() {
+        service.apply(new AdminAuthSettingsRequest(null, false, null,
+                "smtp.qq.com", null, null, null, "me@qq.com", null, null, null, null, null, null));
+
+        assertThat(mail.available()).isTrue();
+        assertThat(service.emailRegisterEnabled()).isFalse();
+        assertThat(service.passwordResetEnabled()).isTrue();
+        assertThat(service.publicConfig().passwordReset()).isTrue();
+    }
+
+    @Test
+    void 邮件通道没配好时登录页不出现找回密码() {
+        assertThat(service.passwordResetEnabled()).isFalse();
+        assertThat(service.publicConfig().passwordReset()).isFalse();
+    }
+
     private static AdminAuthSettingsRequest githubChannel(String clientId, String secret, String baseUrl,
                                                           Boolean login) {
         return new AdminAuthSettingsRequest(null, null, login,

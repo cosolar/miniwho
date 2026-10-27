@@ -1,12 +1,17 @@
 <script setup>
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowDown, QuestionFilled } from '@element-plus/icons-vue'
+import { ArrowDown, QuestionFilled, WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import BrandLogo from '../components/BrandLogo.vue'
 import { useAuthStore } from '../stores/auth'
+import { formatDateTime } from '../utils/format'
 
 const auth = useAuthStore()
 const router = useRouter()
+
+/** 宽限期里的账号还能用，但每一页都要看得见「正在被清除」这件事，不然取消入口就藏太深了。 */
+const deletionScheduledAt = computed(() => auth.user?.deletionScheduledAt || null)
 
 async function logout() {
   await auth.logout()
@@ -60,6 +65,11 @@ async function handleCommand(command) {
         </div>
       </div>
     </header>
+    <div v-if="deletionScheduledAt" class="deletion-strip no-print">
+      <el-icon><WarningFilled /></el-icon>
+      <span>该账号已申请注销，将于 {{ formatDateTime(deletionScheduledAt) }} 永久清除。</span>
+      <button type="button" @click="router.push('/profile')">去取消</button>
+    </div>
     <main class="app-main">
       <slot />
     </main>
@@ -186,6 +196,33 @@ async function handleCommand(command) {
 
 .app-main {
   min-height: calc(100vh - 62px);
+}
+
+.deletion-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 9px 24px;
+  background: #fdf1ee;
+  border-bottom: 1px solid #e9d5d1;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.deletion-strip button {
+  padding: 2px 10px;
+  border: 1px solid #e0bfb9;
+  border-radius: 999px;
+  background: none;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 11.5px;
+}
+
+.deletion-strip button:hover {
+  background: #f7e2dd;
 }
 
 @media (max-width: 700px) {

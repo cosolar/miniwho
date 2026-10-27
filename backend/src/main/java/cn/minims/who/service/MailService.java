@@ -1,14 +1,18 @@
 package cn.minims.who.service;
 
 import cn.minims.who.common.BizException;
+import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
@@ -24,6 +28,13 @@ public class MailService {
     /** SMTP 对端无响应时不能把业务线程挂住，连接与读写都设硬超时。 */
     private static final int CONNECT_TIMEOUT_MS = 5_000;
     private static final int READ_TIMEOUT_MS = 10_000;
+
+    /**
+     * 品牌 LOGO 走内联附件（cid）而不是图片外链：自托管的站点常常只在内网，
+     * 收件方邮件客户端根本取不到那个 URL，外链还会顺带暴露部署方的地址。
+     */
+    private static final Resource MAIL_LOGO = new ClassPathResource("mail/logo-lockup.png");
+    public static final String LOGO_CID = "miniwho-logo";
 
     @Value("${app.mail.host:}")
     private String envHost;
@@ -101,27 +112,41 @@ public class MailService {
         return settings.present(SettingsService.MAIL_HOST);
     }
 
-    public void send(String to, String subject, String body) {
+    /**
+     * 发一封同时带纯文本与 HTML 的邮件：只认文本的客户端仍能读到验证码，
+     * 也不会因为正文光秃秃被判成垃圾邮件。{@code htmlBody} 里用 {@code cid:miniwho-logo} 引用品牌图。
+     */
+    public void send(String to, String subject, String textBody, String htmlBody) {
         if (!available()) {
             throw new BizException("MAIL_NOT_CONFIGURED", "邮件服务未配置，请联系管理员",
                     HttpStatus.SERVICE_UNAVAILABLE);
         }
         JavaMailSenderImpl mailSender = build();
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, StandardCharsets.UTF_8.name());
-            // 显示名会走 RFC 2047 编码，中文署名不至于在收件人那边变成乱码。
-            helper.setFrom(from(), fromName());
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(body, false);
-            mailSender.send(message);
+            mailSender.send(compose(mailSender, to, subject, textBody, htmlBody));
         } catch (Exception e) {
             // 收件人地址不落日志（这是用户数据），失败原因只留给管理员看日志排查。
             log.error("邮件发送失败：{}", e.toString());
             throw new BizException("MAIL_SEND_FAILED", "邮件发送失败，请稍后再试或联系管理员",
                     HttpStatus.BAD_GATEWAY);
         }
+    }
+
+    /**
+     * 组包与发信拆开，是为了让测试能按真实 MIME 结构核对：内联图片必须和 HTML 在同一个
+     * multipart 里，纯文本备选也必须真的存在，只看字符串拼出来的正文发现不了这类问题。
+     */
+    MimeMessage compose(JavaMailSenderImpl mailSender, String to, String subject, String textBody, String htmlBody)
+            throws MessagingException, UnsupportedEncodingException {
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
+        // 显示名会走 RFC 2047 编码，中文署名不至于在收件人那边变成乱码。
+        helper.setFrom(from(), fromName());
+        helper.setTo(to);
+        helper.setSubject(subject);
+        helper.setText(textBody, htmlBody);
+        helper.addInline(LOGO_CID, MAIL_LOGO, "image/png");
+        return message;
     }
 
     private JavaMailSenderImpl build() {

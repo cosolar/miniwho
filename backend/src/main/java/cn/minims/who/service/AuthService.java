@@ -19,11 +19,13 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static cn.minims.who.dto.AuthDtos.ChangePasswordRequest;
+import static cn.minims.who.dto.AuthDtos.ChangeEmailCodeRequest;
 import static cn.minims.who.dto.ResumeDtos.CreateResumeRequest;
 import static cn.minims.who.dto.AuthDtos.EmailCodeRequest;
 import static cn.minims.who.dto.AuthDtos.EmailRegisterRequest;
 import static cn.minims.who.dto.AuthDtos.LoginRequest;
 import static cn.minims.who.dto.AuthDtos.LoginResponse;
+import static cn.minims.who.dto.AuthDtos.PasswordResetRequest;
 import static cn.minims.who.dto.AuthDtos.RegisterRequest;
 import static cn.minims.who.dto.AuthDtos.UpdateProfileRequest;
 import static cn.minims.who.dto.AuthDtos.UserVo;
@@ -79,12 +81,18 @@ public class AuthService {
         }
         String email = normalizeEmail(request.email());
         if (findByEmail(email) != null) {
-            throw BizException.badRequest("该邮箱已注册，请直接登录；忘记密码请联系管理员重置");
+            throw BizException.badRequest("该邮箱已注册，请直接登录；忘记密码请点「忘记密码」自助重置");
         }
         emailCodeService.issueRegisterCode(email);
     }
 
-    @Transactional
+    /**
+     * 邮箱注册。刻意不加 {@code @Transactional}：验证码校验一旦卷进这个事务，错一次码的
+     * attempts 记数就会随异常回滚，五次上限变成摆设（详见 {@link EmailCodeService#verifyRegisterCode}）。
+     * <p>剩下的两次写各自成立：建号是单条 insert，首份简历由 {@code ResumeService.create} 自己的事务保证。
+     * 极端情况下会留下「有账号但没简历」的用户，登录返回 resumeId=0，后台列表里手动新建即可，
+     * 这个代价比把爆破上限弄没要小。
+     */
     public LoginResponse registerWithEmail(EmailRegisterRequest request) {
         if (!authSettings.emailRegisterEnabled()) {
             throw BizException.forbidden("管理员未开放邮箱注册");
@@ -108,6 +116,56 @@ public class AuthService {
         insertUser(user, "该邮箱已注册，请直接登录");
 
         return afterSignup(user);
+    }
+
+    /**
+     * 发送找回密码验证码。
+     * <p>只认「验证码确认过的邮箱」：注册时没填邮箱、或用 GitHub 邮箱自动带出的地址都可能没被本站
+     * 验证过，而一封能收到验证码的邮件就是这次改密码的唯一凭据，所以未验证一律拒绝。
+     * <p>不区分「邮箱没注册」和「注册了但没验证」：前者会让脚本拿接口当账号探测器，后者本来就少见，
+     * 用同一句文案的代价远小于泄露账号表。
+     */
+    public void sendResetCode(EmailCodeRequest request) {
+        if (!authSettings.passwordResetEnabled()) {
+            throw BizException.forbidden("管理员尚未配置邮件服务，找回密码请联系管理员");
+        }
+        String email = normalizeEmail(request.email());
+        if (findVerifiedByEmail(email) == null) {
+            throw BizException.badRequest("该邮箱未在本站完成验证，无法自助重置，请联系管理员");
+        }
+        emailCodeService.issueResetCode(email);
+    }
+
+    /**
+     * 用验证码重置密码：验证通过即覆盖密码并作废旧凭据下的全部登录态。
+     * <p>顺序是先查账号、再比对新旧密码、最后才消费验证码。「和旧密码相同」这类失败不该把码吃掉，
+     * 否则用户改个字符就要去邮箱里再取一封。
+     * <p>同样不加事务：这里只有一条 UPDATE，事务换不来什么，却会把验证码的错误计数一起回滚掉。
+     */
+    public void resetPassword(PasswordResetRequest request) {
+        if (!authSettings.passwordResetEnabled()) {
+            throw BizException.forbidden("管理员尚未配置邮件服务，找回密码请联系管理员");
+        }
+        String email = normalizeEmail(request.email());
+        User user = findVerifiedByEmail(email);
+        if (user == null) {
+            throw BizException.badRequest("该邮箱未在本站完成验证，无法自助重置，请联系管理员");
+        }
+        if (!Integer.valueOf(1).equals(user.getStatus())) {
+            throw BizException.forbidden("账号已被冻结，请联系管理员");
+        }
+        if (Integer.valueOf(1).equals(user.getHasPassword())
+                && BCrypt.checkpw(request.newPassword(), user.getPasswordHash())) {
+            throw BizException.badRequest("新密码不能与原密码相同");
+        }
+        emailCodeService.verifyResetCode(email, request.code());
+        userMapper.update(null, new LambdaUpdateWrapper<User>()
+                .eq(User::getId, user.getId())
+                .set(User::getPasswordHash, BCrypt.hashpw(request.newPassword()))
+                .set(User::getHasPassword, 1)
+                .set(User::getUpdatedAt, System.currentTimeMillis()));
+        // 找回密码本身就说明旧凭据（邮箱或密码）可能已经不在自己手里了：所有端一律踢下线。
+        StpUtil.logout(user.getId());
     }
 
     /**
@@ -193,19 +251,53 @@ public class AuthService {
         }
         if (request.email() != null) {
             String email = normalizeEmail(request.email());
-            if (!email.isEmpty()) {
-                User owner = findByEmail(email);
-                if (owner != null && !owner.getId().equals(userId)) {
-                    throw BizException.badRequest("该邮箱已被其他账号使用");
+            String current = user.getEmail() == null ? "" : user.getEmail();
+            if (!email.equalsIgnoreCase(current)) {
+                if (email.isEmpty()) {
+                    // 清空邮箱：没有可验证的地址，验证状态跟着作废。
+                    update.set(User::getEmail, null);
+                    update.set(User::getEmailVerified, 0);
+                } else {
+                    // 换绑要证明新地址归本人：验证码只发新地址，验过才算数，验证状态由此回到 1。
+                    // 自助找回密码认的就是这个标记，绕过这一步等于把找回入口让给一个收不到信的地址。
+                    String code = request.code();
+                    if (code == null || code.isBlank()) {
+                        throw BizException.badRequest("更换邮箱需要先用新邮箱获取验证码");
+                    }
+                    User owner = findByEmail(email);
+                    if (owner != null && !owner.getId().equals(userId)) {
+                        throw BizException.badRequest("该邮箱已被其他账号使用");
+                    }
+                    emailCodeService.verifyChangeEmailCode(email, code);
+                    update.set(User::getEmail, email);
+                    update.set(User::getEmailVerified, 1);
                 }
             }
-            // 改地址等于重新绑定：旧地址的验证码证明不了新地址，验证状态必须归零。
-            update.set(User::getEmail, email.isEmpty() ? null : email);
-            update.set(User::getEmailVerified, 0);
         }
         update.set(User::getUpdatedAt, System.currentTimeMillis());
         userMapper.update(null, update);
         return currentUser(userId);
+    }
+
+    /**
+     * 发送换绑邮箱验证码：发给「新」地址。发码前先把明显的坑挡掉（与当前相同、已被占用），
+     * 不让用户等一封注定作废的邮件；占用检查在保存时还会再做一遍，挡并发窗口。
+     */
+    public void issueChangeEmailCode(long userId, ChangeEmailCodeRequest request) {
+        User user = userMapper.selectById(userId);
+        if (user == null) throw BizException.notFound("账号不存在");
+        if (!authSettings.changeEmailEnabled()) {
+            throw BizException.forbidden("管理员尚未配置邮件服务，更换邮箱暂不可用，请联系管理员");
+        }
+        String email = normalizeEmail(request.email());
+        if (email.equalsIgnoreCase(user.getEmail() == null ? "" : user.getEmail())) {
+            throw BizException.badRequest("新邮箱与当前邮箱相同");
+        }
+        User owner = findByEmail(email);
+        if (owner != null && !owner.getId().equals(userId)) {
+            throw BizException.badRequest("该邮箱已被其他账号使用");
+        }
+        emailCodeService.issueChangeEmailCode(email);
     }
 
     public void changePassword(long userId, ChangePasswordRequest request) {
@@ -233,6 +325,8 @@ public class AuthService {
                 user.getRole(), user.getStatus(),
                 Integer.valueOf(1).equals(user.getHasPassword()),
                 Integer.valueOf(1).equals(user.getEmailVerified()),
+                user.getDeletionRequestedAt(),
+                AccountDeletionService.deletionDeadline(user.getDeletionRequestedAt()),
                 user.getCreatedAt());
     }
 

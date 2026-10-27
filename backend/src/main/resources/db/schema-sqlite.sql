@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS users (
     has_password   INTEGER      NOT NULL DEFAULT 1,
     -- 只有走过邮箱验证码的邮箱才算已验证：GitHub 关联本地账号只认已验证的邮箱。
     email_verified INTEGER      NOT NULL DEFAULT 0,
+    -- 自助注销的申请时间：非空即「待注销」，到期由定时任务硬删整个账号；取消时清回 NULL。
+    deletion_requested_at BIGINT,
     created_at     BIGINT,
     updated_at     BIGINT
 );

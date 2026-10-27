@@ -57,6 +57,8 @@ public class SchemaMigrator implements ApplicationRunner {
         users.put("has_password", "TINYINT NOT NULL DEFAULT 1");
         // 存量库里填过的邮箱没验证过，默认 0：GitHub 只关联验证码确认过的邮箱。
         users.put("email_verified", "TINYINT NOT NULL DEFAULT 0");
+        // 自助注销的申请时间；存量库默认 NULL，也就是「没在注销」。
+        users.put("deletion_requested_at", "BIGINT");
         TABLE_COLUMNS.put("users", users);
     }
 

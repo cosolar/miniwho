@@ -1,15 +1,15 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Calendar, ChatDotSquare, Check, Document, InfoFilled, Key, Lock, SwitchButton, TrendCharts, User
+  Calendar, ChatDotSquare, Check, Delete, Document, Download, InfoFilled, Key, Lock, SwitchButton, TrendCharts, User
 } from '@element-plus/icons-vue'
 import AppLayout from '../layouts/AppLayout.vue'
 import { useAuthStore } from '../stores/auth'
-import { feedbackApi, resumeApi } from '../api'
+import { accountApi, feedbackApi, resumeApi } from '../api'
 import { notifyError } from '../api/client'
-import { formatDate } from '../utils/format'
+import { formatDate, formatDateTime, formatFileSize, saveBlob } from '../utils/format'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -20,8 +20,21 @@ const feedbackRef = ref(null)
 const profileSaving = ref(false)
 const passwordSaving = ref(false)
 const feedbackSaving = ref(false)
+const exporting = ref(false)
+const deletionBusy = ref(false)
+const codeSending = ref(false)
 const resumes = ref([])
 const statsLoading = ref(true)
+const storage = ref(null)
+
+/** 上限由部署者的 MINIWHO_STORAGE_QUOTA_MB 决定；0 表示没设限，这时只显示已用量。 */
+const storageUsed = computed(() => formatFileSize(storage.value?.usedBytes || 0))
+const storageQuota = computed(() => (storage.value?.quotaBytes > 0 ? formatFileSize(storage.value.quotaBytes) : ''))
+const storagePercent = computed(() => {
+  const used = storage.value?.usedBytes || 0
+  const quota = storage.value?.quotaBytes || 0
+  return quota > 0 ? Math.min(100, Math.round((used / quota) * 100)) : 0
+})
 
 const profile = reactive({
   nickname: auth.user?.nickname || '',
@@ -80,10 +93,24 @@ const isAdmin = computed(() => auth.user?.role === 'admin')
 /** GitHub 自动建号的账号没有可用密码；老缓存里没这个字段时按「有密码」处理。 */
 const hasPassword = computed(() => auth.user?.hasPassword !== false)
 const emailVerified = computed(() => Boolean(auth.user?.emailVerified))
+/** 服务端落库的邮箱：换绑校验只对「和它不一样」的地址生效，清空不算换绑。 */
+const savedEmail = ref(auth.user?.email || '')
+const emailChanged = computed(() => {
+  const next = profile.email.trim().toLowerCase()
+  return next !== '' && next !== savedEmail.value.toLowerCase()
+})
+const emailCode = ref('')
+const emailCodeSending = ref(false)
+const emailCodeCountdown = ref(0)
+let emailCodeTimer = null
 const resumeCount = computed(() => resumes.value.length)
 const bestScore = computed(() => Math.max(0, ...resumes.value.map((item) => Number(item.score) || 0)))
 const reviewedCount = computed(() => resumes.value.filter((item) => Number(item.score) > 0).length)
-const accountStatus = computed(() => (auth.user?.status === 1 ? '正常' : '已冻结'))
+const accountStatus = computed(() => {
+  // 注销中的账号照常可用，但状态行要说清楚：不然用户以为已经删干净了。
+  if (auth.user?.deletionScheduledAt) return '注销中'
+  return auth.user?.status === 1 ? '正常' : '已冻结'
+})
 
 async function loadStats() {
   statsLoading.value = true
@@ -96,24 +123,69 @@ async function loadStats() {
   }
 }
 
+/**
+ * 磁盘用量只是参考信息：接口要扫目录，所以不进 /auth/me。
+ * 读失败就把这一行留空，不该为它弹一个错误。
+ */
+async function loadStorage() {
+  try {
+    storage.value = await accountApi.storage()
+  } catch {
+    storage.value = null
+  }
+}
+
 async function saveProfile() {
   try {
     await profileRef.value.validate()
   } catch {
     return
   }
+  if (emailChanged.value && !/^\d{6}$/.test(emailCode.value)) {
+    ElMessage.warning('更换邮箱需要先向新邮箱获取验证码')
+    return
+  }
   profileSaving.value = true
   try {
     await auth.updateProfile({
       nickname: profile.nickname.trim(),
-      email: profile.email.trim()
+      email: profile.email.trim(),
+      code: emailChanged.value ? emailCode.value : undefined
     })
+    savedEmail.value = auth.user?.email || ''
+    emailCode.value = ''
     ElMessage.success('个人资料已保存')
   } catch (error) {
     notifyError(error, '保存个人资料失败')
   } finally {
     profileSaving.value = false
   }
+}
+
+/** 验证码发给「新」地址；倒计时与后端的 60 秒重发限制保持一致，别让按钮比服务端先放开。 */
+async function sendChangeEmailCode() {
+  if (emailCodeSending.value || emailCodeCountdown.value > 0) return
+  emailCodeSending.value = true
+  try {
+    await accountApi.changeEmailCode({ email: profile.email.trim() })
+    ElMessage.success('验证码已发送，10 分钟内有效')
+    startEmailCodeCountdown()
+  } catch (error) {
+    notifyError(error, '验证码发送失败')
+  } finally {
+    emailCodeSending.value = false
+  }
+}
+
+function startEmailCodeCountdown() {
+  emailCodeCountdown.value = 60
+  emailCodeTimer = setInterval(() => {
+    emailCodeCountdown.value -= 1
+    if (emailCodeCountdown.value <= 0) {
+      clearInterval(emailCodeTimer)
+      emailCodeTimer = null
+    }
+  }, 1000)
 }
 
 async function savePassword() {
@@ -164,6 +236,95 @@ async function submitFeedback() {
   }
 }
 
+/** 文件名用本地时间戳，和后端 zip 里的 manifest 时间能对上。 */
+function exportStamp(date) {
+  const pad = (value) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`
+    + `-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
+}
+
+async function exportAccount() {
+  exporting.value = true
+  try {
+    const blob = await accountApi.exportData()
+    // blob 响应拿不到 Content-Disposition，文件名只能在前端拼一份；
+    // username 是用户自己起的，先把 Windows/Linux 都不允许的路径字符替掉。
+    const owner = (auth.user?.username || 'account').replace(/[\\/:*?"<>|]/g, '_')
+    saveBlob(blob, `miniwho-${owner}-${exportStamp(new Date())}.zip`)
+    ElMessage.success('导出完成，浏览器已开始下载')
+  } catch (error) {
+    notifyError(error, '导出失败')
+  } finally {
+    exporting.value = false
+  }
+}
+
+const deletionForm = reactive({ password: '', code: '' })
+
+/** 后端算好的实际清除时间；宽限期天数只在服务层有一处定义，前端不自己加。 */
+const deletionScheduledAt = computed(() => auth.user?.deletionScheduledAt || null)
+
+/** 拉一次 /auth/me 把注销状态写回登录态，卡片与状态行会一起换。 */
+async function refreshDeletionState() {
+  try {
+    await auth.fetchMe()
+  } catch {
+    // 刷新失败不打紧：申请结果本身已经成功，最坏是这次进页面还显示旧状态。
+  }
+}
+
+async function sendDeletionCode() {
+  codeSending.value = true
+  try {
+    await accountApi.deletionCode()
+    ElMessage.success('验证码已发出，十分钟内有效')
+  } catch (error) {
+    notifyError(error, '验证码发送失败')
+  } finally {
+    codeSending.value = false
+  }
+}
+
+async function requestDeletion() {
+  try {
+    await ElMessageBox.confirm(
+      '提交后账号进入宽限期，到期将永久删除全部简历、附件、图片与自行导入的模板，分享链接同时失效。'
+        + '期内重新登录可以撤销。确定提交吗？',
+      '申请注销账号',
+      { confirmButtonText: '确认提交申请', cancelButtonText: '再想想', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  deletionBusy.value = true
+  try {
+    await accountApi.requestDeletion(
+      hasPassword.value ? { password: deletionForm.password } : { code: deletionForm.code }
+    )
+    deletionForm.password = ''
+    deletionForm.code = ''
+    await refreshDeletionState()
+    ElMessage.success('注销申请已提交，宽限期内登录即可撤销')
+  } catch (error) {
+    notifyError(error, '注销申请提交失败')
+  } finally {
+    deletionBusy.value = false
+  }
+}
+
+async function cancelDeletion() {
+  deletionBusy.value = true
+  try {
+    await accountApi.cancelDeletion()
+    await refreshDeletionState()
+    ElMessage.success('已撤销注销申请，账号保持原样')
+  } catch (error) {
+    notifyError(error, '撤销失败')
+  } finally {
+    deletionBusy.value = false
+  }
+}
+
 async function logout() {
   try {
     await ElMessageBox.confirm('退出后仍可使用同一账号重新登录。', '退出登录', {
@@ -183,8 +344,14 @@ onMounted(() => {
   if (auth.user) {
     profile.nickname = auth.user.nickname || ''
     profile.email = auth.user.email || ''
+    savedEmail.value = auth.user.email || ''
   }
   loadStats()
+  loadStorage()
+})
+
+onBeforeUnmount(() => {
+  if (emailCodeTimer) clearInterval(emailCodeTimer)
 })
 </script>
 
@@ -220,7 +387,7 @@ onMounted(() => {
                 <div>
                   <span class="card-kicker">Profile</span>
                   <h2>个人资料</h2>
-                  <p>昵称会显示在页面右上角，邮箱用于账号联系以及 GitHub 登录时的账号关联。</p>
+                  <p>昵称会显示在页面右上角；邮箱用于账号联系、GitHub 登录关联与自助找回密码，更换时需要用新邮箱收验证码确认。</p>
                 </div>
                 <span class="card-icon"><el-icon><User /></el-icon></span>
               </header>
@@ -240,12 +407,27 @@ onMounted(() => {
                   <el-input v-model="profile.email" maxlength="100" placeholder="name@example.com（选填）">
                     <template #prefix><el-icon><InfoFilled /></el-icon></template>
                   </el-input>
-                  <span v-if="!profile.email" class="field-note">邮箱选填；只有经过注册验证码确认的邮箱才能用于 GitHub 登录时关联账号。</span>
+                  <span v-if="!profile.email" class="field-note">邮箱选填；填写或更换都要用该邮箱收一封验证码确认，验证通过才算绑上。</span>
+                  <span v-else-if="emailChanged" class="field-note">邮箱已改动但尚未保存：先点下面的「发送验证码」，新邮箱收到信才算完成换绑。</span>
                   <span v-else class="field-note" :class="{ 'is-verified': emailVerified }">
                     {{ emailVerified
-                      ? '该邮箱已通过注册验证码确认，GitHub 登录时可自动关联到本账号。'
+                      ? '该邮箱已通过验证码确认，GitHub 登录时可自动关联到本账号。'
                       : '该邮箱尚未通过验证码确认，GitHub 登录不会把它关联到本账号。' }}
                   </span>
+                </el-form-item>
+                <el-form-item v-if="emailChanged" label="新邮箱验证码">
+                  <div class="deletion-code-row">
+                    <el-input v-model="emailCode" maxlength="6" placeholder="6 位邮箱验证码" />
+                    <el-button
+                      plain
+                      :loading="emailCodeSending"
+                      :disabled="emailCodeCountdown > 0"
+                      @click="sendChangeEmailCode"
+                    >
+                      {{ emailCodeCountdown > 0 ? `${emailCodeCountdown} 秒` : '发送验证码' }}
+                    </el-button>
+                  </div>
+                  <span class="field-note">验证码发给上面填的新邮箱地址；换绑完成后邮箱状态回到「已验证」，自助找回密码不受影响。</span>
                 </el-form-item>
                 <div class="form-actions">
                   <span class="save-hint">修改后立即生效，不影响简历内容。</span>
@@ -265,7 +447,7 @@ onMounted(() => {
                   <p>
                     {{ hasPassword
                       ? '建议使用与其他网站不同的密码，至少 6 位。修改后当前登录仍然有效。'
-                      : '该账号由第三方登录自动创建，本期不支持为它设置密码。' }}
+                      : '该账号由第三方登录自动创建，没有可用密码。需要密码时请联系管理员在后台设置；绑定了已验证邮箱后也可以在登录页用「忘记密码」自助设置。' }}
                   </p>
                 </div>
                 <span class="card-icon"><el-icon><Lock /></el-icon></span>
@@ -285,7 +467,7 @@ onMounted(() => {
                   </el-form-item>
                 </div>
                 <div class="form-actions">
-                  <span class="save-hint">忘记密码时，请联系部署管理员重置。</span>
+                  <span class="save-hint">忘记密码可在登录页用邮箱验证码自助重置；邮箱未验证时联系部署管理员。</span>
                   <el-button type="primary" plain :loading="passwordSaving" @click="savePassword">
                     更新密码
                   </el-button>
@@ -324,6 +506,67 @@ onMounted(() => {
                 </div>
               </el-form>
             </section>
+
+            <section class="surface profile-card danger-card">
+              <header class="profile-card__head">
+                <div>
+                  <span class="card-kicker">Danger</span>
+                  <h2>注销账号</h2>
+                  <p>
+                    {{ deletionScheduledAt
+                      ? '到期后本账号的全部简历、附件、图片与自行导入的模板都会被永久删除，分享链接同时失效，回收站里的内容也一并清除。'
+                      : '提交后不会立刻删除：账号进入宽限期，期内随时可以撤销；到期才执行永久删除。' }}
+                  </p>
+                </div>
+                <span class="card-icon"><el-icon><Delete /></el-icon></span>
+              </header>
+
+              <template v-if="deletionScheduledAt">
+                <p class="deletion-state">
+                  该账号已申请注销，将于 <strong>{{ formatDateTime(deletionScheduledAt) }}</strong> 永久清除。
+                </p>
+                <div class="form-actions">
+                  <span class="save-hint">撤销后账号与数据都保持原样。</span>
+                  <el-button type="primary" plain :loading="deletionBusy" @click="cancelDeletion">
+                    取消注销
+                  </el-button>
+                </div>
+              </template>
+
+              <el-form v-else label-position="top" @submit.prevent>
+                <el-form-item v-if="hasPassword" label="确认身份">
+                  <el-input
+                    v-model="deletionForm.password"
+                    type="password"
+                    show-password
+                    autocomplete="current-password"
+                    placeholder="输入当前密码"
+                  />
+                  <span class="field-note">注销是不可回头的一步，所以要多确认一次密码。</span>
+                </el-form-item>
+                <el-form-item v-else label="确认身份">
+                  <div class="deletion-code-row">
+                    <el-input v-model="deletionForm.code" maxlength="6" placeholder="6 位邮箱验证码" />
+                    <el-button plain :loading="codeSending" @click="sendDeletionCode">发送验证码</el-button>
+                  </div>
+                  <span class="field-note">
+                    该账号由第三方登录创建、没有密码，改用已验证邮箱 {{ auth.user?.email || '（未绑定）' }} 的验证码确认。
+                  </span>
+                </el-form-item>
+                <div class="form-actions">
+                  <span class="save-hint">建议先用「导出我的全部数据」留一份备份。</span>
+                  <el-button
+                    type="danger"
+                    plain
+                    :loading="deletionBusy"
+                    :disabled="hasPassword ? !deletionForm.password : !deletionForm.code"
+                    @click="requestDeletion"
+                  >
+                    申请注销账号
+                  </el-button>
+                </div>
+              </el-form>
+            </section>
           </div>
 
           <aside class="profile-aside">
@@ -345,7 +588,9 @@ onMounted(() => {
                 </div>
                 <div>
                   <dt>账号状态</dt>
-                  <dd class="is-status"><span class="status-dot"></span>{{ accountStatus }}</dd>
+                  <dd class="is-status" :class="{ 'is-pending': deletionScheduledAt }">
+                    <span class="status-dot"></span>{{ accountStatus }}
+                  </dd>
                 </div>
               </dl>
               <el-button class="account-btn" @click="router.push('/dashboard')">
@@ -361,7 +606,30 @@ onMounted(() => {
                 <li><span>01</span>简历内容保存在你自己部署的数据库中。</li>
                 <li><span>02</span>分享链接默认隐藏手机号与邮箱，可随时撤回。</li>
                 <li><span>03</span>诊断评分在服务端按固定规则计算，不调用外部 AI。</li>
+                <li><span>04</span>随时可打包导出全部履历与文件，导出件不含密码。</li>
               </ul>
+              <el-button class="export-btn" :loading="exporting" @click="exportAccount">
+                <el-icon v-if="!exporting"><Download /></el-icon>
+                {{ exporting ? '正在打包，数据多可能要几十秒' : '导出我的全部数据' }}
+              </el-button>
+              <p class="export-hint">回收站里的简历不在导出范围内，需要先恢复再打包。</p>
+
+              <div v-if="storage" class="storage-meter">
+                <div class="storage-meter__head">
+                  <span>磁盘用量</span>
+                  <strong>
+                    {{ storageUsed }}<template v-if="storageQuota"> / {{ storageQuota }}</template>
+                  </strong>
+                </div>
+                <div v-if="storageQuota" class="storage-meter__bar">
+                  <i :style="{ width: storagePercent + '%' }"></i>
+                </div>
+                <p class="storage-meter__hint">
+                  {{ storageQuota
+                    ? '附件、头像与条目图片都计入，回收站里的简历同样占盘。'
+                    : '部署者没有为单个账号设置存储上限。' }}
+                </p>
+              </div>
             </section>
 
             <button class="logout-card" type="button" @click="logout">
@@ -534,6 +802,47 @@ onMounted(() => {
   font-size: 16px;
 }
 
+/* 注销卡用同一套卡片结构，只在颜色上把「不可回头」这件事标出来。 */
+.danger-card {
+  border-color: #e9d5d1;
+}
+
+.danger-card .card-kicker {
+  color: var(--danger);
+}
+
+.danger-card .card-icon {
+  border-color: #e9d5d1;
+  color: var(--danger);
+}
+
+.deletion-state {
+  margin: 0;
+  padding: 13px 15px;
+  border: 1px solid #e9d5d1;
+  border-radius: 10px;
+  background: #fdf6f4;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.deletion-state strong {
+  color: var(--danger);
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
+.deletion-code-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.deletion-code-row :deep(.el-input) {
+  flex: 1;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -622,6 +931,11 @@ onMounted(() => {
   background: var(--success);
 }
 
+/* 注销中的账号照常可用，但状态点不能继续显示「一切正常」的绿。 */
+dd.is-pending .status-dot {
+  background: var(--danger);
+}
+
 .account-btn {
   width: 100%;
   margin-top: 18px;
@@ -650,6 +964,62 @@ onMounted(() => {
   font-family: var(--mono);
   font-size: 9px;
   padding-top: 2px;
+}
+
+.export-btn {
+  width: 100%;
+  margin-top: 18px;
+}
+
+.export-hint {
+  margin: 10px 0 0;
+  color: var(--faint);
+  font-size: 10.5px;
+  line-height: 1.7;
+}
+
+.storage-meter {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+
+.storage-meter__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.storage-meter__head strong {
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.storage-meter__bar {
+  height: 4px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.storage-meter__bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.storage-meter__hint {
+  margin: 8px 0 0;
+  color: var(--faint);
+  font-size: 10.5px;
+  line-height: 1.7;
 }
 
 .logout-card {

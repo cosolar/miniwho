@@ -7,6 +7,7 @@ import cn.minims.who.dto.AuthDtos.EmailCodeRequest;
 import cn.minims.who.dto.AuthDtos.EmailRegisterRequest;
 import cn.minims.who.dto.AuthDtos.LoginRequest;
 import cn.minims.who.dto.AuthDtos.LoginResponse;
+import cn.minims.who.dto.AuthDtos.PasswordResetRequest;
 import cn.minims.who.dto.AuthDtos.RegisterRequest;
 import cn.minims.who.dto.AuthDtos.UpdateProfileRequest;
 import cn.minims.who.dto.AuthDtos.UserVo;
@@ -48,6 +49,20 @@ public class AuthController {
     @PostMapping("/register-email")
     public ApiResponse<LoginResponse> registerEmail(@Valid @RequestBody EmailRegisterRequest request) {
         return ApiResponse.ok(authService.registerWithEmail(request));
+    }
+
+    /** 发送找回密码验证码；只给「邮箱已在本站验证过」的账号发信。 */
+    @PostMapping("/password-code")
+    public ApiResponse<Void> passwordCode(@Valid @RequestBody EmailCodeRequest request) {
+        authService.sendResetCode(request);
+        return ApiResponse.ok();
+    }
+
+    /** 用验证码重置密码：成功后该账号的全部登录态作废，需要重新登录。 */
+    @PostMapping("/password-reset")
+    public ApiResponse<Void> passwordReset(@Valid @RequestBody PasswordResetRequest request) {
+        authService.resetPassword(request);
+        return ApiResponse.ok();
     }
 
     @PostMapping("/login")

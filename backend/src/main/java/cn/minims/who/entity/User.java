@@ -23,6 +23,8 @@ public class User {
     private Integer hasPassword;
     /** 邮箱是否走过验证码；GitHub 只关联已验证的邮箱，避免拿别人填错的邮箱接管账号。 */
     private Integer emailVerified;
+    /** 自助注销的申请时间；非空表示处于宽限期内待硬删，取消注销时清回 null。 */
+    private Long deletionRequestedAt;
 
     @TableField(fill = FieldFill.INSERT)
     private Long createdAt;

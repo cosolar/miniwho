@@ -18,7 +18,7 @@ const agreed = ref(false)
 const isDev = import.meta.env.DEV
 
 /** 后台开关与实际通道就绪状态共同决定这一页渲染哪些入口。 */
-const config = reactive({ usernameRegister: false, emailRegister: false, githubLogin: false })
+const config = reactive({ usernameRegister: false, emailRegister: false, githubLogin: false, passwordReset: false })
 const registerKind = ref('username')
 const codeSending = ref(false)
 const countdown = ref(0)
@@ -34,39 +34,45 @@ const form = reactive({
 })
 
 const isRegister = computed(() => mode.value === 'register')
+const isReset = computed(() => mode.value === 'reset')
 const isEmailRegister = computed(() => isRegister.value && registerKind.value === 'email')
+/** 邮箱 + 验证码这套控件被「邮箱注册」和「找回密码」共用，规则也共用一份。 */
+const needsEmailCode = computed(() => isEmailRegister.value || isReset.value)
+const needsConfirm = computed(() => isRegister.value || isReset.value)
 const canRegister = computed(() => config.usernameRegister || config.emailRegister)
 const heading = computed(() => {
+  if (isReset.value) return '重新拿回账号。'
   if (!isRegister.value) return '欢迎回来。'
   return isEmailRegister.value ? '用邮箱开一个账号。' : '开始写一份像样的简历。'
 })
 const subheading = computed(() => {
+  if (isReset.value) return '向注册时验证过的邮箱发送验证码，验证通过后设置新密码；为了安全，重置后所有设备都需要重新登录。'
   if (!isRegister.value) return '继续编辑你的简历，所有内容都还在原来的位置。'
   if (isEmailRegister.value) return '先向邮箱发送验证码，验证通过后自动创建账号并生成第一份简历。'
   return '创建账号后会自动生成第一份空白简历，随时可以开始填写。'
 })
 
 const rules = computed(() => ({
-  username: isEmailRegister.value
+  username: needsEmailCode.value
     ? []
     : [
         { required: true, message: '请输入用户名', trigger: 'blur' },
         ...(isRegister.value ? [{ pattern: /^[a-zA-Z0-9_]{3,20}$/, message: '3-20 位字母、数字或下划线', trigger: 'blur' }] : [])
       ],
-  email: isEmailRegister.value
+  email: needsEmailCode.value
     ? [
         { required: true, message: '请输入邮箱', trigger: 'blur' },
         { type: 'email', message: '邮箱格式不正确', trigger: 'blur' }
       ]
     : [],
-  code: isEmailRegister.value
+  code: needsEmailCode.value
     ? [{ required: true, pattern: /^\d{6}$/, message: '验证码为 6 位数字', trigger: 'blur' }]
     : [],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    ...(isRegister.value ? [{ min: 6, max: 32, message: '密码长度为 6-32 位', trigger: 'blur' }] : [])
+    { required: true, message: isReset.value ? '请输入新密码' : '请输入密码', trigger: 'blur' },
+    ...(needsConfirm.value ? [{ min: 6, max: 32, message: '密码长度为 6-32 位', trigger: 'blur' }] : [])
   ],
-  confirm: isRegister.value
+  confirm: needsConfirm.value
     ? [
         { required: true, message: '请再次输入密码', trigger: 'blur' },
         { validator: (rule, value, callback) => value === form.password ? callback() : callback(new Error('两次输入的密码不一致')), trigger: 'blur' }
@@ -82,9 +88,19 @@ const redirect = computed(() => {
 
 function switchMode(next) {
   if (next === 'register' && !canRegister.value) return
+  if (next === 'reset' && !config.passwordReset) return
   mode.value = next
+  // 三种模式收的是同一批字段，切过去以后旧内容全对不上，所以一律清空。
+  // 密码也清：找回密码那一栏接下来收的是「新密码」，来回切一次就把刚设的密码
+  // 留在登录框里显示着，既容易被误提交，也不该让它多待在不必要的输入框里。
+  form.code = ''
+  form.confirm = ''
+  form.password = ''
   formRef.value?.clearValidate()
-  router.replace({ path: '/login', query: { ...route.query, mode: next === 'register' ? 'register' : undefined } })
+  const query = { ...route.query }
+  if (next === 'login') delete query.mode
+  else query.mode = next
+  router.replace({ path: '/login', query })
 }
 
 function switchKind(next) {
@@ -109,8 +125,13 @@ async function sendCode() {
   }
   codeSending.value = true
   try {
-    await authApi.emailCode(form.email.trim())
-    ElMessage.success('验证码已发送，10 分钟内有效')
+    if (isReset.value) {
+      await authApi.resetCode(form.email.trim())
+      ElMessage.success('重置验证码已发送，10 分钟内有效')
+    } else {
+      await authApi.emailCode(form.email.trim())
+      ElMessage.success('验证码已发送，10 分钟内有效')
+    }
     startCountdown(60)
   } catch (error) {
     notifyError(error, '验证码发送失败')
@@ -137,6 +158,20 @@ async function submit() {
   }
   loading.value = true
   try {
+    if (isReset.value) {
+      await authApi.resetPassword({
+        email: form.email.trim(),
+        code: form.code.trim(),
+        newPassword: form.password
+      })
+      ElMessage.success('密码已重置，请用新密码登录')
+      // 重置接口不给 token：改密码会把旧凭据下的会话全部作废，这里必须回到登录态而不是自动登录。
+      // 顺手把邮箱填进账号栏，少敲一次键盘。
+      await auth.logout()
+      form.username = form.email.trim()
+      switchMode('login')
+      return
+    }
     if (isRegister.value) {
       if (isEmailRegister.value) {
         await auth.registerWithEmail({
@@ -178,6 +213,7 @@ async function loadConfig() {
     config.usernameRegister = Boolean(data.usernameRegister)
     config.emailRegister = Boolean(data.emailRegister)
     config.githubLogin = Boolean(data.githubLogin)
+    config.passwordReset = Boolean(data.passwordReset)
     if (!config.usernameRegister && config.emailRegister) registerKind.value = 'email'
   } catch {
     // 读不到开关时退回「用户名注册可用」：宁可让后端回一句明确的「未开放注册」，
@@ -226,7 +262,9 @@ onBeforeUnmount(() => clearInterval(countdownTimer))
 
 onMounted(async () => {
   await loadConfig()
-  if (route.query.mode === 'register' && canRegister.value) mode.value = 'register'
+  const requested = route.query.mode
+  if (requested === 'register' && canRegister.value) mode.value = 'register'
+  else if (requested === 'reset' && config.passwordReset) mode.value = 'reset'
   await consumeOAuthHandoff()
 })
 </script>
@@ -274,7 +312,7 @@ onMounted(async () => {
 
     <main class="auth-main">
       <div class="auth-card">
-        <div v-if="canRegister" class="auth-tabs" role="tablist">
+        <div v-if="canRegister && !isReset" class="auth-tabs" role="tablist">
           <button type="button" role="tab" :class="{ active: !isRegister }" @click="switchMode('login')">登录</button>
           <button type="button" role="tab" :class="{ active: isRegister }" @click="switchMode('register')">注册</button>
           <span class="auth-tabs__indicator" :class="{ right: isRegister }" />
@@ -290,8 +328,18 @@ onMounted(async () => {
           <button type="button" :class="{ active: registerKind === 'email' }" @click="switchKind('email')">邮箱</button>
         </div>
 
-        <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="auth-form" @submit.prevent="submit">
-          <el-form-item v-if="!isEmailRegister" :label="isRegister ? '用户名' : '账号'" prop="username">
+        <!-- validate-on-rule-change 必须关掉：rules 是跟着 auth-config 接口回来的时机重算的，
+             Element Plus 默认会在规则对象变化时整表校验一次，结果空白表单刚进来就满屏红字。 -->
+        <el-form
+          ref="formRef"
+          :model="form"
+          :rules="rules"
+          :validate-on-rule-change="false"
+          label-position="top"
+          class="auth-form"
+          @submit.prevent="submit"
+        >
+          <el-form-item v-if="!needsEmailCode" :label="isRegister ? '用户名' : '账号'" prop="username">
             <el-input
               v-model="form.username"
               size="large"
@@ -302,9 +350,14 @@ onMounted(async () => {
             </el-input>
           </el-form-item>
 
-          <template v-if="isEmailRegister">
-            <el-form-item label="邮箱" prop="email">
-              <el-input v-model="form.email" size="large" placeholder="用于接收验证码" autocomplete="email">
+          <template v-if="needsEmailCode">
+            <el-form-item :label="isReset ? '注册邮箱' : '邮箱'" prop="email">
+              <el-input
+                v-model="form.email"
+                size="large"
+                :placeholder="isReset ? '收到验证码后即可设置新密码' : '用于接收验证码'"
+                autocomplete="email"
+              >
                 <template #prefix><el-icon><Message /></el-icon></template>
               </el-input>
             </el-form-item>
@@ -324,21 +377,21 @@ onMounted(async () => {
             <el-input v-model="form.nickname" size="large" placeholder="希望我们怎么称呼你" maxlength="50" />
           </el-form-item>
 
-          <el-form-item label="密码" prop="password">
+          <el-form-item :label="isReset ? '新密码' : '密码'" prop="password">
             <el-input
               v-model="form.password"
               size="large"
               type="password"
               show-password
               placeholder="至少 6 位"
-              :autocomplete="isRegister ? 'new-password' : 'current-password'"
+              :autocomplete="needsConfirm ? 'new-password' : 'current-password'"
               @keyup.enter="submit"
             >
               <template #prefix><el-icon><Lock /></el-icon></template>
             </el-input>
           </el-form-item>
 
-          <el-form-item v-if="isRegister" label="确认密码" prop="confirm">
+          <el-form-item v-if="needsConfirm" label="确认密码" prop="confirm">
             <el-input
               v-model="form.confirm"
               size="large"
@@ -361,13 +414,17 @@ onMounted(async () => {
             </el-checkbox>
           </div>
 
+          <div v-if="!isRegister && !isReset && config.passwordReset" class="forgot-row">
+            <button type="button" class="forgot-link" @click="switchMode('reset')">忘记密码？</button>
+          </div>
+
           <el-button type="primary" size="large" class="submit-btn" :loading="loading" @click="submit">
-            {{ isRegister ? '创建账号' : '登录' }}
+            {{ isReset ? '重置密码' : isRegister ? '创建账号' : '登录' }}
             <el-icon v-if="!loading"><ArrowRight /></el-icon>
           </el-button>
         </el-form>
 
-        <div v-if="config.githubLogin" class="oauth-block">
+        <div v-if="config.githubLogin && !isReset" class="oauth-block">
           <div class="oauth-divider"><span>或</span></div>
           <button type="button" class="oauth-btn" :disabled="loading" @click="githubLogin">
             <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true">
@@ -378,14 +435,20 @@ onMounted(async () => {
           <p class="oauth-note">首次登录会自动创建账号，之后用同一个 GitHub 账号即可继续。</p>
         </div>
 
-        <div v-if="isDev" class="demo-hint">
+        <p v-if="isReset" class="reset-note">只有已通过验证码确认的邮箱才能自助重置，在个人中心换绑过的邮箱同样算数。用户名注册的账号、或这里提示邮箱未验证时，请联系管理员在后台设新密码。</p>
+
+        <div v-if="isDev && !isReset" class="demo-hint">
           <span class="demo-hint__icon"><el-icon><Check /></el-icon></span>
           <p>本地演示账号 <code>demo</code> / <code>demo123</code>，附带一份完整示例简历。</p>
           <button type="button" @click="fillDemo">一键填入</button>
         </div>
 
         <div class="auth-switch">
-          <template v-if="isRegister">
+          <template v-if="isReset">
+            想起来了？
+            <button type="button" @click="switchMode('login')">返回登录</button>
+          </template>
+          <template v-else-if="isRegister">
             已经有账号了？
             <button type="button" @click="switchMode('login')">直接登录</button>
           </template>
@@ -777,6 +840,35 @@ onMounted(async () => {
   width: 100%;
   height: 46px;
   margin-top: 6px;
+}
+
+.forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 0 2px;
+}
+
+.forgot-link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.forgot-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.reset-note {
+  margin-top: 22px;
+  color: var(--faint);
+  font-size: 10px;
+  line-height: 1.7;
+  text-align: center;
 }
 
 .demo-hint {

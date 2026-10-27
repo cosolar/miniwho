@@ -7,10 +7,29 @@ export const authApi = {
   register: (payload) => client.post('/auth/register', payload),
   emailCode: (email) => client.post('/auth/email-code', { email }),
   registerEmail: (payload) => client.post('/auth/register-email', payload),
+  resetCode: (email) => client.post('/auth/password-code', { email }),
+  resetPassword: (payload) => client.post('/auth/password-reset', payload),
   logout: () => client.post('/auth/logout'),
   me: () => client.get('/auth/me'),
   updateProfile: (payload) => client.put('/auth/profile', payload),
   changePassword: (payload) => client.put('/auth/password', payload)
+}
+
+export const accountApi = {
+  /**
+   * 账号全量数据导出（zip）。走 blob：后端直接流式吐压缩包，不是 ApiResponse。
+   * 单独放大超时：数据多的账号打包要几十秒，用默认的 20 秒会掐断一个其实成功的下载。
+   */
+  exportData: () => client.get('/account/export', { responseType: 'blob', timeout: 600000 }),
+  /** 申请注销：设过密码的账号交密码，第三方登录的账号交邮箱验证码。 */
+  requestDeletion: (payload) => client.post('/account/deletion', payload),
+  cancelDeletion: () => client.delete('/account/deletion'),
+  /** 注销验证码只服务没有密码的第三方账号，收件地址由后端取当前账号绑定的邮箱。 */
+  deletionCode: () => client.post('/account/deletion/code'),
+  /** 换绑邮箱的验证码发给「新」地址，随保存资料接口一起提交。 */
+  changeEmailCode: (payload) => client.post('/account/email-code', payload),
+  /** 磁盘用量与配额：要扫目录，所以不进 /auth/me，个人中心按需拉一次。 */
+  storage: () => client.get('/account/storage')
 }
 
 export const resumeApi = {
@@ -114,8 +133,10 @@ export const statsApi = {
 
 export const adminApi = {
   stats: () => client.get('/admin/stats'),
+  system: () => client.get('/admin/system'),
   users: () => client.get('/admin/users'),
   updateUserStatus: (id, status) => client.put(`/admin/users/${id}/status`, { status }),
+  resetUserPassword: (id, password) => client.put(`/admin/users/${id}/password`, { password }),
   templates: () => client.get('/admin/templates'),
   updateTemplateStatus: (code, status) => client.put(`/admin/templates/${code}/status`, { status }),
   exportTemplates: () => client.get('/admin/templates/export', { responseType: 'blob' }),

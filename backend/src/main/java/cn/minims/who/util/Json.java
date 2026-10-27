@@ -51,4 +51,13 @@ public class Json {
             throw BizException.badRequest("内容格式不正确");
         }
     }
+
+    /** 给人看的导出件用缩进格式；接口出参仍然走 write()，不要拿这个当默认。 */
+    public String writePretty(JsonNode node) {
+        try {
+            return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(node);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("导出内容序列化失败", e);
+        }
+    }
 }
