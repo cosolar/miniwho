@@ -24,6 +24,20 @@ jobs:
       - name: Run backend tests
         run: mvn -B test --file backend/pom.xml
 
+      # 镜像里的 dist 是构建期产物，坏了要在这里拦住，而不是等 Docker 构建到一半才炸。
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+        working-directory: frontend
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
