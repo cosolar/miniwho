@@ -2,14 +2,14 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  ChatDotSquare, DataBoard, Document, Download, Grid, Key, Message, Refresh, Search, Share,
+  ChatDotSquare, Check, Close, DataBoard, Document, Download, Grid, Key, Message, Odometer, Refresh, Search, Share,
   User, UserFilled, View
 } from '@element-plus/icons-vue'
 import AppLayout from '../layouts/AppLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import { adminApi, templateApi } from '../api'
 import { notifyError } from '../api/client'
-import { formatDate, formatDateTime, saveBlob } from '../utils/format'
+import { formatDate, formatDateTime, formatFileSize, saveBlob } from '../utils/format'
 
 const auth = useAuthStore()
 
@@ -19,6 +19,7 @@ const usersLoading = ref(false)
 const templatesLoading = ref(false)
 const feedbackLoading = ref(false)
 const stats = ref(null)
+const system = ref(null)
 const users = ref([])
 const templates = ref([])
 const feedback = ref([])
@@ -71,11 +72,40 @@ const overviewCards = computed(() => {
     { key: 'templates', label: '启用模板', value: data.templates, icon: Grid },
     { key: 'reports', label: '诊断报告', value: data.reports, icon: DataBoard },
     { key: 'shares', label: '分享链接', value: data.shares, icon: Share },
+    { key: 'storage', label: '上传占用', value: formatFileSize(data.storageBytes || 0), icon: Odometer },
     { key: 'feedback', label: '待处理反馈', value: data.feedbackPending, icon: Message }
   ]
 })
 
 const recentUsers = computed(() => stats.value?.recentUsers || [])
+
+const CHECK_LABELS = {
+  database: '数据库',
+  storage: '上传目录',
+  pdf: 'PDF 渲染',
+  mail: '邮件通道',
+  disk: '磁盘空间'
+}
+
+function checkLabel(name) {
+  return CHECK_LABELS[name] || name
+}
+
+const systemStatusText = computed(() => {
+  const status = system.value?.status
+  if (status === 'UP') return '全部正常'
+  if (status === 'DEGRADED') return '可用，但有降级项'
+  if (status === 'DOWN') return '核心依赖不可用'
+  return '未读取'
+})
+
+const systemStatusClass = computed(() => {
+  const status = system.value?.status
+  return status === 'UP' ? 'is-up' : status === 'DOWN' ? 'is-down' : 'is-warn'
+})
+
+/** 无主文件只在真的扫出来时才提，否则这行只会让管理员多一个没有的顾虑。 */
+const hasOrphans = computed(() => (system.value?.orphanBytes || 0) > 0)
 
 const sampleTemplateName = computed(() => {
   const code = sample.value?.templateCode
@@ -312,8 +342,22 @@ async function copyText(text) {
 
 async function loadAll(showLoading = true) {
   if (showLoading) loading.value = true
-  await Promise.all([loadStats(), loadUsers(), loadTemplates(), loadFeedback(), loadSample(), loadAuthSettings()])
+  await Promise.all([
+    loadStats(), loadSystem(), loadUsers(), loadTemplates(), loadFeedback(), loadSample(), loadAuthSettings()
+  ])
   loading.value = false
+}
+
+/**
+ * 运行环境是「看一眼」的信息，读失败不该把整个后台变成错误态：
+ * 保持 system 为 null，卡片自己会整块不渲染。
+ */
+async function loadSystem() {
+  try {
+    system.value = await adminApi.system()
+  } catch {
+    system.value = null
+  }
 }
 
 async function toggleUser(row) {
@@ -341,6 +385,41 @@ async function toggleUser(row) {
     loadStats()
   } catch (error) {
     notifyError(error, '更新账号状态失败')
+  }
+}
+
+/**
+ * 兜底重置：邮箱没验证过或收不到信的账号走不了自助找回，这里由管理员直接设一个临时密码。
+ * 后端设完会踢掉该账号全部会话，所以提示里要写清「下次登录就用这个密码」。
+ */
+async function resetUserPassword(row) {
+  if (row.id === auth.user?.id) {
+    ElMessage.info('改自己的密码请用个人中心的「修改密码」')
+    return
+  }
+  let password
+  try {
+    const result = await ElMessageBox.prompt(
+      `为「${row.nickname || row.username}」设置新的登录密码。保存后该账号已登录的会话会全部退出，请用新密码登录，并提醒本人尽快改掉。`,
+      '重置密码',
+      {
+        confirmButtonText: '设置密码',
+        cancelButtonText: '取消',
+        inputType: 'password',
+        inputPlaceholder: '6-32 位',
+        inputPattern: /^.{6,32}$/,
+        inputErrorMessage: '密码长度需为 6-32 位'
+      }
+    )
+    password = result.value
+  } catch {
+    return
+  }
+  try {
+    await adminApi.resetUserPassword(row.id, password)
+    ElMessage.success('密码已重置，该账号需要重新登录')
+  } catch (error) {
+    notifyError(error, '重置密码失败')
   }
 }
 
@@ -548,6 +627,46 @@ onMounted(() => loadAll())
               </section>
             </div>
 
+            <section v-if="system" class="surface system-card">
+              <header class="panel-head">
+                <div>
+                  <span class="card-kicker">Runtime</span>
+                  <h2>运行环境</h2>
+                </div>
+                <span class="system-status" :class="systemStatusClass">{{ systemStatusText }}</span>
+              </header>
+              <ul class="system-checks">
+                <li v-for="check in system.checks" :key="check.name">
+                  <el-icon class="is-ok" v-if="check.ok"><Check /></el-icon>
+                  <el-icon class="is-bad" v-else><Close /></el-icon>
+                  <strong>{{ checkLabel(check.name) }}</strong>
+                  <span>{{ check.detail }}</span>
+                </li>
+              </ul>
+              <dl class="system-numbers">
+                <div>
+                  <dt>上传目录</dt>
+                  <dd>{{ system.uploadDir }}</dd>
+                </div>
+                <div>
+                  <dt>磁盘剩余</dt>
+                  <dd>{{ formatFileSize(system.freeBytes) }}</dd>
+                </div>
+                <div>
+                  <dt>附件合计</dt>
+                  <dd>{{ formatFileSize(system.storageBytes) }}</dd>
+                </div>
+                <div>
+                  <dt>单账号上限</dt>
+                  <dd>{{ system.quotaBytes > 0 ? formatFileSize(system.quotaBytes) : '未设置' }}</dd>
+                </div>
+              </dl>
+              <p v-if="hasOrphans" class="system-orphan">
+                另有 {{ formatFileSize(system.orphanBytes) }} 文件找不到对应简历（多为删除链路的残留），
+                可以直接在上传目录里按目录名核对后手动清理。
+              </p>
+            </section>
+
             <section class="surface admin-note">
               <el-icon><View /></el-icon>
               <div>
@@ -600,6 +719,11 @@ onMounted(() => loadAll())
                   </template>
                 </el-table-column>
                 <el-table-column prop="resumeCount" label="简历" width="60" align="center" />
+                <el-table-column label="存储" width="88" align="right">
+                  <template #default="{ row }">
+                    <span class="cell-muted cell-mono">{{ formatFileSize(row.storageBytes || 0) }}</span>
+                  </template>
+                </el-table-column>
                 <el-table-column label="注册时间" width="100">
                   <template #default="{ row }">
                     <span class="cell-muted">{{ formatDate(row.createdAt) }}</span>
@@ -612,8 +736,11 @@ onMounted(() => loadAll())
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="92" align="right">
+                <el-table-column label="操作" width="150" align="right">
                   <template #default="{ row }">
+                    <el-button size="small" link :disabled="row.id === auth.user?.id" @click="resetUserPassword(row)">
+                      重置密码
+                    </el-button>
                     <el-button
                       size="small"
                       :type="row.status === 1 ? 'danger' : 'primary'"
@@ -741,7 +868,7 @@ onMounted(() => loadAll())
               <div class="auth-row">
                 <div class="auth-row__main">
                   <strong>邮箱注册</strong>
-                  <p>先发送 6 位验证码，验证通过才建号；一封邮件的成本足以挡住批量注册。</p>
+                  <p>先发送 6 位验证码，验证通过才建号；一封邮件的成本足以挡住批量注册。同一通道还用于登录页的自助找回密码，注册关掉也不影响用户重置密码。</p>
                   <span class="auth-dep" :class="authSettings?.mailConfigured ? 'is-ok' : 'is-no'">
                     <i></i>
                     {{ authSettings?.mailConfigured
@@ -1380,6 +1507,92 @@ onMounted(() => loadAll())
   font-size: 26px;
 }
 
+.system-card {
+  margin-top: 22px;
+  padding: 20px 22px 22px;
+}
+
+.system-status {
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.system-status.is-up {
+  color: var(--success);
+}
+
+.system-status.is-warn {
+  color: var(--accent);
+}
+
+.system-status.is-down {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.system-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.system-checks li {
+  display: grid;
+  grid-template-columns: 16px 72px 1fr;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.system-checks strong {
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.system-checks .is-ok {
+  color: var(--success);
+}
+
+.system-checks .is-bad {
+  color: var(--danger);
+}
+
+.system-numbers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px 20px;
+  margin: 18px 0 0;
+  padding-top: 15px;
+  border-top: 1px dashed var(--line);
+}
+
+.system-numbers dt {
+  color: var(--faint);
+  font-size: 10.5px;
+}
+
+.system-numbers dd {
+  margin: 4px 0 0;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  word-break: break-all;
+}
+
+.system-orphan {
+  margin: 14px 0 0;
+  color: var(--danger);
+  font-size: 10.5px;
+  line-height: 1.7;
+}
+
 .admin-note {
   display: flex;
   gap: 12px;
@@ -1447,6 +1660,10 @@ onMounted(() => loadAll())
 .cell-muted {
   color: var(--muted);
   font-size: 11px;
+}
+
+.cell-mono {
+  font-family: var(--mono);
 }
 
 .status-tag {
