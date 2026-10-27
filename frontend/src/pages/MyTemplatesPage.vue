@@ -17,6 +17,11 @@ const router = useRouter()
 const { mine, refresh: loadTemplates } = useTemplates()
 const { content: sampleContent, avatar: sampleAvatar } = useSampleResume()
 
+/** 站点是托管给别人用的，他们手上没有仓库，说明统一指向文档中心（MiniDocs 分享页）。 */
+const DOCS_BASE = 'https://docs.minims.cn/share/miniwho?path=docs/'
+const THEME_GUIDE_URL = `${DOCS_BASE}模板主题开发指南.md`
+const PACKAGE_FORMAT_URL = `${DOCS_BASE}模板包格式.md`
+
 const packageInput = ref(null)
 const importing = ref(false)
 const dragging = ref(false)
@@ -292,9 +297,9 @@ onMounted(loadTemplates)
         <span class="mine-empty__badge"><el-icon><InfoFilled /></el-icon></span>
         <h2>还没有导入过模板包</h2>
         <p>
-          收到别人的 <code>.json</code> 模板包后，拖进下面的方框或点它选择文件即可；
-          也可以从模板中心把喜欢的官方版式导出成包，改改配色与间距再导回来。
-          字段含义与可写的 CSS 见项目里的 <code>docs/模板包格式.md</code>。
+          模板包就是一个 <code>.json</code> 文件：别人分享给你的，或者你从模板中心导出后改过配色、间距的，装进来就能用。
+          想自己调样式，先看这份
+          <a :href="THEME_GUIDE_URL" target="_blank" rel="noopener">模板包怎么写</a>。
         </p>
         <button
           type="button"
@@ -503,7 +508,8 @@ onMounted(loadTemplates)
       </template>
 
       <p class="json-dialog__hint">
-        直接改模板包 JSON：字段与校验规则见 <code>docs/模板包格式.md</code>。
+        直接改模板包 JSON，字段与校验规则见
+        <a :href="PACKAGE_FORMAT_URL" target="_blank" rel="noopener">模板包格式</a>。
         不能修改 <code>id.namespace</code> / <code>id.code</code>，否则会变成另一个模板；CSS 仍会由服务端逐条重新生成。
       </p>
 
@@ -551,7 +557,7 @@ onMounted(loadTemplates)
       </ol>
       <template #footer>
         <div class="package-dialog__foot">
-          <span class="mono">字段含义见 docs/模板包格式.md</span>
+          <span class="mono">字段含义见 <a :href="PACKAGE_FORMAT_URL" target="_blank" rel="noopener">模板包格式</a></span>
           <el-button type="primary" @click="packageDialog = false">知道了</el-button>
         </div>
       </template>
@@ -633,6 +639,21 @@ onMounted(loadTemplates)
   color: var(--muted);
   font-size: 12.5px;
   line-height: 1.9;
+}
+
+/* 说明里的文档链接跟着主色走，别露出浏览器默认的蓝下划线。 */
+.mine-empty a,
+.json-dialog__hint a,
+.package-dialog__foot a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
+.mine-empty a:hover,
+.json-dialog__hint a:hover,
+.package-dialog__foot a:hover {
+  border-bottom-color: var(--accent);
 }
 
 .mine-empty code {

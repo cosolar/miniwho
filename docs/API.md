@@ -62,8 +62,10 @@ satoken: <token>
 - `POST /auth/login`
 - `POST /auth/register`（需管理员在「认证设置」打开用户名注册，否则 403）
 - `POST /auth/email-code`、`POST /auth/register-email`（需打开邮箱注册且 SMTP 已配置，否则 403）
+- `POST /auth/password-code`、`POST /auth/password-reset`（找回密码，只要求 SMTP 已配置，见 2.11）
 - `GET /auth/oauth/github`、`GET /auth/oauth/github/callback`（GitHub 登录的两个浏览器跳转入口，只回 302，不给 XHR 用）
 - `GET /public/auth-config`（登录页据此决定渲染哪些注册 / 登录入口）
+- `GET /public/stats`、`POST /public/stats/visit`、`POST /public/stats/ping`（首页页脚的访问量与在线数）
 - `GET /templates`、`GET /templates/{code}`
 - `GET /templates/{code}/export`（官方包，以及作者允许导出的已分享包；其余情况要登录且是作者或管理员）
 - `GET /public/shares/{token}`
@@ -94,7 +96,8 @@ satoken: <token>
 | 409 | `TEMPLATE_IN_USE` | 模板仍被简历使用，`data.resumeCount` 是在用数量 |
 | 410 | `SHARE_REVOKED` | 分享已撤销，或简历已删除 |
 | 410 | `SHARE_EXPIRED` | 分享已过期 |
-| 429 | `TOO_MANY_REQUESTS` | 触发限流：公开接口按 IP（登录 10 / 注册与验证码 5 / OAuth 20 次每分钟），验证码另按邮箱限（60 秒 1 封、每小时 5 封），PDF 排队超时也算在内 |
+| 413 | `STORAGE_QUOTA_EXCEEDED` | 账号存储配额已满；用 413 而不是 400，因为卡点不是这一次的文件太大，而是这个账号已经没有地方放它 |
+| 429 | `TOO_MANY_REQUESTS` | 触发限流，按 IP 计、窗口一分钟：登录 10、分享解锁 10、反馈 10；用户名注册 / 邮箱注册 / 四类验证码 / 重置密码 / 全量导出 / 注销申请 / 换绑邮箱发码各 5；GitHub 跳转与回调合计 20；统计接口 120。验证码另按「邮箱 + 用途」限（每个用途各算一份额度：60 秒 1 封、每小时 5 封），PDF 排队超时也返回 429 |
 | 502 | `MAIL_SEND_FAILED` | SMTP 拒发或连接失败，前端提示「邮件发送失败，请稍后再试或联系管理员」 |
 | 503 | `PDF_ENGINE_UNAVAILABLE` | 服务端没有可用的无头浏览器或未配置渲染地址，请改用浏览器打印 |
 | 503 | `MAIL_NOT_CONFIGURED` | 邮件通道未就绪：后台与环境变量都没填 host / 发件地址（正常路径下 2.1 会先把这条通道报成不可用） |
@@ -113,6 +116,64 @@ satoken: <token>
 | `templateCode` | string | 模板编码，如 `qinghe` |
 | `role` | string | `user` / `admin` |
 | `status` | number | 用户：`1` 正常、`2` 冻结；模板：`1` 启用、`2` 停用；反馈：`0` 待处理、`1` 已处理 |
+
+### 1.5 健康检查（无需登录）
+
+```http
+GET /api/health
+```
+
+```json
+{
+  "code": "OK",
+  "message": "ok",
+  "data": {
+    "app": "miniwho",
+    "status": "DEGRADED",
+    "time": 1792646790000,
+    "checks": [
+      { "name": "database", "ok": true },
+      { "name": "storage", "ok": true }
+    ]
+  }
+}
+```
+
+`status` 为 `UP` / `DEGRADED` / `DOWN`，HTTP 状态只在核心项失败时变成 `503`：
+
+| 情况 | `status` | HTTP |
+| --- | --- | --- |
+| 数据库与上传目录都正常，且有可用的无头浏览器 | `UP` | `200` |
+| 数据库与上传目录正常，但服务端 PDF 导出不可用 | `DEGRADED` | `200` |
+| 数据库连不上或上传目录写不了 | `DOWN` | `503` |
+
+降级保持 200 是有意的：主动关掉服务端导出的部署本来就是正常状态，若因此让容器一直显示 unhealthy，编排系统会把一个能正常工作的实例反复重启。
+
+这个接口免登录，所以只给布尔值——上传目录路径、剩余空间这类细节走 10.11 的管理员视图。`storage` 是**真的写一个文件再删掉**，只查可写标志测不出挂载卷只读、目录被删、磁盘写满这三种故障。
+
+### 1.6 安全响应头
+
+所有响应（含 `/api`）都带：
+
+| 头 | 值 |
+| --- | --- |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `same-origin` |
+| `X-Frame-Options` | `SAMEORIGIN` |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), payment=()` |
+| `Strict-Transport-Security` | `max-age=31536000`，**只在确认走 HTTPS 时才发** |
+
+`Content-Security-Policy` 只发给页面（不以 `/api/` 开头的请求），接口响应是 JSON 与文件，加了没有意义，而附件预览与签名媒体链接各自带着更严格的 `sandbox` 策略，不能被这里覆盖：
+
+```
+default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
+img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self';
+object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; worker-src 'self'
+```
+
+`style-src` 留 `'unsafe-inline'` 是有意的取舍：导入模板的 CSS 与 Element Plus 都是在运行时以 `<style>` 注入的，去掉它等于放弃模板自定义，兜底靠服务端的 CSS 净化器（见 3.3）。这里没有 `'unsafe-eval'`，构建产物也只有一枚外联 `<script type="module" src>`。
+
+HSTS 的判定同时看直连 TLS 与 `X-Forwarded-Proto`——反向代理终结 HTTPS 时容器只知道自己是 http。明文站点不发这个头，否则会把用户之后的 http 访问一起锁死。该判定只用于决定要不要发 HSTS，不参与任何鉴权。
 
 ---
 
@@ -133,12 +194,15 @@ GET /api/public/auth-config
   "data": {
     "usernameRegister": false,
     "emailRegister": true,
-    "githubLogin": true
+    "githubLogin": true,
+    "passwordReset": true
   }
 }
 ```
 
-登录页据此渲染入口：`usernameRegister` / `emailRegister` 决定注册页里出现哪几种表单，`githubLogin` 决定是否显示 GitHub 按钮。三个字段都是**开关与通道就绪状态的交集**——通道没配好时即使管理员打开了开关也返回 `false`，前台不会出现点了必失败的按钮。
+登录页据此渲染入口：`usernameRegister` / `emailRegister` 决定注册页里出现哪几种表单，`githubLogin` 决定是否显示 GitHub 按钮，`passwordReset` 决定是否给出「忘记密码」入口。前三个字段是**开关与通道就绪状态的交集**——通道没配好时即使管理员打开了开关也返回 `false`，前台不会出现点了必失败的按钮。
+
+`passwordReset` 只看邮件通道是否就绪，不受任何注册开关影响：管理员可以关掉注册、同时保留自助找回密码，否则老用户一旦忘密就只剩联系管理员一条路。
 
 响应带 `Cache-Control: private, max-age=30`，管理员改完设置后登录页最多 30 秒才变化。
 
@@ -202,16 +266,16 @@ Content-Type: application/json
 { "email": "me@example.com" }
 ```
 
-`data` 为 `null`。邮件由标准 SMTP 发出（通道配置取自后台「认证设置」，其次 `MINIWHO_MAIL_*`，见部署指南 2.4），正文是 6 位数字验证码，10 分钟内有效。
+`data` 为 `null`。邮件由标准 SMTP 发出（通道配置取自后台「认证设置」，其次 `MINIWHO_MAIL_*`，见部署指南 2.4），正文是 6 位数字验证码，10 分钟内有效。邮件同时带 HTML 与纯文本两份正文，品牌 LOGO 以内联附件（`cid`）跟着走，不引用任何外部图片地址。
 
 限制与失败码：
 
 | 情况 | 响应 |
 | --- | --- |
 | 管理员未开放邮箱注册，或 SMTP 未配置 | `403` 「管理员未开放邮箱注册」 |
-| 该邮箱已注册 | `400` 「该邮箱已注册，请直接登录；忘记密码请联系管理员重置」（**没有找回密码功能**） |
+| 该邮箱已注册 | `400` 「该邮箱已注册，请直接登录；忘记密码请点「忘记密码」自助重置」（见 2.11） |
 | 60 秒内重复申请 | `429` 「验证码刚刚发送过，请一分钟后再试」 |
-| 同一邮箱一小时内超过 5 封 | `429` 「这个邮箱申请验证码太频繁，请一小时后再试」 |
+| 同一邮箱同一用途一小时内超过 5 封 | `429` 「这个邮箱申请验证码太频繁，请一小时后再试」 |
 | 发信失败 | `502` 「邮件发送失败，请稍后再试或联系管理员」 |
 
 另叠加按 IP 的公开接口限流。验证码只在库里存 BCrypt 哈希，明文不落库、不落日志。
@@ -318,6 +382,8 @@ satoken: <token>
   "status": 1,
   "hasPassword": true,
   "emailVerified": false,
+  "deletionRequestedAt": 1793096888554,
+  "deletionScheduledAt": 1793699288554,
   "createdAt": 1790000000000
 }
 ```
@@ -326,6 +392,9 @@ satoken: <token>
 | --- | --- |
 | `hasPassword` | 是否有可用密码。`false` 表示这是第三方登录自动建的号，个人中心因此不显示「修改密码」 |
 | `emailVerified` | 邮箱是否走过验证码。只有 `true` 的邮箱才会被 GitHub 登录用来关联已有账号 |
+| `deletionRequestedAt` / `deletionScheduledAt` | 已提交注销申请时才有（`non_null` 序列化，见 1.1）：申请时间与宽限期到期后的实际清库时间。没有申请中的账号这两个字段整个不出现，前端据此决定是否显示横幅与「撤销注销」 |
+
+两个注销时间都由服务端算好一起给出：宽限期天数只在 `AccountDeletionService` 定义了一处，前端自己算一遍就会有两套口径。
 
 ### 2.9 更新资料
 
@@ -338,13 +407,20 @@ Content-Type: application/json
 ```json
 {
   "nickname": "新的昵称",
-  "email": "me@example.com"
+  "email": "me@example.com",
+  "code": "123456"
 }
 ```
 
-两个字段都可选；传入 `nickname` 时不能为空，`email` 需符合邮箱格式，≤ 100 字符，且不能撞上其他账号已占用的邮箱（`400`「该邮箱已被其他账号使用」）。返回更新后的 `UserVo`。
+三个字段都可选；传入 `nickname` 时不能为空，`email` 需符合邮箱格式，≤ 100 字符。`email` 按去掉首尾空格并转小写后与当前邮箱比对，行为分三种：
 
-**改邮箱会把 `emailVerified` 归零**：旧地址上的验证码证明不了新地址。归零后该账号不再能被 GitHub 登录按邮箱关联，直到它通过邮箱注册链路重新确认。
+- **没变**：不要求验证码，`emailVerified` 保持原样。
+- **改成空**：邮箱清空，`emailVerified` 归 0。
+- **换了新地址**：必须带上用新地址收到的换绑验证码（`code`，先调 2.18 发码），验证通过才保存；保存成功后新邮箱直接算**已验证**（`emailVerified = 1`），自助找回密码不受影响。新地址被其他账号占用时拒绝（`400`「该邮箱已被其他账号使用」）。
+
+返回更新后的 `UserVo`。
+
+**为什么要验新地址**：旧地址上的验证码证明不了新地址的归属，所以换绑必须让新地址自己收一封。这也堵住了旧版「改完邮箱验证状态归零、自助找回密码跟着关闭」的坑——现在换绑完成的邮箱就是已验证的邮箱。
 
 ### 2.10 修改密码
 
@@ -369,6 +445,177 @@ Content-Type: application/json
 成功返回 `data: null`。第三方登录建的账号（`hasPassword=false`）返回 `400`「该账号通过第三方登录，尚未设置密码」。
 
 改密成功后服务端会立即吊销该账号的**全部**登录态，包括发起这次请求的令牌，前端需要重新登录。
+
+### 2.11 发送找回密码验证码（无需登录）
+
+```http
+POST /api/auth/password-code
+Content-Type: application/json
+```
+
+```json
+{ "email": "me@example.com" }
+```
+
+| 情况 | 响应 |
+| --- | --- |
+| 邮件通道未就绪 | `403`「管理员尚未配置邮件服务，找回密码请联系管理员」 |
+| 邮箱没注册、或注册了但从未通过验证码确认 | `400`「该邮箱未在本站完成验证，无法自助重置，请联系管理员」 |
+| 同一邮箱发得太密 | `429` |
+
+能不能自助找回密码**只看邮件通道是否就绪**（即 2.1 的 `passwordReset`），没有独立开关，也不看注册开关——管理员可以关掉注册但保留找回密码，否则存量用户一旦忘密就只剩联系管理员一条路。
+
+只认 `email_verified=1` 的地址：注册时没填邮箱、或 GitHub 自动带出的地址都可能没被本站确认过，而一封能收到验证码的邮件是这次改密的唯一凭据。「没注册」与「没验证」用同一句文案，是为了不给脚本把接口当账号探测器的机会。
+
+验证码 6 位数字、10 分钟有效；同一邮箱同一用途 60 秒 1 封、每小时 5 封（三个用途各自计额度，互不挤占），IP 侧另有 5 次/分钟（见 1.3）。三条链路（注册 / 找回密码 / 注销）共用一套存储，靠 `purpose` 隔离，注册码不能拿来改密。成功返回 `data: null`。
+
+### 2.12 重置密码（无需登录）
+
+```http
+POST /api/auth/password-reset
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "me@example.com",
+  "code": "482913",
+  "newPassword": "newSecret456"
+}
+```
+
+| 字段 | 规则 |
+| --- | --- |
+| `email` | 必填，需是本站已验证过的地址 |
+| `code` | 6 位数字，见 2.11；连错 5 次该码作废 |
+| `newPassword` | 6–32 位；账号原本设过密码时不能与原密码相同 |
+
+校验顺序是**先查账号、再比对新旧密码、最后才消费验证码**：「和旧密码相同」这类失败不该把码吃掉，否则用户改个字符就得去邮箱里再取一封。冻结账号返回 `403`「账号已被冻结，请联系管理员」。
+
+第三方登录建的账号（`hasPassword=false`）本来没有密码，重置即等于设密码。成功后服务端吊销该账号的全部登录态——找回密码本身就说明旧凭据可能已经不在自己手里。
+
+### 2.13 导出账号全部数据（需登录）
+
+```http
+GET /api/account/export
+satoken: <token>
+```
+
+成功不是 JSON，而是一个 `application/zip` 流（`Content-Disposition: attachment; filename=miniwho-<用户名>-<yyyyMMdd-HHmmss>.zip`，`Cache-Control: private, no-store`）。包内分层：
+
+| 条目 | 内容 |
+| --- | --- |
+| `说明.txt` | 包内结构的中文说明 |
+| `account.json` | 账号本身：昵称、邮箱、是否已验证、角色、状态、绑定的第三方身份、注册时间。**不含密码与令牌** |
+| `resumes/<简历id>-<标题>.json` | 每份简历的完整内容 JSON，外加版式设置、模块偏好、头像信息与 `files/` 里的对应路径；回收站里的简历也在 |
+| `templates/<包文件名>` | 该账号自己导入或保存的模板包（官方模板不打包，站内随时可取） |
+| `files/attachments/<简历id>/<附件id>-<原文件名>` | 附件原文件 |
+| `files/avatars/…`、`files/media/…` | 头像与公司 / 院校 logo 原文件 |
+| `manifest.json` | 本次导出的条目清单，用来核对包是否齐全 |
+
+规划（查库、鉴权、算文件名）全部在响应开始之前完成，流出阶段只剩读文件；代价是一旦开始流出后出错，用户拿到的会是半个 zip。库里挂着行但盘上已无文件的存量脏数据会跳过该文件，其余照常打包。
+
+这份包用于备份与迁移，**站内暂不支持把它导回来**。限流 5 次/分钟/IP。
+
+### 2.14 申请注销（需登录）
+
+```http
+POST /api/account/deletion
+satoken: <token>
+Content-Type: application/json
+```
+
+```json
+{ "password": "secret123" }
+```
+
+两个字段都不加「必填」校验——该交哪一个取决于账号本身，由服务层判；`password` 限 ≤100 字符，`code` 必须是 6 位数字。设过密码的账号交 `password`，第三方登录（没密码）的账号交 `code`（先用 2.15 取码），交错或都不交都返回 `400`。
+
+```json
+{
+  "code": "OK",
+  "message": "ok",
+  "data": {
+    "requestedAt": 1793096888554,
+    "scheduledAt": 1793699288554,
+    "graceDays": 7
+  }
+}
+```
+
+这一步只是**记下申请时间**，账号照常可用，数据一个字节都不动；7 天宽限期到期后由定时任务（默认每 6 小时扫一次）把账号连数据硬删：简历（含回收站）、分享、诊断报告、附件与头像与 logo 文件、反馈、第三方身份、验证码、该账号自己导入的模板包，最后是用户行。
+
+- 管理员账号不能自助注销（`403`），要先移交管理员。
+- 既没密码又没已验证邮箱的第三方账号：`403`「请联系管理员注销」。
+- 站点没配邮件服务时，无密码账号同样只能走管理员。
+- 重复申请直接返回当前状态，不会重置宽限期。
+- `scheduledAt` 在申请成功那一刻算定，之后不随当前时间漂移。
+
+### 2.15 发送注销验证码（需登录）
+
+```http
+POST /api/account/deletion/code
+satoken: <token>
+```
+
+只服务「没有密码、但绑过已验证邮箱」的第三方账号；已经能输密码的账号返回 `400`「该账号可以输入密码确认，无需验证码」。限流、有效期与 2.11 同档（`purpose=deletion`，与其他两类码互不通用）。
+
+### 2.16 撤销注销申请（需登录）
+
+```http
+DELETE /api/account/deletion
+satoken: <token>
+```
+
+宽限期内随时可撤，返回 `data` 同 2.14，其中 `requestedAt` / `scheduledAt` 不再出现（`non_null` 序列化，见 1.1）——即「没有在注销中」。没有在注销中的账号调用它同样返回成功。
+
+### 2.17 本账号存储用量（需登录）
+
+```http
+GET /api/account/storage
+satoken: <token>
+```
+
+```json
+{
+  "code": "OK",
+  "message": "ok",
+  "data": {
+    "usedBytes": 18452992,
+    "quotaBytes": 536870912
+  }
+}
+```
+
+`usedBytes` 是**扫上传目录**算出来的：该账号名下每份简历的 `attachments/`、`avatars/`、`media/` 三个目录之和，回收站里的简历也算（那些文件同样占着部署者的盘），所以它不读库里的 `size_bytes`。`quotaBytes` 为 `0` 表示未设配额（`MINIWHO_STORAGE_QUOTA_MB`，见部署指南）。
+
+这个接口不并进 2.8「当前用户」：用量要扫盘，而 `me` 是每次进页面都会打的热点接口。
+
+### 2.18 发送换绑邮箱验证码（需登录）
+
+```http
+POST /api/account/email-code
+satoken: <token>
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "new-me@example.com"
+}
+```
+
+配合 2.9 换绑邮箱使用：验证码发给**新**地址（不要求当前账号已绑定邮箱，用户名注册的账号也能借此第一次绑上已验证的邮箱）。校验与发码接口（2.4）一致——地址格式、与当前邮箱不同、未被其他账号占用（自己占用自己允许，即改回旧地址不用等）；SMTP 通道未配置时整体不可用（`403`「管理员尚未配置邮件服务……」）。成功无出参，前端提示「验证码已发送，10 分钟内有效」。
+
+验证码存进与注册 / 找回密码 / 注销同一条 `email_codes` 表，按「邮箱 + 用途」隔离（`change_email` 是第四个用途），同样受 60 秒重发间隔、每小时 5 封与 10 分钟有效期约束。
+
+| 情况 | 返回 |
+| --- | --- |
+| 与当前邮箱相同 | `400` 「新邮箱与当前邮箱相同」 |
+| 新地址已被其他账号使用 | `400` 「该邮箱已被其他账号使用」 |
+| SMTP 通道未配置 | `403` 「管理员尚未配置邮件服务，更换邮箱暂不可用，请联系管理员」 |
+| 60 秒内重复申请 / 每小时超 5 封 | `429` |
+
 
 ---
 
@@ -926,6 +1173,8 @@ satoken: <token>
 
 导出由本机 Chrome / Edge / Chromium 无头打印前端导出页生成，与预览使用同一套 A4 排版；结果按「简历内容版本 + 更新时间 + 照片更新时间 + 模板 + 样式」缓存 24 小时，命中缓存时不再重新渲染。照片变更会立即使旧缓存失效。
 
+**文字抽取修正**：Chrome 打印中文 PDF 时用的字体子集里，209 个康熙部首码点（U+2E80–U+2FDF）和对应汉字共用同一个字形，而 ToUnicode 映射是按字形反查、取最小码点生成的，结果是「方」这类字在复制粘贴或 ATS 抽取时拿到的是部首码点（⽅）。版面完全不受影响，只是取出来的文字不对。服务端在写缓存前会用 PDFBox 重写每个字体自己的 ToUnicode 映射，把部首码点换回正规汉字：只动映射表，内容流与字体文件一个字节都不改，所以导出结果与原图逐像素一致；映射条目总数也被校验过，任何解析失败都退回原始字节。这一层只覆盖服务端导出——用户在自己浏览器里打印，取决于那台机器的字体，服务端碰不到。已缓存的旧 PDF 最长 24 小时后才会被重新渲染的版本替换。
+
 引擎不可用时返回 `503`：
 
 ```json
@@ -1074,7 +1323,9 @@ Content-Type: multipart/form-data
 - 单份简历最多 3 个附件；
 - 单文件 ≤ 10MB，请求总大小 ≤ 25MB；
 - 允许 `jpg`、`jpeg`、`png`、`pdf`、`doc`、`docx`、`txt`；
-- `jpg` / `png` / `pdf` 会校验文件头，扩展名与内容不一致时返回 400。
+- 除 `txt` 外都要校验文件头，内容与扩展名不一致返回 `400`「文件内容与扩展名不一致，请重新选择」：`jpg` 看 `FF D8 FF`、`png` 看 `89 50 4E 47`、`pdf` 看 `%PDF`、`docx` 看 zip 的 `50 4B 03 04`、`doc` 看 OLE2 的 `D0 CF 11 E0`。只认扩展名等于把上传目录当免费网盘，任意文件改个名就能存进来。
+- `txt` 没有可校验的特征（任何字节都合法），所以不做内容校验；它只会以 `text/plain` 加 `X-Content-Type-Options: nosniff` 回给浏览器（见 6.4）。同理，任何 zip 换个后缀都能通过 `.docx` 的校验——这里挡的是「随便什么文件都能存」，不是格式鉴真。
+- 写入前先查该账号的存储配额，超额返回 `413 STORAGE_QUOTA_EXCEEDED`（见 12 与 2.17）。
 
 返回新附件 `AttachmentVo`。
 
@@ -1324,7 +1575,9 @@ GET /api/public/sample-resume
 
 ---
 
-## 9. 意见反馈
+## 9. 意见反馈与站点统计
+
+### 9.1 提交反馈（需登录）
 
 ```http
 POST /api/feedback
@@ -1344,7 +1597,43 @@ Content-Type: application/json
 | `content` | 是 | 1–2000 字符 |
 | `contact` | 否 | ≤ 200 字符 |
 
-成功返回 `data: null`。反馈仅登录用户可提交，管理员在后台查看与回复。
+成功返回 `data: null`。反馈仅登录用户可提交，管理员在后台查看与回复（见 10.8、10.9）。限流 10 次/分钟/IP。
+
+### 9.2 站点统计（无需登录）
+
+首页页脚的「累计访问 / 当前在线」用的三个接口。这是**第一方统计**：不发第三方请求，不采集 IP、UA 与 Cookie，前端只上报一个本地生成的随机访客 id。
+
+```http
+GET  /api/public/stats
+POST /api/public/stats/visit
+POST /api/public/stats/ping
+```
+
+`Content-Type: application/json`，后两者的请求体为 `{ "visitorId": "…" }`，可为空（省略请求体也不会报错，只是这次不计访问、不打心跳）。三个接口都返回同一份快照：
+
+```json
+{
+  "code": "OK",
+  "message": "ok",
+  "data": { "visits": 1284, "online": 3 }
+}
+```
+
+| 接口 | 作用 |
+| --- | --- |
+| `GET /stats` | 只读快照，不改动任何计数 |
+| `POST /stats/visit` | 计一次访问 + 打一次心跳；一次页面会话只调一次 |
+| `POST /stats/ping` | 只打心跳，不累加访问数；前端每 60 秒一次 |
+
+计与不计的口径：
+
+- `visits` 落库，是重启不会清零的累计数；同一访客 **6 小时内只计一次**，所以刷新页面不会把数字刷上去。
+- `online` 只在进程内存里按心跳窗口算，**5 分钟内有心跳算在线**（配合前端 60 秒一次的 ping）。后端重启即归零，也不跨实例共享——这与登录令牌是同一个单实例前提。
+- `visitorId` 去首尾空白后超过 64 字符会被截断；空值直接忽略。
+- 内存里最多跟踪 20,000 个访客 id，超出时先清过期项，还满就拒绝记录——这是防随机 id 撑爆内存的硬闸，不是精确统计：被灌满后宁可少算极端访客。
+- 三个接口都免登录，因此响应里不回传任何访客标识，只有聚合数字。
+
+限流 120 次/分钟/IP（正常用户也会高频调用，档位比其他公开接口宽）。
 
 ---
 
@@ -1368,6 +1657,9 @@ GET /api/admin/stats
   "feedbackPending": 2,
   "newUsers7d": 3,
   "newResumes7d": 7,
+  "storageBytes": 184520704,
+  "orphanBytes": 0,
+  "quotaBytes": 536870912,
   "recentUsers": [
     {
       "id": 12,
@@ -1381,6 +1673,8 @@ GET /api/admin/stats
 ```
 
 `templates` 为启用中的模板数量，`recentUsers` 最多 6 条。
+
+后三个字段是上传目录的一次全盘扫描结果（单位字节）：`storageBytes` 是 `attachments/`、`avatars/`、`media/` 三类目录的总字节数，回收站里的简历同样计入——那些文件一样占着盘；`orphanBytes` 属于找不到属主的目录，正常部署应为 `0`，非 `0` 说明某条删除链路漏了清理；`quotaBytes` 是单账号配额，`0` 表示未设限（见部署指南的 `MINIWHO_STORAGE_QUOTA_MB`）。只扫盘、不读库里的 `size_bytes`，所以头像与 logo 这类没有大小列的文件也能算进来。
 
 ### 10.2 用户列表
 
@@ -1401,12 +1695,15 @@ GET /api/admin/users
     "role": "user",
     "status": 1,
     "createdAt": 1790000000000,
-    "resumeCount": 1
+    "resumeCount": 1,
+    "storageBytes": 1048576
   }
 ]
 ```
 
 响应里 `emailVerified` 是布尔值；没绑定邮箱的账号不出现 `email` 字段（见 1.1）。只有已验证的邮箱才会被 GitHub 登录用来关联账号，存量库里手工填写的邮箱一律是 `false`。
+
+`storageBytes` 是该账号名下的上传目录字节数（含回收站里的简历）。整张列表共用一次磁盘扫描，不会按用户各扫一遍，所以 200 个账号也只遍历目录一次。
 
 ### 10.3 冻结 / 恢复用户
 
@@ -1421,13 +1718,15 @@ Content-Type: application/json
 
 `1` 正常、`2` 冻结；不能修改当前登录账号自身。冻结时会立即注销该用户的所有会话，后续请求返回 401；恢复后需重新登录。返回 `data: null`。
 
+忘记密码的兜底见 10.12（管理员直接设新密码），用户自己能操作的自助重置见 2.11。
+
 ### 10.4 模板列表
 
 ```http
 GET /api/admin/templates
 ```
 
-返回全部模板实体（含停用模板与用户导入的模板包），字段包括：
+返回全部模板（含停用模板与用户导入的模板包），字段包括：
 
 ```json
 {
@@ -1437,24 +1736,19 @@ GET /api/admin/templates
   "description": "留白充足的单栏版式...",
   "category": "简约",
   "tags": "单栏,校招,社招,通用",
-  "config": "{...JSON 字符串...}",
-  "pkg": "{...模板包原文（紧凑 JSON）...}",
-  "namespace": "official",
   "version": "1.0.0",
   "author": "MiniWho",
   "source": "builtin",
-  "api": 1,
-  "checksum": "d5698f...",
-  "ownerUserId": null,
   "status": 1,
-  "sortWeight": 10,
   "usageCount": 12,
   "createdAt": 1790000000000,
   "updatedAt": 1790000000000
 }
 ```
 
-注意：管理接口返回的 `tags` 是逗号分隔字符串，`config` 是 JSON 字符串；公开模板接口返回的 `tags` 是数组、`config` 是对象。`source` 为 `imported` 的行带有 `ownerUserId`，属于导入者的私有模板。
+注意：管理接口返回的 `tags` 是逗号分隔字符串，公开模板接口返回的 `tags` 是数组、`config` 是对象。
+
+这里刻意不返回模板实体的内部列——包原文 `pkg`、配置 `config`、命名空间、校验和、归属用户、排序权重都不在这个视图里，后台页面用不到，返回了等于给实体加一列就改一次 API 契约。要看包原文请用 10.6 的官方包导出或 3.x 的单包导出。`source` 为 `imported` 的行属于导入者的私有模板，只对应「我的模板」页面里的所有者可见。
 
 ### 10.5 启用 / 停用模板
 
@@ -1624,6 +1918,62 @@ Content-Type: application/json
 
 **保存即生效，不需要重启后端**：发信与 OAuth 每次调用都现取当前配置。开关与凭据都存在 `site_settings` 表（`register_username` / `register_email` / `github_login` / `mail_*` / `github_*` / `public_base_url`），读进内存后有缓存；绕过接口直接改库需要重启后端才生效。凭据在库里是明文，谁能读到这张库谁就能拿到它们，因此不要把数据库暴露到公网。2.1 的公开配置另有 30 秒浏览器缓存，管理员保存后登录页最多 30 秒才变化。
 
+### 10.11 运行环境与磁盘水位
+
+```http
+GET /api/admin/system
+satoken: <admin token>
+```
+
+```json
+{
+  "code": "OK",
+  "message": "ok",
+  "data": {
+    "status": "DEGRADED",
+    "coreOk": true,
+    "checks": [
+      { "name": "database", "ok": true, "detail": "连接可用" },
+      { "name": "storage", "ok": true, "detail": "上传目录可写" },
+      { "name": "pdf", "ok": false, "detail": "none" },
+      { "name": "mail", "ok": false, "detail": "未配置 SMTP：邮箱注册、找回密码与注销验证码不可用" },
+      { "name": "disk", "ok": true, "detail": "剩余 18432 MB" }
+    ],
+    "uploadDir": "/app/uploads",
+    "freeBytes": 19308191744,
+    "storageBytes": 184520704,
+    "orphanBytes": 0,
+    "quotaBytes": 536870912
+  }
+}
+```
+
+`status` 为 `UP` / `DEGRADED` / `DOWN`：只有数据库或上传目录不可用才是 `DOWN`，缺 PDF 内核、没配 SMTP 这类只算降级。判据与免登录的 `GET /api/health` 完全一致，差别只在给不给细节：
+
+| | `/api/health`（免登录） | `/api/admin/system`（需管理员） |
+| --- | --- | --- |
+| 自检项 | `database`、`storage`，只有 `name` + `ok` | 再加 `pdf`、`mail`、`disk`，每项带 `detail` |
+| 磁盘与路径 | 不给 | `uploadDir`、`freeBytes`、`storageBytes`、`orphanBytes`、`quotaBytes` |
+| 用途 | 容器健康检查 | 后台「系统状态」面板 |
+
+`storage` 这一项是**真的写一个文件再删掉**：挂载卷只读、目录被删、磁盘写满这三种故障，只看可写标志都测不出来。取不到容量时按 `0` 计（比如目录根本没挂载），前端显示成未知。
+
+### 10.12 给指定账号设新密码
+
+```http
+PUT /api/admin/users/{id}/password
+satoken: <admin token>
+Content-Type: application/json
+```
+
+```json
+{ "password": "newSecret456" }
+```
+
+6–32 位，不做其他复杂度要求（与注册同档）。这是自助重置（2.11）走不通时的兜底：邮箱没验证过、收不到信、或者账号本来就没绑邮箱，都只能由管理员在这里直接设。
+
+不能对当前登录的管理员自己使用（`400`「请改用个人中心的「修改密码」修改自己的密码」），账号不存在返回 `404`。设完会吊销该账号的全部登录态，包括第三方登录建的无密码账号——这次写入会把 `has_password` 置为 `1`，该账号从此也能用密码登录。返回 `data: null`。
+
 ---
 
 ## 11. 快速调用示例
@@ -1671,6 +2021,9 @@ curl -s -X POST "$BASE/resumes/1/shares" \
 | 内容 JSON | 1MB |
 | 单字段文本 | 20,000 字符 |
 | 附件 | 3 个 / 单文件 10MB / 总请求 25MB |
+| 单账号存储配额 | 默认 512 MB（`MINIWHO_STORAGE_QUOTA_MB`，`0` 为不限）；按盘上实际字节计，含回收站里的简历 |
+| 账号数据导出 | 一次请求打包全部简历、模板与文件；限流 5 次/分钟/IP |
+| 注销宽限期 | 7 天，期间登录即可撤销；到期由定时任务硬删（每 6 小时扫一次，进程启动后 90 秒先扫一次） |
 | 简历照片 | 每份 1 张 / 单文件 3MB / JPEG 与 PNG / 长边不低于 80px / 落盘长边 ≤600px |
 | 条目 logo | 每个条目 1 张 / 单文件 2MB / JPEG 与 PNG / 长边不低于 64px / 落盘长边 ≤256px / 未引用且超过 10 分钟的内容落库时回收 |
 | 照片签名链接 | 默认 6 小时失效，密钥 `MINIWHO_MEDIA_SECRET` |
@@ -1682,9 +2035,11 @@ curl -s -X POST "$BASE/resumes/1/shares" \
 | 分享链接 | 每份简历同时 1 个有效链接 |
 | 反馈内容 | 2,000 字符 |
 | 登录令牌 | 7 天，进程内存储 |
-| 注册验证码 | 6 位数字 / 10 分钟有效 / 验证通过即删除 / 同一封最多试错 5 次 / 超过 24 小时的记录发信时清理 |
-| 验证码发信（按邮箱） | 60 秒 1 封、每小时最多 5 封 |
-| 注册与验证码（按 IP，每分钟） | 登录 10 次、用户名注册与邮箱注册各 5 次、验证码 5 次、GitHub 跳转与回调合计 20 次 |
+| 邮箱验证码 | 6 位数字 / 10 分钟有效 / 验证通过即删除 / 同一封最多试错 5 次 / 超过 24 小时的记录发信时清理；注册、找回密码、注销三条链路共用存储，靠 `purpose` 隔离，互不通用 |
+| 验证码发信（按邮箱 + 用途） | 每个用途独立计数：60 秒 1 封、每小时最多 5 封；找回密码不会挤占注册的额度 |
+| 公开接口限流（按 IP，每分钟） | 登录 10、分享解锁 10、反馈 10；用户名注册 / 邮箱注册 / 四类验证码 / 重置密码 / 全量导出 / 注销申请 / 换绑邮箱发码各 5；GitHub 跳转与回调合计 20；统计 120 |
+| 限流认的客户端地址 | 默认只在直连对端是内网 / 回环时才信 `X-Forwarded-For` 第一跳，否则只认真实来源；`MINIWHO_TRUST_FORWARDED_FOR=always` 强制信、`never` 完全不信 |
+| 站点统计 | 同一访客 6 小时内只计一次访问；在线窗口 5 分钟，进程内计算；跟踪上限 20,000 个访客 id |
 | GitHub `state` | 一次性，10 分钟过期，内存存储、上限 10000 条，核销即失效 |
 | 用户名 | 3–20 位字母、数字、下划线；邮箱注册与第三方建号自动分配，冲突时追加随机后缀 |
 | SMTP 超时 | 连接 5 秒、读写 10 秒；失败只回 502，日志不落收件地址 |
