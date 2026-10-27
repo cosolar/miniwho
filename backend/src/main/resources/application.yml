@@ -94,6 +94,25 @@ app:
   upload-dir: ${MINIWHO_UPLOAD_DIR:./uploads}
   cors-origins: ${MINIWHO_CORS_ORIGINS:*}
   media-secret: ${MINIWHO_MEDIA_SECRET:}
+  # 站点对外地址：GitHub 的回调地址、以及第三方登录完成后把浏览器送回哪个前端，都从它拼出来。
+  # 留空时 GitHub 功能视为未配置，后台会给出提示。
+  public-base-url: ${MINIWHO_PUBLIC_BASE_URL:}
+  mail:
+    # 只支持标准 SMTP，不接第三方发信服务。host 留空即视为未配置，邮箱注册不会被开放。
+    host: ${MINIWHO_MAIL_HOST:}
+    port: ${MINIWHO_MAIL_PORT:465}
+    username: ${MINIWHO_MAIL_USERNAME:}
+    # QQ / 163 这类个人邮箱要填的是「授权码」，不是邮箱登录密码
+    password: ${MINIWHO_MAIL_PASSWORD:}
+    from: ${MINIWHO_MAIL_FROM:}
+    from-name: ${MINIWHO_MAIL_FROM_NAME:极简简历}
+    # 465 用隐式 SSL；587 之类改成 ssl=false + starttls=true
+    ssl: ${MINIWHO_MAIL_SSL:true}
+    starttls: ${MINIWHO_MAIL_STARTTLS:false}
+  oauth:
+    github:
+      client-id: ${MINIWHO_GITHUB_CLIENT_ID:}
+      client-secret: ${MINIWHO_GITHUB_CLIENT_SECRET:}
   pdf:
     enabled: ${MINIWHO_PDF_ENABLED:true}
     browser-path: ${MINIWHO_PDF_BROWSER_PATH:}

@@ -77,8 +77,12 @@
 ### 账号与管理
 
 - 用户名 / 密码注册登录，BCrypt 密码哈希，Sa-Token 会话令牌。
-- 个人中心：昵称、邮箱、修改密码、简历统计。
-- 管理后台：运营概览、用户列表与冻结 / 恢复、模板启停、一键导出全部官方模板包（部署迁移备份）、首页示例简历设置、意见反馈回复。
+- 邮箱注册：6 位验证码走标准 SMTP 发送，验证码 bcrypt 存储、10 分钟有效、一次即废；同一邮箱 60 秒内不能重发、每小时最多 5 封，连错 5 次直接作废。
+- GitHub 登录：标准 OAuth 授权码流程，首次登录自动建号并自动创建第一份简历；仅读取 GitHub 的主邮箱，且只与**已经通过验证码验证**的本地账号关联。
+- 注册 / 登录方式由管理后台「认证设置」控制：用户名注册、邮箱注册、GitHub 登录各自一个开关，且只有对应通道配齐了才算真正开放——开关是意愿，通道就绪才是事实。SMTP 与 GitHub 凭据也能直接在同一页的「通道配置」里在线填写，保存即生效、不必重启，环境变量退为兜底来源。
+- **三种方式默认全部关闭**：不配置 SMTP / GitHub 凭据、也不手动打开用户名注册时，站点不提供任何自助注册，登录页只显示账号密码登录。
+- 个人中心：昵称、邮箱（含验证状态）、修改密码、简历统计；GitHub 建的号没有可用密码，那里显示「登录方式」而不是修改密码。
+- 管理后台：运营概览、用户列表与冻结 / 恢复（含邮箱验证状态）、认证设置、模板启停、一键导出全部官方模板包（部署迁移备份）、首页示例简历设置、意见反馈回复。
 - 用户反馈入口：登录后可在个人中心提交反馈，管理员在后台查看与处理。
 
 ### 工程与安全
@@ -92,6 +96,7 @@
 - 服务端内容清洗与长度 / 数量限制；单份简历最多 30 个模块、单模块 20 条内容。
 - 导入模板包的 CSS 由服务端逐条规则重新生成后注入：选择器强制限定在该模板的作用域类下，属性名走白名单，`url()` 只接受 `data:`，`<`、`@import`、`expression()`、`behavior`、`-moz-binding`、`!important` 直接拒绝；模板包格式本身不给 HTML / JS 留任何入口。
 - 分享密码 BCrypt 存储，公开接口失败码区分「需要密码 / 密码错误 / 已过期 / 已撤销」。
+- 公开写接口按 IP 限流（登录 10 / 注册与验证码 5 / OAuth 跳转与回调 20 次每分钟，超出返回 429），与邮箱维度的发信限制叠加；GitHub 的 `state` 一次性、10 分钟过期。
 - Docker 一键部署：官方镜像 `cosolar/miniwho` 或 Compose 源码构建，MySQL 8 / SQLite 二选一，数据与上传持久化。
 - 所有页面响应式适配，打印样式独立处理。
 
@@ -158,6 +163,9 @@ npm run dev
 | `admin` | `admin123` | 管理员，可进入 `/admin` |
 
 > 以上账号仅用于本地演示。公开部署前请修改密码，或设置 `MINIWHO_SEED_DEMO=false` 并自行创建管理员。
+
+> 本地开发默认不开邮箱注册和 GitHub 登录（SMTP 与 OAuth 凭据都是空的），注册入口也默认关闭。
+> 想试这两种方式，见 [部署指南 · 注册方式与邮件](docs/部署指南.md)。
 
 ### Docker 一键启动
 
@@ -254,7 +262,7 @@ miniwho/
 | `MINIWHO_CORS_ORIGINS` | `*` | 允许的前端来源，逗号分隔；`*` 表示放行任意来源（不使用 Cookie 鉴权） |
 | `MINIWHO_SEED_DEMO` | `true` | 是否创建 demo / admin 与示例数据 |
 | `MINIWHO_DEMO_PASSWORD` | `demo123` | demo 账号密码 |
-| `MINIWHO_ADMIN_PASSWORD` | `admin123` | admin 账号密码 |
+| `MINIWHO_ADMIN_PASSWORD` | 空（首次创建 admin 时必填） | admin 账号密码；库里还没有 admin 且未设置时应用拒绝启动 |
 | `MINIWHO_MEDIA_SECRET` | 空（每次启动随机） | 头像等媒体链接的 HMAC 签名密钥，**多实例或重启后仍需有效链接时必须显式设置** |
 | `MINIWHO_PDF_ENABLED` | `true` | 是否启用服务端 PDF 导出 |
 | `MINIWHO_PDF_BROWSER_PATH` | 空（自动探测） | 指定 Chrome / Edge / Chromium 可执行文件路径 |
@@ -262,6 +270,28 @@ miniwho/
 | `MINIWHO_PDF_TIMEOUT` | `45` | 单次渲染超时秒数 |
 | `MINIWHO_PDF_MAX_CONCURRENT` | `2` | 同时运行的 Chromium 实例上限，超出排队；小内存机器不要再调大 |
 | `MINIWHO_PDF_QUEUE_TIMEOUT` | `20` | 排队等待秒数，超过后返回 429「任务繁忙」 |
+
+### 注册方式 / 邮件 / GitHub 登录
+
+这些凭据既可以走环境变量，也可以登录后门 `/admin` → 认证设置 → 通道配置在线填，**保存即生效、不用重启也不用重拉容器**：取值按项判定，后台填过的用后台的，没填的才回落到下面的环境变量；某一项在后台清空后重新回落到环境变量。授权码与 Client secret 只写不读，但会和开关一起明文存进 `site_settings` 表——别让数据库暴露到公网。
+
+环境变量与后台都没配的通道就是关的：后台开关打了也不生效，登录页也不会渲染对应入口。
+
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `MINIWHO_PUBLIC_BASE_URL` | 空 | 站点对外的完整地址（`https://resume.example.com`）。GitHub 回调地址与登录完成后的跳转都从它拼出来，留空则 GitHub 视为未配置 |
+| `MINIWHO_MAIL_HOST` | 空 | SMTP 服务器地址，留空即关闭邮箱注册通道 |
+| `MINIWHO_MAIL_PORT` | `465` | 465 配 `MINIWHO_MAIL_SSL=true`；587 改成 `ssl=false` + `starttls=true` |
+| `MINIWHO_MAIL_USERNAME` | 空（取 `MINIWHO_MAIL_FROM`） | SMTP 登录名，多数个人邮箱就是发件地址本身 |
+| `MINIWHO_MAIL_PASSWORD` | 空 | QQ / 163 等个人邮箱要填**授权码**，不是邮箱登录密码 |
+| `MINIWHO_MAIL_FROM` | 空 | 发件地址，需与授权账号一致 |
+| `MINIWHO_MAIL_FROM_NAME` | `极简简历` | 收件人看到的署名，中文会按 RFC 2047 编码 |
+| `MINIWHO_MAIL_SSL` | `true` | 隐式 SSL |
+| `MINIWHO_MAIL_STARTTLS` | `false` | 显式 STARTTLS |
+| `MINIWHO_GITHUB_CLIENT_ID` | 空 | GitHub OAuth App 的 Client ID |
+| `MINIWHO_GITHUB_CLIENT_SECRET` | 空 | GitHub OAuth App 的 Client secret |
+
+GitHub OAuth App 的回调地址填 `https://<你的域名>/api/auth/oauth/github/callback`，与后台「认证设置」页面显示的那一条完全一致，直接复制即可。
 
 ### MySQL profile
 

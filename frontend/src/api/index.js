@@ -1,8 +1,12 @@
 import client from './client'
 
 export const authApi = {
+  /** 登录页据此决定渲染哪些注册 / 登录入口，无需鉴权。 */
+  config: () => client.get('/public/auth-config'),
   login: (payload) => client.post('/auth/login', payload),
   register: (payload) => client.post('/auth/register', payload),
+  emailCode: (email) => client.post('/auth/email-code', { email }),
+  registerEmail: (payload) => client.post('/auth/register-email', payload),
   logout: () => client.post('/auth/logout'),
   me: () => client.get('/auth/me'),
   updateProfile: (payload) => client.put('/auth/profile', payload),
@@ -118,5 +122,7 @@ export const adminApi = {
   feedback: () => client.get('/admin/feedback'),
   updateFeedback: (id, payload) => client.put(`/admin/feedback/${id}`, payload),
   sample: () => client.get('/admin/sample'),
-  setSample: (id, sample) => client.put(`/admin/resumes/${id}/sample`, { sample })
+  setSample: (id, sample) => client.put(`/admin/resumes/${id}/sample`, { sample }),
+  authSettings: () => client.get('/admin/settings'),
+  updateAuthSettings: (payload) => client.put('/admin/settings', payload)
 }

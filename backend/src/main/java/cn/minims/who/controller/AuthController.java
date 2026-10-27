@@ -3,6 +3,8 @@ package cn.minims.who.controller;
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
 import cn.minims.who.dto.AuthDtos.ChangePasswordRequest;
+import cn.minims.who.dto.AuthDtos.EmailCodeRequest;
+import cn.minims.who.dto.AuthDtos.EmailRegisterRequest;
 import cn.minims.who.dto.AuthDtos.LoginRequest;
 import cn.minims.who.dto.AuthDtos.LoginResponse;
 import cn.minims.who.dto.AuthDtos.RegisterRequest;
@@ -34,6 +36,18 @@ public class AuthController {
     @PostMapping("/register")
     public ApiResponse<LoginResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ApiResponse.ok(authService.register(request));
+    }
+
+    /** 发送注册验证码；管理员未开放邮箱注册或通道未就绪时直接拒绝。 */
+    @PostMapping("/email-code")
+    public ApiResponse<Void> emailCode(@Valid @RequestBody EmailCodeRequest request) {
+        authService.sendRegisterCode(request);
+        return ApiResponse.ok();
+    }
+
+    @PostMapping("/register-email")
+    public ApiResponse<LoginResponse> registerEmail(@Valid @RequestBody EmailRegisterRequest request) {
+        return ApiResponse.ok(authService.registerWithEmail(request));
     }
 
     @PostMapping("/login")

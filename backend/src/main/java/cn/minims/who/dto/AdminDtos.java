@@ -23,8 +23,8 @@ public final class AdminDtos {
     public record AdminRecentUserVo(Long id, String username, String nickname, String role, Long createdAt) {
     }
 
-    public record AdminUserVo(Long id, String username, String nickname, String email, String role,
-                              Integer status, Long createdAt, Long resumeCount) {
+    public record AdminUserVo(Long id, String username, String nickname, String email, Boolean emailVerified,
+                              String role, Integer status, Long createdAt, Long resumeCount) {
     }
 
     public record AdminTemplateVo(Long id, String code, String name, String description, String category,
@@ -50,5 +50,42 @@ public final class AdminDtos {
     }
 
     public record AdminSampleRequest(@NotNull Boolean sample) {
+    }
+
+    /**
+     * 后台的注册 / 登录方式面板：除了三个开关，还要回显依赖是否就绪与当前生效的通道配置，
+     * 否则管理员只会看到「开关打了又弹回去」，不知道差的是 SMTP 还是 GitHub 凭据。
+     */
+    public record AdminAuthSettingsVo(boolean usernameRegister, boolean emailRegister, boolean githubLogin,
+                                      boolean mailConfigured, boolean githubConfigured,
+                                      String githubCallbackUrl, String publicBaseUrl,
+                                      AdminMailChannelVo mail, AdminGithubChannelVo github) {
+    }
+
+    /**
+     * 邮件通道当前生效值。授权码只回「有没有」，不回原文；
+     * fromAdmin=false 表示这组值目前来自环境变量，后台填过的项优先。
+     */
+    public record AdminMailChannelVo(String host, String port, String username, String from, String fromName,
+                                     boolean ssl, boolean starttls, boolean passwordSet, boolean fromAdmin) {
+    }
+
+    /** GitHub 应用凭据；client secret 同样不回显。 */
+    public record AdminGithubChannelVo(String clientId, String publicBaseUrl,
+                                       boolean secretSet, boolean fromAdmin) {
+    }
+
+    /**
+     * 开关与通道配置都可为 null，表示这次不改动该项；
+     * 字符串传空串表示清空该项，清空后该项重新回落到环境变量。
+     */
+    public record AdminAuthSettingsRequest(Boolean usernameRegister, Boolean emailRegister, Boolean githubLogin,
+                                           @Size(max = 200) String mailHost, @Size(max = 10) String mailPort,
+                                           @Size(max = 200) String mailUsername, @Size(max = 200) String mailPassword,
+                                           @Size(max = 200) String mailFrom, @Size(max = 60) String mailFromName,
+                                           Boolean mailSsl, Boolean mailStarttls,
+                                           @Size(max = 100) String githubClientId,
+                                           @Size(max = 200) String githubClientSecret,
+                                           @Size(max = 200) String publicBaseUrl) {
     }
 }

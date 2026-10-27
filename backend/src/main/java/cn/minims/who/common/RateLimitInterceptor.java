@@ -21,6 +21,11 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private static final Map<Pattern, Rule> RULES = Map.of(
             Pattern.compile("^/api/auth/login$"), new Rule("login", 10),
             Pattern.compile("^/api/auth/register$"), new Rule("register", 5),
+            // 验证码按 IP 从严：服务层还按邮箱限，两个维度叠起来才挡得住换邮箱继续刷。
+            Pattern.compile("^/api/auth/email-code$"), new Rule("email-code", 5),
+            Pattern.compile("^/api/auth/register-email$"), new Rule("register", 5),
+            // 回调会驱动一次对 GitHub 的出站请求，不限制就等于把本机当免费代理用。
+            Pattern.compile("^/api/auth/oauth/github(/callback)?$"), new Rule("oauth", 20),
             Pattern.compile("^/api/public/shares/[^/]+/unlock$"), new Rule("unlock", 10),
             Pattern.compile("^/api/feedback$"), new Rule("feedback", 10),
             Pattern.compile("^/api/public/stats.*"), new Rule("stats", 120)

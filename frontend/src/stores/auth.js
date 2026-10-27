@@ -36,6 +36,17 @@ export const useAuthStore = defineStore('auth', {
       const data = await authApi.register(payload)
       return this.setSession(data)
     },
+    async registerWithEmail(payload) {
+      const data = await authApi.registerEmail(payload)
+      return this.setSession(data)
+    },
+    /** OAuth 回调把令牌放在 URL 片段里送回来；收下后立刻抹掉地址栏，再拉一次用户信息。 */
+    async adoptToken(token) {
+      this.token = token
+      localStorage.setItem(TOKEN_KEY, token)
+      await this.fetchMe()
+      return token
+    },
     async fetchMe() {
       if (!this.token) return null
       try {

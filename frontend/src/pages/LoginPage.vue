@@ -1,11 +1,12 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { User, Lock, ArrowRight, Check } from '@element-plus/icons-vue'
+import { User, Lock, ArrowRight, Check, Message } from '@element-plus/icons-vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import { useAuthStore } from '../stores/auth'
-import { notifyError } from '../api/client'
+import { apiUrl, notifyError } from '../api/client'
+import { authApi } from '../api'
 
 const router = useRouter()
 const route = useRoute()
@@ -16,20 +17,51 @@ const loading = ref(false)
 const agreed = ref(false)
 const isDev = import.meta.env.DEV
 
+/** 后台开关与实际通道就绪状态共同决定这一页渲染哪些入口。 */
+const config = reactive({ usernameRegister: false, emailRegister: false, githubLogin: false })
+const registerKind = ref('username')
+const codeSending = ref(false)
+const countdown = ref(0)
+let countdownTimer = null
+
 const form = reactive({
   username: '',
+  email: '',
+  code: '',
   password: '',
   confirm: '',
   nickname: ''
 })
 
 const isRegister = computed(() => mode.value === 'register')
+const isEmailRegister = computed(() => isRegister.value && registerKind.value === 'email')
+const canRegister = computed(() => config.usernameRegister || config.emailRegister)
+const heading = computed(() => {
+  if (!isRegister.value) return '欢迎回来。'
+  return isEmailRegister.value ? '用邮箱开一个账号。' : '开始写一份像样的简历。'
+})
+const subheading = computed(() => {
+  if (!isRegister.value) return '继续编辑你的简历，所有内容都还在原来的位置。'
+  if (isEmailRegister.value) return '先向邮箱发送验证码，验证通过后自动创建账号并生成第一份简历。'
+  return '创建账号后会自动生成第一份空白简历，随时可以开始填写。'
+})
 
 const rules = computed(() => ({
-  username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    ...(isRegister.value ? [{ pattern: /^[a-zA-Z0-9_]{3,20}$/, message: '3-20 位字母、数字或下划线', trigger: 'blur' }] : [])
-  ],
+  username: isEmailRegister.value
+    ? []
+    : [
+        { required: true, message: '请输入用户名', trigger: 'blur' },
+        ...(isRegister.value ? [{ pattern: /^[a-zA-Z0-9_]{3,20}$/, message: '3-20 位字母、数字或下划线', trigger: 'blur' }] : [])
+      ],
+  email: isEmailRegister.value
+    ? [
+        { required: true, message: '请输入邮箱', trigger: 'blur' },
+        { type: 'email', message: '邮箱格式不正确', trigger: 'blur' }
+      ]
+    : [],
+  code: isEmailRegister.value
+    ? [{ required: true, pattern: /^\d{6}$/, message: '验证码为 6 位数字', trigger: 'blur' }]
+    : [],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     ...(isRegister.value ? [{ min: 6, max: 32, message: '密码长度为 6-32 位', trigger: 'blur' }] : [])
@@ -49,16 +81,48 @@ const redirect = computed(() => {
 })
 
 function switchMode(next) {
+  if (next === 'register' && !canRegister.value) return
   mode.value = next
   formRef.value?.clearValidate()
   router.replace({ path: '/login', query: { ...route.query, mode: next === 'register' ? 'register' : undefined } })
 }
 
-function fillDemo() {
-  mode.value = 'login'
-  form.username = 'demo'
-  form.password = 'demo123'
-  agreed.value = true
+function switchKind(next) {
+  registerKind.value = next
+  formRef.value?.clearValidate()
+}
+
+function startCountdown(seconds) {
+  countdown.value = seconds
+  clearInterval(countdownTimer)
+  countdownTimer = setInterval(() => {
+    countdown.value -= 1
+    if (countdown.value <= 0) clearInterval(countdownTimer)
+  }, 1000)
+}
+
+async function sendCode() {
+  try {
+    await formRef.value.validateField('email')
+  } catch {
+    return
+  }
+  codeSending.value = true
+  try {
+    await authApi.emailCode(form.email.trim())
+    ElMessage.success('验证码已发送，10 分钟内有效')
+    startCountdown(60)
+  } catch (error) {
+    notifyError(error, '验证码发送失败')
+  } finally {
+    codeSending.value = false
+  }
+}
+
+/** 整页跳转：授权页必须由浏览器直接导航，令牌经回调后从 URL 片段取回。 */
+function githubLogin() {
+  loading.value = true
+  window.location.assign(apiUrl('/auth/oauth/github'))
 }
 
 async function submit() {
@@ -74,11 +138,20 @@ async function submit() {
   loading.value = true
   try {
     if (isRegister.value) {
-      await auth.register({
-        username: form.username.trim(),
-        password: form.password,
-        nickname: form.nickname.trim()
-      })
+      if (isEmailRegister.value) {
+        await auth.registerWithEmail({
+          email: form.email.trim(),
+          password: form.password,
+          code: form.code.trim(),
+          nickname: form.nickname.trim()
+        })
+      } else {
+        await auth.register({
+          username: form.username.trim(),
+          password: form.password,
+          nickname: form.nickname.trim()
+        })
+      }
       ElMessage.success('账号已创建，你的第一份简历准备好了')
     } else {
       await auth.login({ username: form.username.trim(), password: form.password })
@@ -92,8 +165,69 @@ async function submit() {
   }
 }
 
-onMounted(() => {
-  if (route.query.mode === 'register') mode.value = 'register'
+function fillDemo() {
+  mode.value = 'login'
+  form.username = 'demo'
+  form.password = 'demo123'
+  agreed.value = true
+}
+
+async function loadConfig() {
+  try {
+    const data = await authApi.config()
+    config.usernameRegister = Boolean(data.usernameRegister)
+    config.emailRegister = Boolean(data.emailRegister)
+    config.githubLogin = Boolean(data.githubLogin)
+    if (!config.usernameRegister && config.emailRegister) registerKind.value = 'email'
+  } catch {
+    // 读不到开关时退回「用户名注册可用」：宁可让后端回一句明确的「未开放注册」，
+    // 也不要因为一次请求失败就把注册入口整个藏起来。
+    config.usernameRegister = true
+  }
+}
+
+/** GitHub 回调落在 /login#satoken=xxx，失败落 #oauth_error=1；令牌读完就不能再留在地址栏里。 */
+async function consumeOAuthHandoff() {
+  const hash = typeof route.hash === 'string' ? route.hash : ''
+  if (hash.startsWith('#satoken=')) {
+    const token = decodeURIComponent(hash.slice('#satoken='.length))
+    const target = redirect.value
+    loading.value = true
+    try {
+      await auth.adoptToken(token)
+      ElMessage.success('已通过 GitHub 登录')
+      // 成功路径只发一条导航：跳转离开 /login 顺带抹掉片段。若先 replace 回登录页再 push，
+      // 那条没走完的 /login 导航会被 guestOnly 拦下并弹回首页，?redirect= 就丢了。
+      await router.replace(target)
+      return
+    } catch {
+      auth.clear()
+      clearHandoffHash()
+      ElMessage.error('GitHub 登录状态已失效，请重试')
+    } finally {
+      loading.value = false
+    }
+  }
+  if (hash.includes('oauth_error')) {
+    clearHandoffHash()
+    ElMessage.error('GitHub 登录未完成，请重试或用账号登录')
+  }
+}
+
+/**
+ * 失败时留在登录页，只能自己把回调片段抹掉——令牌和 state 不该留在地址栏、历史记录里。
+ * 这里绕过 router.replace：目标只是去掉片段的路径，路由会当成同地址导航直接放弃，浏览器地址栏不动。
+ */
+function clearHandoffHash() {
+  history.replaceState(history.state, '', location.pathname + location.search)
+}
+
+onBeforeUnmount(() => clearInterval(countdownTimer))
+
+onMounted(async () => {
+  await loadConfig()
+  if (route.query.mode === 'register' && canRegister.value) mode.value = 'register'
+  await consumeOAuthHandoff()
 })
 </script>
 
@@ -140,23 +274,51 @@ onMounted(() => {
 
     <main class="auth-main">
       <div class="auth-card">
-        <div class="auth-tabs" role="tablist">
+        <div v-if="canRegister" class="auth-tabs" role="tablist">
           <button type="button" role="tab" :class="{ active: !isRegister }" @click="switchMode('login')">登录</button>
           <button type="button" role="tab" :class="{ active: isRegister }" @click="switchMode('register')">注册</button>
           <span class="auth-tabs__indicator" :class="{ right: isRegister }" />
         </div>
 
         <div class="auth-heading">
-          <h1 class="serif">{{ isRegister ? '开始写一份像样的简历。' : '欢迎回来。' }}</h1>
-          <p>{{ isRegister ? '创建账号后会自动生成第一份空白简历，随时可以开始填写。' : '继续编辑你的简历，所有内容都还在原来的位置。' }}</p>
+          <h1 class="serif">{{ heading }}</h1>
+          <p>{{ subheading }}</p>
+        </div>
+
+        <div v-if="isRegister && config.usernameRegister && config.emailRegister" class="kind-switch">
+          <button type="button" :class="{ active: registerKind === 'username' }" @click="switchKind('username')">用户名</button>
+          <button type="button" :class="{ active: registerKind === 'email' }" @click="switchKind('email')">邮箱</button>
         </div>
 
         <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="auth-form" @submit.prevent="submit">
-          <el-form-item label="用户名" prop="username">
-            <el-input v-model="form.username" size="large" placeholder="3-20 位字母、数字或下划线" autocomplete="username">
+          <el-form-item v-if="!isEmailRegister" :label="isRegister ? '用户名' : '账号'" prop="username">
+            <el-input
+              v-model="form.username"
+              size="large"
+              :placeholder="isRegister ? '3-20 位字母、数字或下划线' : '用户名或邮箱'"
+              autocomplete="username"
+            >
               <template #prefix><el-icon><User /></el-icon></template>
             </el-input>
           </el-form-item>
+
+          <template v-if="isEmailRegister">
+            <el-form-item label="邮箱" prop="email">
+              <el-input v-model="form.email" size="large" placeholder="用于接收验证码" autocomplete="email">
+                <template #prefix><el-icon><Message /></el-icon></template>
+              </el-input>
+            </el-form-item>
+
+            <el-form-item label="验证码" prop="code">
+              <el-input v-model="form.code" size="large" maxlength="6" placeholder="6 位数字" autocomplete="one-time-code" @keyup.enter="submit">
+                <template #append>
+                  <el-button :disabled="codeSending || countdown > 0" @click="sendCode">
+                    {{ countdown > 0 ? `${countdown} 秒` : codeSending ? '发送中' : '发送验证码' }}
+                  </el-button>
+                </template>
+              </el-input>
+            </el-form-item>
+          </template>
 
           <el-form-item v-if="isRegister" label="昵称（选填）" prop="nickname">
             <el-input v-model="form.nickname" size="large" placeholder="希望我们怎么称呼你" maxlength="50" />
@@ -205,6 +367,17 @@ onMounted(() => {
           </el-button>
         </el-form>
 
+        <div v-if="config.githubLogin" class="oauth-block">
+          <div class="oauth-divider"><span>或</span></div>
+          <button type="button" class="oauth-btn" :disabled="loading" @click="githubLogin">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.91 2.33.69.07-.52.28-.91.51-1.12-1.78-.2-3.47-.88-3.47-3.89 0-.86.31-1.56.82-2.11-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.55.82 1.25.82 2.11 0 3.02-1.7 3.7-3.47 3.9.27.24.51.7.51 1.42 0 1.03-.01 1.86-.01 2.11 0 .21.14.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+            </svg>
+            使用 GitHub 登录
+          </button>
+          <p class="oauth-note">首次登录会自动创建账号，之后用同一个 GitHub 账号即可继续。</p>
+        </div>
+
         <div v-if="isDev" class="demo-hint">
           <span class="demo-hint__icon"><el-icon><Check /></el-icon></span>
           <p>本地演示账号 <code>demo</code> / <code>demo123</code>，附带一份完整示例简历。</p>
@@ -216,9 +389,12 @@ onMounted(() => {
             已经有账号了？
             <button type="button" @click="switchMode('login')">直接登录</button>
           </template>
-          <template v-else>
+          <template v-else-if="canRegister">
             第一次来？
             <button type="button" @click="switchMode('register')">免费创建一个账号</button>
+          </template>
+          <template v-else>
+            当前部署未开放注册，如需账号请联系管理员开通。
           </template>
         </div>
 
@@ -457,6 +633,98 @@ onMounted(() => {
 .auth-tabs__indicator.right {
   width: 28px;
   transform: translateX(54px);
+}
+
+.kind-switch {
+  display: inline-flex;
+  gap: 2px;
+  margin-top: 22px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper-deep);
+}
+
+.kind-switch button {
+  min-width: 76px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kind-switch button.active {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgba(31, 39, 35, 0.12);
+}
+
+.oauth-block {
+  margin-top: 26px;
+}
+
+.oauth-divider {
+  position: relative;
+  text-align: center;
+}
+
+.oauth-divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--line);
+}
+
+.oauth-divider span {
+  position: relative;
+  padding: 0 12px;
+  background: var(--canvas);
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.oauth-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 44px;
+  margin-top: 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-family: var(--sans);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+}
+
+.oauth-btn:hover:not(:disabled) {
+  border-color: var(--ink-soft);
+  background: var(--paper-deep);
+}
+
+.oauth-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.oauth-note {
+  margin-top: 10px;
+  color: var(--faint);
+  font-size: 10px;
+  line-height: 1.7;
+  text-align: center;
 }
 
 .auth-heading h1 {

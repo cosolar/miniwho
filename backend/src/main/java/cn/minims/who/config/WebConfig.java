@@ -50,7 +50,8 @@ public class WebConfig implements WebMvcConfigurer {
 
         registry.addInterceptor(new SaInterceptor(handle -> SaRouter
                 .match("/api/**")
-                .notMatch("/api/auth/login", "/api/auth/register", "/api/health",
+                .notMatch("/api/auth/login", "/api/auth/register", "/api/auth/register-email",
+                        "/api/auth/email-code", "/api/auth/oauth/**", "/api/health",
                         "/api/templates/**", "/api/public/**")
                 .check(route -> StpUtil.checkLogin())
         ) {

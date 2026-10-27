@@ -1,14 +1,20 @@
 CREATE TABLE IF NOT EXISTS users (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    username      VARCHAR(50)  NOT NULL UNIQUE,
-    password_hash VARCHAR(100) NOT NULL,
-    nickname      VARCHAR(50),
-    email         VARCHAR(100),
-    role          VARCHAR(20)  NOT NULL DEFAULT 'user',
-    status        INTEGER      NOT NULL DEFAULT 1,
-    created_at    BIGINT,
-    updated_at    BIGINT
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    username       VARCHAR(50)  NOT NULL UNIQUE,
+    password_hash  VARCHAR(100) NOT NULL,
+    nickname       VARCHAR(50),
+    email          VARCHAR(100),
+    role           VARCHAR(20)  NOT NULL DEFAULT 'user',
+    status         INTEGER      NOT NULL DEFAULT 1,
+    -- 第三方登录的账号没有可用密码，占位哈希 + 这个标记一起用，改密码入口据此隐藏。
+    has_password   INTEGER      NOT NULL DEFAULT 1,
+    -- 只有走过邮箱验证码的邮箱才算已验证：GitHub 关联本地账号只认已验证的邮箱。
+    email_verified INTEGER      NOT NULL DEFAULT 0,
+    created_at     BIGINT,
+    updated_at     BIGINT
 );
+-- 邮箱既是登录凭据也是账号归属依据，必须唯一；NULL 不受约束，第三方账号可以不留邮箱。
+CREATE UNIQUE INDEX IF NOT EXISTS uk_users_email ON users(email);
 
 CREATE TABLE IF NOT EXISTS templates (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,3 +124,36 @@ CREATE TABLE IF NOT EXISTS site_stats (
     stat_value BIGINT      NOT NULL DEFAULT 0,
     updated_at BIGINT
 );
+
+-- 管理员可调的站点开关：值是字符串，按 key 解释成布尔/文本，缺 key 时用代码里的默认值。
+CREATE TABLE IF NOT EXISTS site_settings (
+    setting_key   VARCHAR(60)  PRIMARY KEY,
+    setting_value VARCHAR(500) NOT NULL,
+    updated_at    BIGINT
+);
+
+-- 外部身份：provider 区分渠道，同一个渠道内 provider_user_id 唯一。
+-- 单独建表而不是往 users 上加列，是为了以后加渠道不用再动账号表。
+CREATE TABLE IF NOT EXISTS user_identities (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id          INTEGER      NOT NULL,
+    provider         VARCHAR(20)  NOT NULL,
+    provider_user_id VARCHAR(64)  NOT NULL,
+    provider_login   VARCHAR(100),
+    email            VARCHAR(100),
+    created_at       BIGINT,
+    UNIQUE (provider, provider_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_identities_user ON user_identities(user_id);
+
+-- 邮箱验证码：只存哈希，用完或过期即删，避免明文验证码在库里留着。
+CREATE TABLE IF NOT EXISTS email_codes (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    email      VARCHAR(100) NOT NULL,
+    purpose    VARCHAR(20)  NOT NULL,
+    code_hash  VARCHAR(100) NOT NULL,
+    expires_at BIGINT       NOT NULL,
+    attempts   INTEGER      NOT NULL DEFAULT 0,
+    created_at BIGINT
+);
+CREATE INDEX IF NOT EXISTS idx_email_codes_email ON email_codes(email, purpose, created_at DESC);

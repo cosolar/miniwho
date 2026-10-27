@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
 import cn.minims.who.common.RequireAdmin;
+import cn.minims.who.dto.AdminDtos.AdminAuthSettingsRequest;
+import cn.minims.who.dto.AdminDtos.AdminAuthSettingsVo;
 import cn.minims.who.dto.AdminDtos.AdminFeedbackRequest;
 import cn.minims.who.dto.AdminDtos.AdminFeedbackVo;
 import cn.minims.who.dto.AdminDtos.AdminSampleRequest;
@@ -112,5 +114,17 @@ public class AdminController {
                                             @Valid @RequestBody AdminFeedbackRequest request) {
         adminService.updateFeedback(id, request);
         return ApiResponse.ok();
+    }
+
+    /** 注册 / 登录方式、依赖就绪状态，以及邮件与 GitHub 通道的凭据配置。 */
+    @GetMapping("/settings")
+    public ApiResponse<AdminAuthSettingsVo> settings() {
+        return ApiResponse.ok(adminService.authSettings());
+    }
+
+    @PutMapping("/settings")
+    public ApiResponse<AdminAuthSettingsVo> updateSettings(
+            @Valid @RequestBody AdminAuthSettingsRequest request) {
+        return ApiResponse.ok(adminService.updateAuthSettings(request));
     }
 }

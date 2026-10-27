@@ -1,14 +1,19 @@
 CREATE TABLE IF NOT EXISTS users (
-    id            BIGINT PRIMARY KEY AUTO_INCREMENT,
-    username      VARCHAR(50)  NOT NULL,
-    password_hash VARCHAR(100) NOT NULL,
-    nickname      VARCHAR(50),
-    email         VARCHAR(100),
-    role          VARCHAR(20)  NOT NULL DEFAULT 'user',
-    status        INT          NOT NULL DEFAULT 1,
-    created_at    BIGINT,
-    updated_at    BIGINT,
-    UNIQUE KEY uk_users_username (username)
+    id             BIGINT PRIMARY KEY AUTO_INCREMENT,
+    username       VARCHAR(50)  NOT NULL,
+    password_hash  VARCHAR(100) NOT NULL,
+    nickname       VARCHAR(50),
+    email          VARCHAR(100),
+    role           VARCHAR(20)  NOT NULL DEFAULT 'user',
+    status         INT          NOT NULL DEFAULT 1,
+    -- 第三方登录的账号没有可用密码，占位哈希 + 这个标记一起用，改密码入口据此隐藏。
+    has_password   TINYINT      NOT NULL DEFAULT 1,
+    -- 只有走过邮箱验证码的邮箱才算已验证：GitHub 关联本地账号只认已验证的邮箱。
+    email_verified TINYINT      NOT NULL DEFAULT 0,
+    created_at     BIGINT,
+    updated_at     BIGINT,
+    UNIQUE KEY uk_users_username (username),
+    UNIQUE KEY uk_users_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS templates (
@@ -118,4 +123,37 @@ CREATE TABLE IF NOT EXISTS site_stats (
     stat_key   VARCHAR(50) PRIMARY KEY,
     stat_value BIGINT      NOT NULL DEFAULT 0,
     updated_at BIGINT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 管理员可调的站点开关：值是字符串，按 key 解释成布尔/文本，缺 key 时用代码里的默认值。
+CREATE TABLE IF NOT EXISTS site_settings (
+    setting_key   VARCHAR(60) PRIMARY KEY,
+    setting_value VARCHAR(500) NOT NULL,
+    updated_at    BIGINT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 外部身份：provider 区分渠道，同一个渠道内 provider_user_id 唯一。
+-- 单独建表而不是往 users 上加列，是为了以后加渠道不用再动账号表。
+CREATE TABLE IF NOT EXISTS user_identities (
+    id               BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id          BIGINT       NOT NULL,
+    provider         VARCHAR(20)  NOT NULL,
+    provider_user_id VARCHAR(64)  NOT NULL,
+    provider_login   VARCHAR(100),
+    email            VARCHAR(100),
+    created_at       BIGINT,
+    UNIQUE KEY uk_identity_provider (provider, provider_user_id),
+    KEY idx_identities_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 邮箱验证码：只存哈希，用完或过期即删，避免明文验证码在库里留着。
+CREATE TABLE IF NOT EXISTS email_codes (
+    id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+    email      VARCHAR(100) NOT NULL,
+    purpose    VARCHAR(20)  NOT NULL,
+    code_hash  VARCHAR(100) NOT NULL,
+    expires_at BIGINT       NOT NULL,
+    attempts   INT          NOT NULL DEFAULT 0,
+    created_at BIGINT,
+    KEY idx_email_codes_email (email, purpose, created_at DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

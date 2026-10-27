@@ -51,6 +51,13 @@ public class SchemaMigrator implements ApplicationRunner {
         templates.put("visibility", "VARCHAR(20) NOT NULL DEFAULT 'private'");
         templates.put("exportable", "INT NOT NULL DEFAULT 1");
         TABLE_COLUMNS.put("templates", templates);
+
+        // 第三方登录的账号也要占一行 users，password_hash 是非空列，所以用随机哈希 + 标记位区分。
+        Map<String, String> users = new LinkedHashMap<>();
+        users.put("has_password", "TINYINT NOT NULL DEFAULT 1");
+        // 存量库里填过的邮箱没验证过，默认 0：GitHub 只关联验证码确认过的邮箱。
+        users.put("email_verified", "TINYINT NOT NULL DEFAULT 0");
+        TABLE_COLUMNS.put("users", users);
     }
 
     private final DataSource dataSource;
@@ -72,6 +79,12 @@ public class SchemaMigrator implements ApplicationRunner {
                     migrate(statement, table.getKey(), table.getValue(), existing);
                 }
             }
+            // 邮箱从「随便填」变成登录凭据，存量库要先清掉脏数据才能上唯一索引。
+            try (Statement statement = connection.createStatement()) {
+                ensureEmailUniqueness(statement, sqlite);
+            } catch (SQLException e) {
+                log.warn("users.email 唯一索引创建失败（{}），注册与登录仍按应用层查重，不影响启动", e.getMessage());
+            }
         } catch (SQLException e) {
             throw new IllegalStateException("数据库结构升级失败，请确认数据库账号具备 ALTER 权限：" + e.getMessage(), e);
         }
@@ -85,6 +98,51 @@ public class SchemaMigrator implements ApplicationRunner {
             }
             statement.executeUpdate("ALTER TABLE " + table + " ADD COLUMN " + column.getKey() + " " + column.getValue());
             log.info("{} 表已新增列：{}", table, column.getKey());
+        }
+    }
+
+    /**
+     * 邮箱改成登录凭据后必须唯一。存量库里的空串、大小写混写和重复邮箱都会挡住唯一索引，
+     * 所以先规范化、再把后来者的邮箱清空（保留最早注册的账号），最后建索引。
+     * 索引已经存在时直接返回，免得每次启动都全表扫一遍。
+     */
+    private void ensureEmailUniqueness(Statement statement, boolean sqlite) throws SQLException {
+        if (emailIndexExists(statement, sqlite)) {
+            return;
+        }
+        statement.executeUpdate("UPDATE users SET email = NULL WHERE email IS NOT NULL AND TRIM(email) = ''");
+        statement.executeUpdate("UPDATE users SET email = LOWER(TRIM(email)) WHERE email IS NOT NULL");
+
+        int collisions = 0;
+        try (ResultSet rs = statement.executeQuery(
+                "SELECT COUNT(*) FROM (SELECT email FROM users WHERE email IS NOT NULL"
+                        + " GROUP BY email HAVING COUNT(*) > 1) dup")) {
+            if (rs.next()) {
+                collisions = rs.getInt(1);
+            }
+        }
+        if (collisions > 0) {
+            int cleared = statement.executeUpdate(
+                    "UPDATE users SET email = NULL WHERE email IS NOT NULL AND id NOT IN ("
+                            + "SELECT t.id FROM (SELECT MIN(id) AS id FROM users WHERE email IS NOT NULL GROUP BY email) t)");
+            log.warn("发现 {} 组重复邮箱，已清空后注册的 {} 个账号上的邮箱，需要请本人重新绑定", collisions, cleared);
+        }
+
+        if (sqlite) {
+            statement.executeUpdate("CREATE UNIQUE INDEX uk_users_email ON users(email)");
+        } else {
+            statement.executeUpdate("ALTER TABLE users ADD UNIQUE KEY uk_users_email (email)");
+        }
+        log.info("已为 users.email 建立唯一索引");
+    }
+
+    private boolean emailIndexExists(Statement statement, boolean sqlite) throws SQLException {
+        String sql = sqlite
+                ? "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'uk_users_email' LIMIT 1"
+                : "SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE()"
+                        + " AND TABLE_NAME = 'users' AND INDEX_NAME = 'uk_users_email' LIMIT 1";
+        try (ResultSet rs = statement.executeQuery(sql)) {
+            return rs.next();
         }
     }
 

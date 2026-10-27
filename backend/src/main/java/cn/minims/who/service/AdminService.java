@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import cn.minims.who.common.BizException;
 import cn.minims.who.dto.AdminDtos.AdminFeedbackRequest;
+import cn.minims.who.dto.AdminDtos.AdminAuthSettingsRequest;
+import cn.minims.who.dto.AdminDtos.AdminAuthSettingsVo;
 import cn.minims.who.dto.AdminDtos.AdminFeedbackVo;
 import cn.minims.who.dto.AdminDtos.AdminRecentUserVo;
 import cn.minims.who.dto.AdminDtos.AdminSampleVo;
@@ -41,10 +43,12 @@ public class AdminService {
     private final ResumeShareMapper shareMapper;
     private final ResumeReportMapper reportMapper;
     private final TemplateService templateService;
+    private final AuthSettingsService authSettingsService;
 
     public AdminService(UserMapper userMapper, ResumeMapper resumeMapper, TemplateMapper templateMapper,
                         FeedbackMapper feedbackMapper, ResumeShareMapper shareMapper,
-                        ResumeReportMapper reportMapper, TemplateService templateService) {
+                        ResumeReportMapper reportMapper, TemplateService templateService,
+                        AuthSettingsService authSettingsService) {
         this.userMapper = userMapper;
         this.resumeMapper = resumeMapper;
         this.templateMapper = templateMapper;
@@ -52,6 +56,17 @@ public class AdminService {
         this.shareMapper = shareMapper;
         this.reportMapper = reportMapper;
         this.templateService = templateService;
+        this.authSettingsService = authSettingsService;
+    }
+
+    /** 注册 / 登录方式面板：管理员要看的不是三个孤立开关，而是「开没开 + 还差什么」。 */
+    public AdminAuthSettingsVo authSettings() {
+        return authSettingsService.adminConfig();
+    }
+
+    public AdminAuthSettingsVo updateAuthSettings(AdminAuthSettingsRequest request) {
+        authSettingsService.apply(request);
+        return authSettingsService.adminConfig();
     }
 
     public AdminStatsVo stats() {
@@ -89,6 +104,7 @@ public class AdminService {
         List<AdminUserVo> result = new ArrayList<>(users.size());
         for (User user : users) {
             result.add(new AdminUserVo(user.getId(), user.getUsername(), user.getNickname(), user.getEmail(),
+                    Integer.valueOf(1).equals(user.getEmailVerified()),
                     user.getRole(), user.getStatus(), user.getCreatedAt(),
                     resumeCounts.getOrDefault(user.getId(), 0L)));
         }

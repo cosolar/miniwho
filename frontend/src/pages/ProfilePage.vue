@@ -77,6 +77,9 @@ const feedbackRules = {
 const displayName = computed(() => auth.user?.nickname || auth.user?.username || '我')
 const avatarText = computed(() => displayName.value.slice(0, 1))
 const isAdmin = computed(() => auth.user?.role === 'admin')
+/** GitHub 自动建号的账号没有可用密码；老缓存里没这个字段时按「有密码」处理。 */
+const hasPassword = computed(() => auth.user?.hasPassword !== false)
+const emailVerified = computed(() => Boolean(auth.user?.emailVerified))
 const resumeCount = computed(() => resumes.value.length)
 const bestScore = computed(() => Math.max(0, ...resumes.value.map((item) => Number(item.score) || 0)))
 const reviewedCount = computed(() => resumes.value.filter((item) => Number(item.score) > 0).length)
@@ -217,7 +220,7 @@ onMounted(() => {
                 <div>
                   <span class="card-kicker">Profile</span>
                   <h2>个人资料</h2>
-                  <p>昵称会显示在页面右上角，邮箱仅用于登录后的账号联系。</p>
+                  <p>昵称会显示在页面右上角，邮箱用于账号联系以及 GitHub 登录时的账号关联。</p>
                 </div>
                 <span class="card-icon"><el-icon><User /></el-icon></span>
               </header>
@@ -237,6 +240,12 @@ onMounted(() => {
                   <el-input v-model="profile.email" maxlength="100" placeholder="name@example.com（选填）">
                     <template #prefix><el-icon><InfoFilled /></el-icon></template>
                   </el-input>
+                  <span v-if="!profile.email" class="field-note">邮箱选填；只有经过注册验证码确认的邮箱才能用于 GitHub 登录时关联账号。</span>
+                  <span v-else class="field-note" :class="{ 'is-verified': emailVerified }">
+                    {{ emailVerified
+                      ? '该邮箱已通过注册验证码确认，GitHub 登录时可自动关联到本账号。'
+                      : '该邮箱尚未通过验证码确认，GitHub 登录不会把它关联到本账号。' }}
+                  </span>
                 </el-form-item>
                 <div class="form-actions">
                   <span class="save-hint">修改后立即生效，不影响简历内容。</span>
@@ -252,12 +261,16 @@ onMounted(() => {
               <header class="profile-card__head">
                 <div>
                   <span class="card-kicker">Security</span>
-                  <h2>修改密码</h2>
-                  <p>建议使用与其他网站不同的密码，至少 6 位。修改后当前登录仍然有效。</p>
+                  <h2>{{ hasPassword ? '修改密码' : '登录方式' }}</h2>
+                  <p>
+                    {{ hasPassword
+                      ? '建议使用与其他网站不同的密码，至少 6 位。修改后当前登录仍然有效。'
+                      : '该账号由第三方登录自动创建，本期不支持为它设置密码。' }}
+                  </p>
                 </div>
                 <span class="card-icon"><el-icon><Lock /></el-icon></span>
               </header>
-              <el-form ref="passwordRef" :model="password" :rules="passwordRules" label-position="top" @submit.prevent>
+              <el-form v-if="hasPassword" ref="passwordRef" :model="password" :rules="passwordRules" label-position="top" @submit.prevent>
                 <el-form-item label="原密码" prop="oldPassword">
                   <el-input v-model="password.oldPassword" type="password" show-password autocomplete="current-password" placeholder="输入当前密码">
                     <template #prefix><el-icon><Key /></el-icon></template>
@@ -532,6 +545,10 @@ onMounted(() => {
   color: var(--faint);
   font-size: 10.5px;
   line-height: 1.6;
+}
+
+.field-note.is-verified {
+  color: var(--accent);
 }
 
 .form-actions {

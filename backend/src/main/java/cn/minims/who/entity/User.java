@@ -19,6 +19,10 @@ public class User {
     private String email;
     private String role;
     private Integer status;
+    /** 第三方登录建出来的账号只有随机占位哈希，没有可用密码。 */
+    private Integer hasPassword;
+    /** 邮箱是否走过验证码；GitHub 只关联已验证的邮箱，避免拿别人填错的邮箱接管账号。 */
+    private Integer emailVerified;
 
     @TableField(fill = FieldFill.INSERT)
     private Long createdAt;

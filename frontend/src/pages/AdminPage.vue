@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  ChatDotSquare, DataBoard, Document, Download, Grid, Message, Refresh, Search, Share,
+  ChatDotSquare, DataBoard, Document, Download, Grid, Key, Message, Refresh, Search, Share,
   User, UserFilled, View
 } from '@element-plus/icons-vue'
 import AppLayout from '../layouts/AppLayout.vue'
@@ -30,11 +30,22 @@ const replySaving = ref(false)
 const replyTarget = ref(null)
 const replyText = ref('')
 
+const settingsLoading = ref(false)
+const settingsSaving = ref(false)
+const channelSaving = ref('')
+const authSettings = ref(null)
+const authForm = reactive({ usernameRegister: false, emailRegister: false, githubLogin: false })
+const mailForm = reactive({
+  host: '', port: '', username: '', password: '', from: '', fromName: '', ssl: true, starttls: false
+})
+const githubForm = reactive({ clientId: '', clientSecret: '', publicBaseUrl: '' })
+
 const tabs = computed(() => [
   { key: 'overview', label: '运营概览', icon: DataBoard },
   { key: 'users', label: '用户管理', icon: UserFilled, count: users.value.length },
   { key: 'templates', label: '模板管理', icon: Grid, count: templates.value.length },
-  { key: 'feedback', label: '意见反馈', icon: ChatDotSquare, count: pendingFeedback.value.length }
+  { key: 'feedback', label: '意见反馈', icon: ChatDotSquare, count: pendingFeedback.value.length },
+  { key: 'auth', label: '认证设置', icon: Key }
 ])
 
 const filteredUsers = computed(() => {
@@ -164,9 +175,144 @@ async function clearSample() {
   }
 }
 
+/** 后台开关是意愿，SMTP / GitHub 凭据就绪才是事实，前台只渲染两者都成立的入口。 */
+const authEffective = computed(() => {
+  const data = authSettings.value
+  return {
+    username: Boolean(data?.usernameRegister),
+    email: Boolean(data?.emailRegister && data?.mailConfigured),
+    github: Boolean(data?.githubLogin && data?.githubConfigured)
+  }
+})
+const authAllClosed = computed(() =>
+  Boolean(authSettings.value) && !Object.values(authEffective.value).some(Boolean)
+)
+
+function syncAuthForm(data) {
+  authForm.usernameRegister = Boolean(data.usernameRegister)
+  authForm.emailRegister = Boolean(data.emailRegister)
+  authForm.githubLogin = Boolean(data.githubLogin)
+}
+
+/** 通道表单只回填非敏感项；授权码与 Client Secret 永远留空，填了才提交。 */
+function syncChannelForm(data) {
+  const mail = data.mail || {}
+  Object.assign(mailForm, {
+    host: mail.host || '',
+    port: mail.port || '',
+    username: mail.username || '',
+    password: '',
+    from: mail.from || '',
+    fromName: mail.fromName || '',
+    ssl: mail.ssl !== false,
+    starttls: Boolean(mail.starttls)
+  })
+  const github = data.github || {}
+  Object.assign(githubForm, {
+    clientId: github.clientId || '',
+    clientSecret: '',
+    publicBaseUrl: github.publicBaseUrl || ''
+  })
+}
+
+async function loadAuthSettings() {
+  settingsLoading.value = true
+  try {
+    const data = await adminApi.authSettings()
+    authSettings.value = data
+    syncAuthForm(data)
+    syncChannelForm(data)
+  } catch (error) {
+    notifyError(error, '加载认证设置失败')
+  } finally {
+    settingsLoading.value = false
+  }
+}
+
+async function saveAuthSettings() {
+  if (settingsSaving.value) return
+  settingsSaving.value = true
+  try {
+    const data = await adminApi.updateAuthSettings({ ...authForm })
+    authSettings.value = data
+    syncAuthForm(data)
+    ElMessage.success('设置已保存，登录页最多 30 秒后生效')
+  } catch (error) {
+    notifyError(error, '保存失败')
+    await loadAuthSettings()
+  } finally {
+    settingsSaving.value = false
+  }
+}
+
+/**
+ * 通道配置一次只提交一组：未填的密钥项直接不发，服务端按「不改动」处理。
+ * clear=true 时把所有项传空串，等于清空后台值、重新回落到环境变量。
+ */
+async function saveChannel(group, payload, clear = false) {
+  if (channelSaving.value) return
+  channelSaving.value = group
+  try {
+    const data = await adminApi.updateAuthSettings(payload)
+    authSettings.value = data
+    syncAuthForm(data)
+    syncChannelForm(data)
+    ElMessage.success(clear ? '已清空后台配置，回落到环境变量' : '已保存，立即生效，无需重启')
+  } catch (error) {
+    notifyError(error, '保存失败')
+    await loadAuthSettings()
+  } finally {
+    channelSaving.value = ''
+  }
+}
+
+function saveMailChannel() {
+  const payload = {
+    mailHost: mailForm.host.trim(),
+    mailPort: String(mailForm.port).trim(),
+    mailUsername: mailForm.username.trim(),
+    mailFrom: mailForm.from.trim(),
+    mailFromName: mailForm.fromName.trim(),
+    mailSsl: mailForm.ssl,
+    mailStarttls: mailForm.starttls
+  }
+  if (mailForm.password) payload.mailPassword = mailForm.password
+  return saveChannel('mail', payload)
+}
+
+function saveGithubChannel() {
+  const payload = {
+    githubClientId: githubForm.clientId.trim(),
+    publicBaseUrl: githubForm.publicBaseUrl.trim()
+  }
+  if (githubForm.clientSecret) payload.githubClientSecret = githubForm.clientSecret
+  return saveChannel('github', payload)
+}
+
+function clearMailChannel() {
+  return saveChannel('mail', {
+    mailHost: '', mailPort: '', mailUsername: '', mailPassword: '', mailFrom: '', mailFromName: ''
+  }, true)
+}
+
+function clearGithubChannel() {
+  return saveChannel('github', {
+    githubClientId: '', githubClientSecret: '', publicBaseUrl: ''
+  }, true)
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success('已复制到剪贴板')
+  } catch {
+    ElMessage.warning('浏览器不允许直接复制，请手动选中')
+  }
+}
+
 async function loadAll(showLoading = true) {
   if (showLoading) loading.value = true
-  await Promise.all([loadStats(), loadUsers(), loadTemplates(), loadFeedback(), loadSample()])
+  await Promise.all([loadStats(), loadUsers(), loadTemplates(), loadFeedback(), loadSample(), loadAuthSettings()])
   loading.value = false
 }
 
@@ -435,9 +581,15 @@ onMounted(() => loadAll())
                     </div>
                   </template>
                 </el-table-column>
-                <el-table-column prop="email" label="邮箱" min-width="146">
+                <el-table-column prop="email" label="邮箱" min-width="176">
                   <template #default="{ row }">
-                    <span class="cell-muted">{{ row.email || '—' }}</span>
+                    <div v-if="row.email" class="cell-email">
+                      <span class="cell-muted">{{ row.email }}</span>
+                      <span class="verify-tag" :class="row.emailVerified ? 'is-ok' : 'is-no'">
+                        {{ row.emailVerified ? '已验证' : '未验证' }}
+                      </span>
+                    </div>
+                    <span v-else class="cell-muted">—</span>
                   </template>
                 </el-table-column>
                 <el-table-column label="角色" width="84">
@@ -562,6 +714,223 @@ onMounted(() => loadAll())
                 </div>
               </li>
             </ul>
+          </section>
+
+          <section v-show="activeTab === 'auth'" class="admin-section">
+            <div class="table-toolbar">
+              <div>
+                <span class="card-kicker">Authentication</span>
+                <h2>认证设置 <small>注册与登录方式</small></h2>
+              </div>
+              <el-button size="small" :loading="settingsLoading" @click="loadAuthSettings">重新读取</el-button>
+            </div>
+
+            <div class="surface auth-panel" v-loading="settingsLoading">
+              <p v-if="authAllClosed" class="auth-alert">
+                当前没有任何自助注册入口，新用户完全无法开号。需要开号时临时打开「用户名注册」，注册完再关掉。
+              </p>
+
+              <div class="auth-row">
+                <div class="auth-row__main">
+                  <strong>用户名注册</strong>
+                  <p>传统用户名 + 密码注册，脚本可以批量开号，公开部署建议保持关闭。</p>
+                </div>
+                <el-switch v-model="authForm.usernameRegister" :disabled="settingsSaving" @change="saveAuthSettings" />
+              </div>
+
+              <div class="auth-row">
+                <div class="auth-row__main">
+                  <strong>邮箱注册</strong>
+                  <p>先发送 6 位验证码，验证通过才建号；一封邮件的成本足以挡住批量注册。</p>
+                  <span class="auth-dep" :class="authSettings?.mailConfigured ? 'is-ok' : 'is-no'">
+                    <i></i>
+                    {{ authSettings?.mailConfigured
+                      ? 'SMTP 通道已就绪'
+                      : 'SMTP 未配置：在下方「通道配置」填主机、发件地址与授权码即可' }}
+                  </span>
+                  <span v-if="authForm.emailRegister && !authSettings?.mailConfigured" class="auth-dep is-no">
+                    <i></i>通道未就绪，登录页暂时不会出现该入口
+                  </span>
+                </div>
+                <el-switch v-model="authForm.emailRegister" :disabled="settingsSaving" @change="saveAuthSettings" />
+              </div>
+
+              <div class="auth-row">
+                <div class="auth-row__main">
+                  <strong>GitHub 登录</strong>
+                  <p>首次登录自动创建账号；GitHub 返回的已验证邮箱与站内已验证邮箱一致时，自动关联到原账号。</p>
+                  <span class="auth-dep" :class="authSettings?.githubConfigured ? 'is-ok' : 'is-no'">
+                    <i></i>
+                    {{ authSettings?.githubConfigured
+                      ? 'GitHub 应用凭据已就绪'
+                      : '未配置：在下方「通道配置」填 Client ID / Client Secret / 站点对外地址' }}
+                  </span>
+                  <span v-if="authForm.githubLogin && !authSettings?.githubConfigured" class="auth-dep is-no">
+                    <i></i>通道未就绪，登录页暂时不会出现该入口
+                  </span>
+                </div>
+                <el-switch v-model="authForm.githubLogin" :disabled="settingsSaving" @change="saveAuthSettings" />
+              </div>
+            </div>
+
+            <section class="surface auth-channels">
+              <header class="panel-head">
+                <div>
+                  <span class="card-kicker">Channels</span>
+                  <h2>通道配置 <small>保存后立即生效，不必重启</small></h2>
+                </div>
+              </header>
+              <p class="auth-callback__hint">
+                这里填的值存在站点设置里，优先于对应的环境变量；某一项清空后，才重新回落到环境变量。
+                授权码与 Client Secret 只写不读，保存后界面上只会显示「已保存」。
+              </p>
+
+              <div class="channel-grid">
+                <div class="channel-card">
+                  <div class="channel-card__head">
+                    <strong>邮件通道 SMTP</strong>
+                    <span class="auth-dep" :class="authSettings?.mail?.fromAdmin ? 'is-ok' : 'is-muted'">
+                      <i></i>{{ authSettings?.mail?.fromAdmin ? '当前由后台配置' : '当前值来自环境变量' }}
+                    </span>
+                  </div>
+                  <div class="channel-fields">
+                    <label>
+                      <span>SMTP 主机</span>
+                      <el-input v-model="mailForm.host" placeholder="smtp.qq.com" />
+                    </label>
+                    <label>
+                      <span>端口</span>
+                      <el-input v-model="mailForm.port" placeholder="465" />
+                    </label>
+                    <label class="is-wide">
+                      <span>登录名</span>
+                      <el-input v-model="mailForm.username" placeholder="留空则使用发件地址" />
+                    </label>
+                    <label class="is-wide">
+                      <span>授权码</span>
+                      <el-input
+                        v-model="mailForm.password"
+                        type="password"
+                        show-password
+                        :placeholder="authSettings?.mail?.passwordSet
+                          ? '已保存，留空则不修改'
+                          : '邮箱授权码，不是邮箱登录密码'"
+                      />
+                    </label>
+                    <label>
+                      <span>发件地址</span>
+                      <el-input v-model="mailForm.from" placeholder="you@qq.com" />
+                    </label>
+                    <label>
+                      <span>发件署名</span>
+                      <el-input v-model="mailForm.fromName" placeholder="极简简历" />
+                    </label>
+                    <label class="is-switch">
+                      <span>隐式 SSL（465 端口）</span>
+                      <el-switch v-model="mailForm.ssl" />
+                    </label>
+                    <label class="is-switch">
+                      <span>STARTTLS（587 端口）</span>
+                      <el-switch v-model="mailForm.starttls" />
+                    </label>
+                  </div>
+                  <div class="channel-actions">
+                    <el-button
+                      type="primary"
+                      size="small"
+                      :loading="channelSaving === 'mail'"
+                      @click="saveMailChannel"
+                    >
+                      保存邮件通道
+                    </el-button>
+                    <el-button size="small" text :disabled="Boolean(channelSaving)" @click="clearMailChannel">
+                      清空并回落到环境变量
+                    </el-button>
+                  </div>
+                </div>
+
+                <div class="channel-card">
+                  <div class="channel-card__head">
+                    <strong>GitHub OAuth</strong>
+                    <span class="auth-dep" :class="authSettings?.github?.fromAdmin ? 'is-ok' : 'is-muted'">
+                      <i></i>{{ authSettings?.github?.fromAdmin ? '当前由后台配置' : '当前值来自环境变量' }}
+                    </span>
+                  </div>
+                  <div class="channel-fields">
+                    <label class="is-wide">
+                      <span>Client ID</span>
+                      <el-input v-model="githubForm.clientId" placeholder="Iv1.xxxxxxxxxxxxxxxx" />
+                    </label>
+                    <label class="is-wide">
+                      <span>Client Secret</span>
+                      <el-input
+                        v-model="githubForm.clientSecret"
+                        type="password"
+                        show-password
+                        :placeholder="authSettings?.github?.secretSet
+                          ? '已保存，留空则不修改'
+                          : '在 OAuth App 里 Generate new client secret 后填入'"
+                      />
+                    </label>
+                    <label class="is-wide">
+                      <span>站点对外地址</span>
+                      <el-input v-model="githubForm.publicBaseUrl" placeholder="https://who.example.com" />
+                    </label>
+                  </div>
+                  <p class="channel-note">
+                    站点对外地址决定回调地址与登录完成后的跳转目标，必须是浏览器实际访问的那个域名
+                    （含 https://，末尾斜杠可省）。
+                  </p>
+                  <div class="channel-actions">
+                    <el-button
+                      type="primary"
+                      size="small"
+                      :loading="channelSaving === 'github'"
+                      @click="saveGithubChannel"
+                    >
+                      保存 GitHub 通道
+                    </el-button>
+                    <el-button size="small" text :disabled="Boolean(channelSaving)" @click="clearGithubChannel">
+                      清空并回落到环境变量
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="surface auth-callback">
+              <header class="panel-head">
+                <div>
+                  <span class="card-kicker">OAuth callback</span>
+                  <h2>GitHub OAuth 应用</h2>
+                </div>
+              </header>
+              <p class="auth-callback__hint">
+                在 GitHub → Settings → Developer settings → OAuth Apps → New OAuth App 建应用，
+                Authorization callback URL 填下面这个地址，Homepage URL 填站点首页；拿到 Client ID 与
+                Client secret 后填到上方「通道配置」保存即可，不需要重启后端，再打开开关。
+              </p>
+              <div class="auth-field">
+                <span>回调地址</span>
+                <code>{{ authSettings?.githubCallbackUrl || '未配置：先在上方「通道配置」填写站点对外地址' }}</code>
+                <el-button
+                  v-if="authSettings?.githubCallbackUrl"
+                  size="small"
+                  text
+                  type="primary"
+                  @click="copyText(authSettings.githubCallbackUrl)"
+                >
+                  复制
+                </el-button>
+              </div>
+              <div class="auth-field">
+                <span>站点公网地址</span>
+                <code>{{ authSettings?.publicBaseUrl || '未配置' }}</code>
+              </div>
+              <p class="auth-callback__note">
+                开关保存后立即写库，登录页只读「开关 + 通道就绪」的交集：只配凭据不打开关，或只开关不配凭据，都不会出现入口。
+              </p>
+            </section>
           </section>
         </template>
       </div>
@@ -1261,6 +1630,233 @@ onMounted(() => loadAll())
   font-size: 12px;
   line-height: 1.75;
   white-space: pre-wrap;
+}
+
+.cell-email {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.verify-tag {
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.verify-tag.is-ok {
+  border-color: rgba(10, 125, 118, 0.2);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.verify-tag.is-no {
+  color: var(--faint);
+}
+
+.auth-panel {
+  margin-bottom: 22px;
+  padding: 4px 24px;
+}
+
+.auth-alert {
+  margin: 16px 0 2px;
+  padding: 12px 14px;
+  border: 1px solid rgba(161, 124, 61, 0.28);
+  border-radius: var(--radius-sm);
+  background: #fbf5e9;
+  color: #8a6a33;
+  font-size: 11.5px;
+  line-height: 1.75;
+}
+
+.auth-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+}
+
+.auth-row:first-of-type {
+  border-top: none;
+}
+
+.auth-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.auth-row__main strong {
+  font-size: 13px;
+}
+
+.auth-row__main p {
+  max-width: 660px;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.8;
+}
+
+.auth-dep {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+  font-size: 10.5px;
+  white-space: normal;
+}
+
+.auth-dep i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.auth-dep.is-ok {
+  color: var(--success);
+}
+
+.auth-dep.is-no {
+  color: #a17c3d;
+}
+
+.auth-dep.is-muted {
+  color: var(--faint);
+}
+
+.auth-channels {
+  margin-bottom: 22px;
+  padding: 24px 28px;
+}
+
+.channel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.channel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper-deep);
+}
+
+.channel-card__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.channel-card__head strong {
+  font-size: 13px;
+}
+
+.channel-card__head .auth-dep {
+  margin-top: 0;
+}
+
+.channel-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.channel-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.channel-fields label.is-wide {
+  grid-column: 1 / -1;
+}
+
+.channel-fields label > span {
+  color: var(--faint);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+
+.channel-fields label.is-switch {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.channel-note {
+  color: var(--faint);
+  font-size: 10.5px;
+  line-height: 1.8;
+}
+
+.channel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+@media (max-width: 720px) {
+  .channel-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.auth-callback {
+  padding: 24px 28px;
+}
+
+.auth-callback__hint {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.85;
+}
+
+.auth-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper-deep);
+}
+
+.auth-field span {
+  flex-shrink: 0;
+  color: var(--faint);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+
+.auth-field code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.auth-callback__note {
+  margin-top: 14px;
+  color: var(--faint);
+  font-size: 10.5px;
+  line-height: 1.8;
 }
 
 @media (max-width: 1080px) {

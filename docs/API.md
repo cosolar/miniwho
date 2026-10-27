@@ -38,6 +38,8 @@
 
 前端 Axios 封装在 `code === "OK"` 时直接返回 `data`，否则抛出带 `code` / `message` / `details` 的错误。
 
+> 序列化配置是 `default-property-inclusion: non_null`：**值为 `null` 的字段整个不出现在响应里**（不是 `"email": null`）。本文档各处的示例 JSON 因此可能缺少可选字段，客户端一律按「字段可能不存在」处理。
+
 ### 1.2 鉴权
 
 登录或注册成功后，响应中的 `token` 即后续请求凭证；`tokenName` 固定为 `satoken`。
@@ -58,7 +60,10 @@ satoken: <token>
 
 - `GET /health`
 - `POST /auth/login`
-- `POST /auth/register`
+- `POST /auth/register`（需管理员在「认证设置」打开用户名注册，否则 403）
+- `POST /auth/email-code`、`POST /auth/register-email`（需打开邮箱注册且 SMTP 已配置，否则 403）
+- `GET /auth/oauth/github`、`GET /auth/oauth/github/callback`（GitHub 登录的两个浏览器跳转入口，只回 302，不给 XHR 用）
+- `GET /public/auth-config`（登录页据此决定渲染哪些注册 / 登录入口）
 - `GET /templates`、`GET /templates/{code}`
 - `GET /templates/{code}/export`（官方包，以及作者允许导出的已分享包；其余情况要登录且是作者或管理员）
 - `GET /public/shares/{token}`
@@ -89,7 +94,10 @@ satoken: <token>
 | 409 | `TEMPLATE_IN_USE` | 模板仍被简历使用，`data.resumeCount` 是在用数量 |
 | 410 | `SHARE_REVOKED` | 分享已撤销，或简历已删除 |
 | 410 | `SHARE_EXPIRED` | 分享已过期 |
+| 429 | `TOO_MANY_REQUESTS` | 触发限流：公开接口按 IP（登录 10 / 注册与验证码 5 / OAuth 20 次每分钟），验证码另按邮箱限（60 秒 1 封、每小时 5 封），PDF 排队超时也算在内 |
+| 502 | `MAIL_SEND_FAILED` | SMTP 拒发或连接失败，前端提示「邮件发送失败，请稍后再试或联系管理员」 |
 | 503 | `PDF_ENGINE_UNAVAILABLE` | 服务端没有可用的无头浏览器或未配置渲染地址，请改用浏览器打印 |
+| 503 | `MAIL_NOT_CONFIGURED` | 邮件通道未就绪：后台与环境变量都没填 host / 发件地址（正常路径下 2.1 会先把这条通道报成不可用） |
 | 500 | `INTERNAL_ERROR` | 未预期的服务端错误 |
 
 > 公开分享接口返回 401 时，前端不会像普通接口那样跳转登录页，而是展示密码输入框。
@@ -110,7 +118,31 @@ satoken: <token>
 
 ## 2. 认证与个人资料
 
-### 2.1 注册
+三种注册 / 登录方式（用户名注册、邮箱注册、GitHub 登录）都由管理后台的「认证设置」控制，并且要对应通道已经配置好才会真正开放；通道既能用环境变量配，也能直接在同一页的「通道配置」里填，保存即生效（见 10.10）。除用户名密码登录外，所有注册入口在被管理员关闭时统一返回 `403 FORBIDDEN`。
+
+### 2.1 注册 / 登录方式配置（无需登录）
+
+```http
+GET /api/public/auth-config
+```
+
+```json
+{
+  "code": "OK",
+  "message": "ok",
+  "data": {
+    "usernameRegister": false,
+    "emailRegister": true,
+    "githubLogin": true
+  }
+}
+```
+
+登录页据此渲染入口：`usernameRegister` / `emailRegister` 决定注册页里出现哪几种表单，`githubLogin` 决定是否显示 GitHub 按钮。三个字段都是**开关与通道就绪状态的交集**——通道没配好时即使管理员打开了开关也返回 `false`，前台不会出现点了必失败的按钮。
+
+响应带 `Cache-Control: private, max-age=30`，管理员改完设置后登录页最多 30 秒才变化。
+
+### 2.2 用户名注册
 
 ```http
 POST /api/auth/register
@@ -131,6 +163,8 @@ Content-Type: application/json
 | `password` | 是 | 6–32 位 |
 | `nickname` | 否 | ≤ 50 字符；为空时使用用户名 |
 
+**该接口默认关闭**（`site_settings.register_username` 出厂为 `false`），未开放时返回 `403`「管理员未开放用户名注册，请改用邮箱注册或联系管理员」。
+
 注册成功会自动登录，并创建一份空白简历（标题「我的第一份简历 / Untitled Resume」，模板 `qinghe`）。
 
 响应 `LoginResponse`：
@@ -146,9 +180,10 @@ Content-Type: application/json
       "id": 2,
       "username": "alice_2026",
       "nickname": "Alice",
-      "email": null,
       "role": "user",
       "status": 1,
+      "hasPassword": true,
+      "emailVerified": false,
       "createdAt": 1792646790000
     },
     "resumeId": 3
@@ -156,7 +191,61 @@ Content-Type: application/json
 }
 ```
 
-### 2.2 登录
+### 2.3 发送注册验证码
+
+```http
+POST /api/auth/email-code
+Content-Type: application/json
+```
+
+```json
+{ "email": "me@example.com" }
+```
+
+`data` 为 `null`。邮件由标准 SMTP 发出（通道配置取自后台「认证设置」，其次 `MINIWHO_MAIL_*`，见部署指南 2.4），正文是 6 位数字验证码，10 分钟内有效。
+
+限制与失败码：
+
+| 情况 | 响应 |
+| --- | --- |
+| 管理员未开放邮箱注册，或 SMTP 未配置 | `403` 「管理员未开放邮箱注册」 |
+| 该邮箱已注册 | `400` 「该邮箱已注册，请直接登录；忘记密码请联系管理员重置」（**没有找回密码功能**） |
+| 60 秒内重复申请 | `429` 「验证码刚刚发送过，请一分钟后再试」 |
+| 同一邮箱一小时内超过 5 封 | `429` 「这个邮箱申请验证码太频繁，请一小时后再试」 |
+| 发信失败 | `502` 「邮件发送失败，请稍后再试或联系管理员」 |
+
+另叠加按 IP 的公开接口限流。验证码只在库里存 BCrypt 哈希，明文不落库、不落日志。
+
+### 2.4 邮箱注册
+
+```http
+POST /api/auth/register-email
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "me@example.com",
+  "password": "secret123",
+  "code": "802142",
+  "nickname": "Alice"
+}
+```
+
+| 字段 | 必填 | 规则 |
+| --- | --- | --- |
+| `email` | 是 | 合法邮箱格式，≤ 100 字符，全局唯一；比较时统一转小写去空格 |
+| `password` | 是 | 6–32 位 |
+| `code` | 是 | 6 位数字，需与 `email-code` 发出的那封一致 |
+| `nickname` | 否 | ≤ 50 字符；为空时取由邮箱前缀分配的用户名 |
+
+响应同 `LoginResponse`，注册成功即自动登录并创建第一份简历；该账号的 `emailVerified` 直接是 `true`——邮箱本来就是验证码确认过的。
+
+验证码错误 `400`「验证码不正确」，同一封最多试 5 次，超过即作废；验证通过后立刻删除，同一条验证码用第二次必然失败。过期返回 `400`「验证码已过期，请重新获取」。
+
+`username` 由邮箱前缀派生：转小写、非 `[a-z0-9_]` 的字符换成 `_`、截断到 20 字符、不足 3 位补 `_`；与已有用户名冲突时追加 100–999 的随机后缀重试，因此用户名注册关闭也不影响邮箱注册，且这个用户名只是内部标识，界面展示的是昵称。
+
+### 2.5 登录
 
 ```http
 POST /api/auth/login
@@ -170,9 +259,38 @@ Content-Type: application/json
 }
 ```
 
-响应同上。`resumeId` 为该用户最近更新的简历 ID；没有任何简历时为 `0`。账号被冻结时返回 `403 FORBIDDEN`。
+`username` 可以是用户名，也可以是**注册时用的邮箱**（含 `@` 时按邮箱查，忽略大小写与首尾空格）。响应同上。`resumeId` 为该用户最近更新的简历 ID；没有任何简历时为 `0`。账号被冻结时返回 `403 FORBIDDEN`。
 
-### 2.3 退出登录
+密码校验对用户名注册的账号同样通过 `BCrypt.checkpw` 完成；GitHub 自动建出来的账号 `hasPassword` 为 `false`，密码位是随机占位哈希，用它登录必然失败。
+
+### 2.6 GitHub 登录（浏览器跳转）
+
+这两个接口不是给 XHR 用的，浏览器直接导航，服务端只回 `302`。
+
+```http
+GET /api/auth/oauth/github
+```
+
+302 到 GitHub 的授权页（作用域 `read:user user:email`）。未开放或凭据缺失时同样回 302，指向 `<站点对外地址>/login#oauth_error=1`——浏览器导航渲染不了 JSON，失败也只能用跳转表达。
+
+下面的 `<站点对外地址>` 就是 10.10 里那一项：后台填过用后台的，没填用 `MINIWHO_PUBLIC_BASE_URL`，改完立即生效。
+
+```http
+GET /api/auth/oauth/github/callback?code=<code>&state=<state>
+```
+
+服务端用 `code` 换 token、取 GitHub 用户与**主邮箱**，然后按「渠道身份 → 已验证邮箱关联 → 自动建号」的顺序定位账号：
+
+- 成功：302 到 `<站点对外地址>/login#satoken=<token>`。令牌走 URL 片段，不进服务器访问日志，前端读到手立刻从地址栏抹掉。
+- 任何失败（用户在 GitHub 点了取消、`code` 缺失或已被用过、`state` 缺失 / 过期 / 已被核销、换不出 token）：302 到 `<站点对外地址>/login#oauth_error=1`，由登录页提示。
+
+`state` 是服务端一次性内存值，10 分钟过期、核销即失效，重放与伪造都直接失败。
+
+拿到令牌后按普通登录态调用其他接口即可，无需再走一次 `/auth/login`；前端会调 `/auth/me` 补全用户信息。
+
+首次登录自动建号：用户名 `github_<GitHub 用户名>`（清洗与冲突处理和 2.4 同一套规则）、`hasPassword=false`、昵称取 GitHub 显示名；若 GitHub 主邮箱在库里没人占用，会一并写入并标记 `emailVerified=true`。自动建号同样会创建第一份简历。
+
+### 2.7 退出登录
 
 ```http
 POST /api/auth/logout
@@ -181,7 +299,7 @@ satoken: <token>
 
 `data` 为 `null`。
 
-### 2.4 当前用户
+### 2.8 当前用户
 
 ```http
 GET /api/auth/me
@@ -198,11 +316,18 @@ satoken: <token>
   "email": "demo@miniwho.local",
   "role": "user",
   "status": 1,
+  "hasPassword": true,
+  "emailVerified": false,
   "createdAt": 1790000000000
 }
 ```
 
-### 2.5 更新资料
+| 字段 | 说明 |
+| --- | --- |
+| `hasPassword` | 是否有可用密码。`false` 表示这是第三方登录自动建的号，个人中心因此不显示「修改密码」 |
+| `emailVerified` | 邮箱是否走过验证码。只有 `true` 的邮箱才会被 GitHub 登录用来关联已有账号 |
+
+### 2.9 更新资料
 
 ```http
 PUT /api/auth/profile
@@ -217,9 +342,11 @@ Content-Type: application/json
 }
 ```
 
-两个字段都可选；传入 `nickname` 时不能为空，`email` 需符合邮箱格式，≤ 100 字符。返回更新后的 `UserVo`。
+两个字段都可选；传入 `nickname` 时不能为空，`email` 需符合邮箱格式，≤ 100 字符，且不能撞上其他账号已占用的邮箱（`400`「该邮箱已被其他账号使用」）。返回更新后的 `UserVo`。
 
-### 2.6 修改密码
+**改邮箱会把 `emailVerified` 归零**：旧地址上的验证码证明不了新地址。归零后该账号不再能被 GitHub 登录按邮箱关联，直到它通过邮箱注册链路重新确认。
+
+### 2.10 修改密码
 
 ```http
 PUT /api/auth/password
@@ -239,7 +366,9 @@ Content-Type: application/json
 | `oldPassword` | 必填，需与当前密码一致 |
 | `newPassword` | 6–32 位，不能与原密码相同 |
 
-成功返回 `data: null`。当前令牌不会被服务端主动吊销。
+成功返回 `data: null`。第三方登录建的账号（`hasPassword=false`）返回 `400`「该账号通过第三方登录，尚未设置密码」。
+
+改密成功后服务端会立即吊销该账号的**全部**登录态，包括发起这次请求的令牌，前端需要重新登录。
 
 ---
 
@@ -1268,6 +1397,7 @@ GET /api/admin/users
     "username": "demo",
     "nickname": "郝简历",
     "email": "demo@miniwho.local",
+    "emailVerified": false,
     "role": "user",
     "status": 1,
     "createdAt": 1790000000000,
@@ -1275,6 +1405,8 @@ GET /api/admin/users
   }
 ]
 ```
+
+响应里 `emailVerified` 是布尔值；没绑定邮箱的账号不出现 `email` 字段（见 1.1）。只有已验证的邮箱才会被 GitHub 登录用来关联账号，存量库里手工填写的邮箱一律是 `false`。
 
 ### 10.3 冻结 / 恢复用户
 
@@ -1400,6 +1532,98 @@ Content-Type: application/json
 
 `status` 可选 `0` / `1`；`reply` ≤ 2000 字符。字段省略时保留原值。返回 `data: null`。
 
+### 10.10 注册 / 登录方式
+
+```http
+GET /api/admin/settings
+```
+
+```json
+{
+  "code": "OK",
+  "message": "ok",
+  "data": {
+    "usernameRegister": false,
+    "emailRegister": true,
+    "githubLogin": false,
+    "mailConfigured": true,
+    "githubConfigured": false,
+    "githubCallbackUrl": "https://who.example.com/api/auth/oauth/github/callback",
+    "publicBaseUrl": "https://who.example.com",
+    "mail": {
+      "host": "smtp.qq.com",
+      "port": "465",
+      "username": "you@qq.com",
+      "from": "you@qq.com",
+      "fromName": "极简简历",
+      "ssl": true,
+      "starttls": false,
+      "passwordSet": true,
+      "fromAdmin": false
+    },
+    "github": {
+      "clientId": "",
+      "publicBaseUrl": "https://who.example.com",
+      "secretSet": false,
+      "fromAdmin": false
+    }
+  }
+}
+```
+
+前三个字段是管理员存的**意愿**，`mailConfigured` / `githubConfigured` 是通道就绪状态。前台登录页看到的是两者交集，也就是 2.1 的返回值。`githubCallbackUrl` 由站点对外地址拼出，直接抄进 GitHub OAuth App 的回调地址即可；对外地址留空时 `githubCallbackUrl` 与 `publicBaseUrl` 都是 `null`，按 1.1 的规则这两个字段干脆不出现在响应里，后台因此显示「未配置」。
+
+`mail` / `github` 回显的是**当前实际生效**的通道配置（后台填过的项优先，没填的项回落到环境变量），管理员据此知道下一步该填什么：
+
+| 字段 | 说明 |
+| --- | --- |
+| `passwordSet` / `secretSet` | 授权码 / Client Secret 是否已配。**只报有无，不回显内容** |
+| `fromAdmin` | 这一组当前值来自哪里：`true` 表示后台填过（存 `site_settings`），`false` 表示来自环境变量 |
+
+`mail.host` / `port` / `username` / `from` / `fromName` 与 `github.clientId` 会原样回显——这些本身不是机密，且要留痕管理员才敢改；未配置时是空串。
+
+```http
+PUT /api/admin/settings
+Content-Type: application/json
+```
+
+```json
+{
+  "emailRegister": true,
+  "mailHost": "smtp.qq.com",
+  "mailPort": "465",
+  "mailUsername": "you@qq.com",
+  "mailPassword": "<邮箱授权码>",
+  "mailFrom": "you@qq.com",
+  "mailFromName": "极简简历",
+  "mailSsl": true,
+  "mailStarttls": false,
+  "githubClientId": "Iv1.xxxx",
+  "githubClientSecret": "xxxx",
+  "publicBaseUrl": "https://who.example.com"
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `usernameRegister` | 用户名注册开关，无外部依赖 |
+| `emailRegister` | 邮箱注册开关，`true` 时要求邮件通道就绪 |
+| `githubLogin` | GitHub 登录开关，`true` 时要求 GitHub 通道就绪 |
+| `mailHost` / `mailPort` / `mailUsername` / `mailPassword` / `mailFrom` / `mailFromName` / `mailSsl` / `mailStarttls` | SMTP 通道，与 `MINIWHO_MAIL_*` 一一对应 |
+| `githubClientId` / `githubClientSecret` / `publicBaseUrl` | GitHub OAuth 通道，对应 `MINIWHO_GITHUB_CLIENT_ID` / `MINIWHO_GITHUB_CLIENT_SECRET` / `MINIWHO_PUBLIC_BASE_URL` |
+
+开关与凭据能在同一次请求里一起提交，也能只提交其中几项：
+
+- 三个开关与每一项凭据都可为 `null` / 省略，表示本次不改动该项；字符串传**空串**表示清空该项，清空后这一项重新回落到环境变量。
+- 服务端按「先校验入参 → 再存凭据 → 最后判开关」处理，所以填完凭据的同时打开对应开关可以一次成功；入参不合法时整条请求在任何写入之前就被拒绝。
+- `mailPort` 非空时必须是 `1`–`65535` 的整数，否则 `400`。
+- `publicBaseUrl` 非空时必须以 `http://` 或 `https://` 开头，否则 `400`——它同时是登录完成后浏览器被送回的位置，接受相对地址等于开放重定向。
+- 打开一个通道仍未就绪的开关会被拒绝：`400` 并说明还缺哪些项（后台填或环境变量填都算数）。
+
+响应是保存后的最新配置，格式同上。
+
+**保存即生效，不需要重启后端**：发信与 OAuth 每次调用都现取当前配置。开关与凭据都存在 `site_settings` 表（`register_username` / `register_email` / `github_login` / `mail_*` / `github_*` / `public_base_url`），读进内存后有缓存；绕过接口直接改库需要重启后端才生效。凭据在库里是明文，谁能读到这张库谁就能拿到它们，因此不要把数据库暴露到公网。2.1 的公开配置另有 30 秒浏览器缓存，管理员保存后登录页最多 30 秒才变化。
+
 ---
 
 ## 11. 快速调用示例
@@ -1458,6 +1682,12 @@ curl -s -X POST "$BASE/resumes/1/shares" \
 | 分享链接 | 每份简历同时 1 个有效链接 |
 | 反馈内容 | 2,000 字符 |
 | 登录令牌 | 7 天，进程内存储 |
+| 注册验证码 | 6 位数字 / 10 分钟有效 / 验证通过即删除 / 同一封最多试错 5 次 / 超过 24 小时的记录发信时清理 |
+| 验证码发信（按邮箱） | 60 秒 1 封、每小时最多 5 封 |
+| 注册与验证码（按 IP，每分钟） | 登录 10 次、用户名注册与邮箱注册各 5 次、验证码 5 次、GitHub 跳转与回调合计 20 次 |
+| GitHub `state` | 一次性，10 分钟过期，内存存储、上限 10000 条，核销即失效 |
+| 用户名 | 3–20 位字母、数字、下划线；邮箱注册与第三方建号自动分配，冲突时追加随机后缀 |
+| SMTP 超时 | 连接 5 秒、读写 10 秒；失败只回 502，日志不落收件地址 |
 
 ---
 

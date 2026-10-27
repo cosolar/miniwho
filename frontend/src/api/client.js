@@ -65,7 +65,13 @@ export function notifyError(error, fallback = '操作失败') {
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api'
+export { API_BASE }
 export const API_ORIGIN = API_BASE.replace(/\/api\/?$/, '')
+
+/** 拼一个后端接口的完整路径，供浏览器直接导航用（OAuth 跳转就是其一）。 */
+export function apiUrl(path) {
+  return `${API_BASE}${path}`
+}
 
 /** 后端返回的 /api/... 资源路径补上部署前缀，供 <img src> 直接使用。 */
 export function mediaUrl(path) {
