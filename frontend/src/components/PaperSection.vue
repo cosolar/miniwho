@@ -26,13 +26,15 @@ const periodOf = (item) => periodText(item?.fields?.period, periodSeparator.valu
 const courseTag = computed(() => (props.config?.layout === 'timeline' ? '相关课程' : '主修课程'))
 const courseSeparator = computed(() => (props.config?.layout === 'timeline' ? ' / ' : ' · '))
 
-// 只有教育经历和公司经历有 logo 字段；整模块一条都没有时连栏位都不留，
-// 免得没上传过徽标的简历凭空多出一列空框。
-const markType = computed(() => (isRibbon.value && (type.value === 'education' || type.value === 'work_experience')
+// 只有教育经历和公司经历有 logo 字段，两种模块在所有版式里都用左侧带框徽标栏：
+// 金石 15.1mm，其余版式 13mm。整个模块一条都没有上传时连栏位都不留，
+// 免得没上传过徽标的简历凭空多出一列空框；有图模块里缺图的条目补占位徽记，保持左边缘对齐。
+const markType = computed(() => (type.value === 'education' || type.value === 'work_experience'
   ? type.value
   : ''))
 const hasMarks = computed(() => Boolean(markType.value) && items.value.some((item) => item.fields?.logo))
-const sideColumn = computed(() => Boolean(markType.value))
+// 金石的日期 / 城市在右侧栏，其余版式的日期留在标题行。
+const sideColumn = computed(() => isRibbon.value && Boolean(markType.value))
 
 // 右侧栏：城市在上、日期在下，与左侧两行文字对齐；没有城市的模块只剩日期。
 function sideLines(item) {
@@ -204,7 +206,9 @@ function skillLevel(level) {
             <div v-for="(line, index) in sideLines(item)" :key="index" :class="{ 'is-muted': line.muted }">{{ line.text }}</div>
           </div>
           <div class="paper-item-head">
-            <div class="paper-item-title">{{ item.fields.company }}</div>
+            <div class="paper-item-title">
+              {{ item.fields.company }}
+            </div>
             <div v-if="!sideColumn" class="paper-item-period">{{ periodOf(item) }}</div>
           </div>
           <div class="paper-item-sub">
@@ -360,6 +364,47 @@ function skillLevel(level) {
   font-weight: 700;
   font-size: calc(var(--paper-base-size, 10.5pt) * 1.02);
   line-height: 1.45;
+}
+
+/* 徽标栏：带框白底方框，浮动在条目左侧，标题 / 副行贴着它排。
+   导入模板给 .paper-item 设的 flex 规则会把栏位撑成整行，所以这里改回常规流；
+   金石的尺寸在下方 .paper-style-flag 里覆盖。 */
+.paper-item.is-marked {
+  display: flow-root !important;
+}
+
+.paper-item-mark {
+  float: left;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 13mm;
+  height: 13mm;
+  margin: -1.4mm 3.6mm 0 0;
+  border: 0.25mm solid #e3e7ee;
+  background: #fff;
+  color: #bcc5d0;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.paper-item-mark img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.paper-item-mark :deep(svg) {
+  width: 46%;
+  height: 46%;
+}
+
+/* 课程 / GPA / 描述块通栏排在徽标下方，不挤进徽标右侧的窄栏。 */
+.is-marked .paper-meta-line,
+.is-marked .paper-note,
+.is-marked .paper-rich,
+.is-marked .paper-facts {
+  clear: both;
 }
 
 /* 院校标签是中文简历的固定语义，用朱色而非模板主色。 */
@@ -690,29 +735,9 @@ function skillLevel(level) {
 }
 
 .paper-style-flag .paper-item-mark {
-  float: left;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 15.1mm;
   height: 15.1mm;
   margin: -1.9mm 4.3mm 0 0;
-  border: 0.25mm solid #e3e7ee;
-  background: #fff;
-  color: #bcc5d0;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
-}
-
-.paper-style-flag .paper-item-mark img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-
-.paper-style-flag .paper-item-mark :deep(svg) {
-  width: 46%;
-  height: 46%;
 }
 
 /* 右侧栏与左侧两行逐行对齐：城市跟标题同字号，日期跟副行同字号。 */
@@ -733,14 +758,6 @@ function skillLevel(level) {
   color: #868d8f;
   font-size: calc(var(--paper-base-size, 10.5pt) * 0.95);
   line-height: 1.65;
-}
-
-/* 描述块通栏排在徽标下方，而不是缩进进文字栏。 */
-.paper-style-flag .is-marked .paper-facts,
-.paper-style-flag .is-marked .paper-meta-line,
-.paper-style-flag .is-marked .paper-note,
-.paper-style-flag .is-marked .paper-rich {
-  clear: both;
 }
 
 /* 求职意向按标签连成一行流，放不下才换行：参考稿的「期望职位」就是接在最后一栏后面，

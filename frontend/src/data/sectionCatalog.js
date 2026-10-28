@@ -62,7 +62,7 @@ export const SECTION_META = {
     fields: [
       field('school', '学校', 'text', { span: 12, placeholder: '学校名称', maxlength: 40 }),
       field('major', '专业', 'text', { span: 12, placeholder: '专业名称', maxlength: 40 }),
-      logo('校徽', '建议方形透明 PNG。本模块只要有一条上传了校徽，其余条目会留出同样的位置并画占位徽记。'),
+      logo('校徽', '建议方形透明 PNG。所有版式都会把它放进院校左侧带框徽标栏；同模块内只要有一条上传，其余条目也留出同样栏位并补占位徽记。'),
       field('degree', '学历', 'select', { span: 6, options: ['专科', '本科', '硕士', '博士', '其他'] }),
       field('gpa', '绩点', 'text', { span: 6, placeholder: '例如：3.8 / 4.0' }),
       field('rank', '排名', 'text', { span: 6, placeholder: '例如：前 10%' }),
@@ -85,7 +85,7 @@ export const SECTION_META = {
     fields: [
       field('company', '公司', 'text', { span: 12, placeholder: '公司名称', maxlength: 50 }),
       field('position', '职位', 'text', { span: 12, placeholder: '例如：后端开发工程师', maxlength: 40 }),
-      logo('公司 LOGO', '建议方形透明 PNG。本模块只要有一条上传了 LOGO，其余条目会留出同样的位置并画占位徽记。'),
+      logo('公司 LOGO', '建议方形透明 PNG。所有版式都会把它放进公司左侧带框徽标栏；同模块内只要有一条上传，其余条目也留出同样栏位并补占位徽记。'),
       field('workType', '工作性质', 'select', { span: 8, options: ['全职', '实习', '兼职', '远程'] }),
       field('city', '城市', 'text', { span: 8, placeholder: '例如：上海' }),
       field('department', '部门', 'text', { span: 8, placeholder: '例如：交易平台' }),
