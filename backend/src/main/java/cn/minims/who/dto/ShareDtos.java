@@ -12,7 +12,12 @@ public final class ShareDtos {
     private ShareDtos() {
     }
 
-    public record ShareCreateRequest(String password, Integer expiresInDays,
+    /**
+     * {@code token} 是访客地址里的链接名，留空则用随机令牌。
+     * 它在全库唯一，所以同名可能撞上别人的链接，此时直接拒绝而不是自动加后缀——
+     * 用户要的是一条能念出来的固定地址，被悄悄改过的地址等于没给。
+     */
+    public record ShareCreateRequest(String token, String password, Integer expiresInDays,
                                      Boolean allowDownload, List<String> hiddenFields) {
     }
 

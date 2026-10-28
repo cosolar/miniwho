@@ -359,7 +359,7 @@ const faqs = [
             <span class="on">开启</span>
           </div>
           <div class="share-demo__link">
-            <span class="mono">miniwho.local/s/8Kq2…</span>
+            <span class="mono">miniwho.local/share/haojianli</span>
             <span class="share-demo__copy">已复制</span>
           </div>
           <div class="share-demo__paper">

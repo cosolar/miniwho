@@ -59,11 +59,13 @@ const routes = [
     meta: { title: '管理后台', requiresAuth: true, requiresAdmin: true }
   },
   {
-    path: '/s/:token',
+    path: '/share/:token',
     name: 'share',
     component: () => import('../pages/SharePage.vue'),
     meta: { title: '简历分享' }
   },
+  // /s/ 是 1.0.3 及更早版本发出的地址，已经在别人的邮件和聊天窗口里，保留一跳转发。
+  { path: '/s/:token', redirect: (to) => `/share/${to.params.token}` },
   {
     path: '/export/:token',
     name: 'export',

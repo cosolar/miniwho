@@ -26,7 +26,8 @@ const style = reactive({
   filter: 'standard',
   fontSizeStep: 0,
   spacingStep: 0,
-  showBrandFooter: true
+  showBrandFooter: true,
+  pageMargin: { custom: false, top: 15, right: 15, bottom: 12, left: 15 }
 })
 const styleState = ref('saved')
 const styleSavedAt = ref(Date.now())
@@ -41,6 +42,7 @@ const sharesLoading = ref(false)
 const shareCreating = ref(false)
 const activeShare = ref(null)
 const shareForm = reactive({
+  token: '',
   password: '',
   expiresInDays: 30,
   allowDownload: true,
@@ -59,6 +61,17 @@ const styleData = computed(() => ({ ...style }))
 const displayShare = computed(() => activeShare.value || shares.value[0] || null)
 const currentShareUrl = computed(() => displayShare.value ? shareUrlOf(displayShare.value) : '')
 const shareCount = computed(() => shares.value.length)
+// 链接名是访客地址的一部分，规则要和后端 CUSTOM_TOKEN_PATTERN 保持一致。
+const SHARE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{4,40}$/
+const shareTokenHint = computed(() => {
+  const alias = shareForm.token.trim()
+  if (!alias) return '留空则使用随机令牌；也可以自己定一个更短的，例如 haojianli。'
+  if (!SHARE_TOKEN_PATTERN.test(alias)) return '链接名只能用字母、数字、- 和 _，长度 4-40 个字符。'
+  if (displayShare.value && alias === displayShare.value.token) {
+    return '与当前链接同名：新设置会直接覆盖它，浏览量重新计算。'
+  }
+  return `访客将打开 ${window.location.origin}/share/${alias}`
+})
 // 别人导入的模板不在官方区，也不在你的 /mine 里；这时纸面会退回默认版式，必须说清楚。
 const templateMissing = computed(() => Boolean(resume.value?.templateCode)
   && !templates.value.some((tpl) => tpl.code === resume.value.templateCode))
@@ -109,7 +122,8 @@ async function persistStyle() {
     filter: style.filter,
     fontSizeStep: style.fontSizeStep,
     spacingStep: style.spacingStep,
-    showBrandFooter: style.showBrandFooter
+    showBrandFooter: style.showBrandFooter,
+    pageMargin: { ...style.pageMargin }
   }
   styleDirty = false
   const detail = await resumeApi.saveStyle(resumeId, snapshot)
@@ -196,6 +210,29 @@ function toggleFooter() {
   style.showBrandFooter = !style.showBrandFooter
   markStyleChanged()
 }
+
+const MARGIN_SIDES = [
+  { key: 'top', label: '上' },
+  { key: 'right', label: '右' },
+  { key: 'bottom', label: '下' },
+  { key: 'left', label: '左' }
+]
+
+function toggleMarginCustom(value) {
+  style.pageMargin.custom = !!value
+  markStyleChanged()
+}
+
+function setMargin(side, value) {
+  const next = Math.max(0, Math.min(40, Math.round(Number(value) || 0)))
+  if (next === style.pageMargin[side]) return
+  style.pageMargin[side] = next
+  markStyleChanged()
+}
+
+/** 激光/喷墨打印机普遍有 5mm 死区，低于这个值要提醒可能被裁掉。 */
+const marginTooTight = computed(() =>
+  style.pageMargin.custom && MARGIN_SIDES.some(({ key }) => style.pageMargin[key] < 5))
 
 function openPrint() {
   printDialog.value = true
@@ -287,7 +324,11 @@ async function openShare() {
 }
 
 function shareUrlOf(share) {
-  return `${window.location.origin}/s/${share.token}`
+  return `${window.location.origin}/share/${share.token}`
+}
+
+function shortToken(token) {
+  return token.length > 12 ? `${token.slice(0, 12)}…` : token
 }
 
 async function copyShare(share) {
@@ -307,6 +348,11 @@ function openSharePage(share) {
 
 async function createShare() {
   if (shareCreating.value) return
+  const alias = shareForm.token.trim()
+  if (alias && !SHARE_TOKEN_PATTERN.test(alias)) {
+    ElMessage.warning('链接名只能用字母、数字、- 和 _，长度 4-40 个字符')
+    return
+  }
   const password = shareForm.password.trim()
   if (password && (password.length < 4 || password.length > 20)) {
     ElMessage.warning('访问密码长度需为 4-20 个字符')
@@ -315,12 +361,14 @@ async function createShare() {
   shareCreating.value = true
   try {
     const created = await shareApi.create(resumeId, {
+      token: alias || null,
       password: password || null,
       expiresInDays: Number(shareForm.expiresInDays),
       allowDownload: shareForm.allowDownload,
       hiddenFields: shareForm.hiddenFields
     })
     activeShare.value = created
+    shareForm.token = ''
     shareForm.password = ''
     await loadShares()
     ElMessage.success('分享链接已创建')
@@ -357,7 +405,14 @@ async function load() {
       filter: detail.style?.filter || 'standard',
       fontSizeStep: Number(detail.style?.fontSizeStep || 0),
       spacingStep: Number(detail.style?.spacingStep || 0),
-      showBrandFooter: detail.style?.showBrandFooter !== false
+      showBrandFooter: detail.style?.showBrandFooter !== false,
+      pageMargin: {
+        custom: !!detail.style?.pageMargin?.custom,
+        top: Number(detail.style?.pageMargin?.top ?? 15),
+        right: Number(detail.style?.pageMargin?.right ?? 15),
+        bottom: Number(detail.style?.pageMargin?.bottom ?? 12),
+        left: Number(detail.style?.pageMargin?.left ?? 15)
+      }
     })
     styleSavedAt.value = detail.updatedAt || Date.now()
     await refreshTemplates()
@@ -578,6 +633,37 @@ onBeforeRouteLeave(async () => {
             </div>
           </div>
 
+          <div class="control-group">
+            <div class="control-label">
+              <span>页边距</span>
+              <small>{{ style.pageMargin.custom ? '自定义' : '跟随模板' }}</small>
+            </div>
+            <div class="margin-row">
+              <el-switch size="small" :model-value="style.pageMargin.custom" @change="toggleMarginCustom" />
+              <span class="margin-row__hint">
+                {{ style.pageMargin.custom ? '按下面的值排版' : '用这套模板自带的留白' }}
+              </span>
+            </div>
+            <div v-if="style.pageMargin.custom" class="margin-grid">
+              <label v-for="side in MARGIN_SIDES" :key="side.key" class="margin-field">
+                <span>{{ side.label }}</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="40"
+                  step="1"
+                  :value="style.pageMargin[side.key]"
+                  @change="setMargin(side.key, $event.target.value)"
+                />
+                <em>mm</em>
+              </label>
+            </div>
+            <p v-if="marginTooTight" class="margin-warn">
+              <el-icon><Warning /></el-icon>
+              <span>小于 5mm 的边距多数打印机打不出来，导出没问题、实印可能被裁掉。</span>
+            </p>
+          </div>
+
           <div class="control-switch">
             <div>
               <strong>页脚品牌标识</strong>
@@ -664,6 +750,24 @@ onBeforeRouteLeave(async () => {
         </div>
 
         <div class="share-field">
+          <label>链接名</label>
+          <el-input
+            v-model="shareForm.token"
+            maxlength="40"
+            placeholder="选填，自定义链接名"
+            spellcheck="false"
+            autocomplete="off"
+          >
+            <template #prefix>
+              <span class="share-token-prefix">/share/</span>
+            </template>
+          </el-input>
+          <p :class="{ 'share-token-hint--bad': shareForm.token.trim() && !SHARE_TOKEN_PATTERN.test(shareForm.token.trim()) }">
+            {{ shareTokenHint }}
+          </p>
+        </div>
+
+        <div class="share-field">
           <label>访问密码</label>
           <el-input
             v-model="shareForm.password"
@@ -706,7 +810,7 @@ onBeforeRouteLeave(async () => {
 
         <div class="share-security">
           <el-icon><Lock /></el-icon>
-          <p>链接使用 256 位安全随机令牌，可随时撤销。分享页只显示昵称，不会暴露用户名、邮箱等登录信息。</p>
+          <p>未自定义时使用 256 位安全随机令牌；自定义链接名全站唯一，被占用时会提示换一个。分享页只显示昵称，不会暴露用户名、邮箱等登录信息。</p>
         </div>
 
         <el-button type="primary" class="share-create" :loading="shareCreating" @click="createShare">
@@ -718,7 +822,7 @@ onBeforeRouteLeave(async () => {
         <span class="share-history__label">有效链接记录</span>
         <div v-for="share in shares" :key="share.id" class="share-history__row">
           <el-icon><CircleCheck /></el-icon>
-          <span class="history-url">/s/{{ share.token.slice(0, 12) }}…</span>
+          <span class="history-url">/share/{{ shortToken(share.token) }}</span>
           <span>{{ share.viewCount || 0 }} 次浏览</span>
           <span>{{ daysLeft(share.expiresAt) }}</span>
           <button type="button" @click="copyShare(share)"><el-icon><CopyDocument /></el-icon></button>
@@ -1277,6 +1381,70 @@ onBeforeRouteLeave(async () => {
   line-height: 1.5;
 }
 
+/* 页边距：开关一行，四个方向各一个数字框，边距改小不留风险提示的余地。 */
+.margin-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.margin-row__hint {
+  color: var(--faint);
+  font-size: 9px;
+}
+
+.margin-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 8px;
+  margin-top: 10px;
+}
+
+.margin-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.margin-field input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 5px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+
+.margin-field input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.margin-field em {
+  font-style: normal;
+  font-size: 9px;
+}
+
+.margin-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin: 9px 0 0;
+  color: var(--danger);
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+.margin-warn .el-icon {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
 .controls-note {
   display: flex;
   align-items: flex-start;
@@ -1557,6 +1725,15 @@ onBeforeRouteLeave(async () => {
   color: var(--faint);
   font-size: 8px;
   line-height: 1.6;
+}
+
+.share-field > p.share-token-hint--bad {
+  color: var(--danger);
+}
+
+.share-token-prefix {
+  color: var(--faint);
+  font-size: 10px;
 }
 
 .share-grid {
