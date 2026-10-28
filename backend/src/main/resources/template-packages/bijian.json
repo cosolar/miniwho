@@ -1,0 +1,34 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "bijian",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "碧笺",
+    "description": "「个人简历」大标题配青蓝细线，照片贴右上角，模块标题为青蓝实底横条，技能用分段进度条。适合通用、行政、教育与应届岗位。",
+    "category": "通用",
+    "tags": [
+      "浅色",
+      "青蓝",
+      "进度条",
+      "应届"
+    ],
+    "author": "Cosolar",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "profile",
+    "accent": "#2f7f8f",
+    "font": "sans",
+    "sectionStyle": "block",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 911,
+  "style": ".tw-bijian.resume-paper {\n  color: #273b40;\n}\n\n.tw-bijian.resume-paper .paper-header {\n  position: relative;\n  display: block;\n  margin: 0 0 7mm;\n  padding: 0 0 4.5mm;\n  border: none;\n  border-top: 2.2mm solid #2f7f8f;\n  border-bottom: 1px solid #dcebed;\n  print-color-adjust: exact;\n}\n\n.tw-bijian.resume-paper .paper-header::before {\n  content: \"个人简历\";\n  display: block;\n  margin: 3.6mm 0 2.4mm;\n  color: #22616d;\n  font-size: calc(var(--paper-base-size) * 1.72);\n  font-weight: 700;\n  letter-spacing: 0.24em;\n  line-height: 1.15;\n}\n\n.tw-bijian.resume-paper .paper-header__main {\n  padding-right: 36mm;\n}\n\n.tw-bijian.resume-paper .paper-photo {\n  position: absolute;\n  top: 7mm;\n  right: 0;\n  width: 29mm;\n  height: 37mm;\n  border: 0.5mm solid #d3e3e6;\n  border-radius: 1mm;\n  box-shadow: none;\n  print-color-adjust: exact;\n}\n\n.tw-bijian.resume-paper .paper-photo--monogram {\n  display: grid;\n  place-items: center;\n  background: #eef6f7;\n  color: #2f7f8f;\n  font-family: var(--paper-font-family);\n  font-size: calc(var(--paper-base-size) * 2);\n  font-weight: 600;\n}\n\n.tw-bijian.resume-paper .paper-name {\n  color: #1b3c43;\n  font-family: var(--paper-font-family);\n  font-size: calc(var(--paper-base-size) * 2.02);\n  letter-spacing: 0.06em;\n}\n\n.tw-bijian.resume-paper .paper-identity {\n  padding: 0;\n  border: none;\n  color: #5f7d83;\n}\n\n.tw-bijian.resume-paper .paper-role {\n  margin-top: 1.4mm;\n  color: #2f7f8f;\n  font-weight: 600;\n}\n\n.tw-bijian.resume-paper .paper-role::before {\n  content: \"求职意向：\";\n  color: #7d979c;\n  font-weight: 400;\n  font-size: calc(var(--paper-base-size) * 0.92);\n}\n\n.tw-bijian.resume-paper .paper-contacts--labeled {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 1.2mm 8mm;\n  margin-top: 3mm;\n  padding-top: 2.8mm;\n  border-top: 1px solid #e2edef;\n  color: #334d53;\n  font-size: calc(var(--paper-base-size) * 0.88);\n}\n\n.tw-bijian.resume-paper .paper-contact + .paper-contact::before {\n  display: none;\n}\n\n.tw-bijian.resume-paper .paper-contact__label {\n  color: #7d979c;\n}\n\n.tw-bijian.resume-paper .paper-section .paper-section__title {\n  display: flex;\n  align-items: center;\n  gap: 2.4mm;\n  padding: 1.5mm 3mm;\n  background: #2f7f8f;\n  border-radius: 0.6mm;\n  color: #fff;\n  font-size: calc(var(--paper-base-size) * 1);\n  letter-spacing: 0.14em;\n  print-color-adjust: exact;\n}\n\n.tw-bijian.resume-paper .paper-section .paper-section__icon {\n  display: grid;\n  place-items: center;\n  width: 4.6mm;\n  height: 4.6mm;\n  border: none;\n  border-radius: 50%;\n  background: rgba(255, 255, 255, 0.18);\n  color: #fff;\n}\n\n.tw-bijian.resume-paper .paper-section .paper-section__icon svg {\n  width: 58%;\n  height: 58%;\n}\n\n.tw-bijian.resume-paper .paper-section .paper-section__title::after {\n  content: none;\n}\n\n.tw-bijian.resume-paper .paper-section .paper-section__body {\n  margin-top: 2.4mm;\n  color: #2f4248;\n}\n\n.tw-bijian.resume-paper .paper-section .paper-item-title {\n  color: #1c343a;\n}\n\n.tw-bijian.resume-paper .paper-section .paper-item-period {\n  color: #58757a;\n  font-weight: 600;\n}\n\n.tw-bijian.resume-paper .paper-section .paper-item-sub {\n  color: #4a6268;\n}\n\n.tw-bijian.resume-paper .paper-section .paper-note__tag {\n  color: #2f7f8f;\n}\n\n.tw-bijian.resume-paper .paper-section .paper-skill {\n  flex-wrap: wrap;\n  padding-bottom: 1.6mm;\n  border-bottom: none;\n}\n\n.tw-bijian.resume-paper .paper-section .paper-skill__dots {\n  display: inline-flex;\n  gap: 0.9mm;\n}\n\n.tw-bijian.resume-paper .paper-section .paper-skill__dots i {\n  width: 6.5mm;\n  height: 1.3mm;\n  border-radius: 0.6mm;\n  background: #e1ecee;\n}\n\n.tw-bijian.resume-paper .paper-section .paper-skill__dots i.filled {\n  background: #2f7f8f;\n}\n\n.tw-bijian.resume-paper .paper-section .paper-skill__level {\n  display: none;\n}\n\n.tw-bijian.resume-paper .paper-section.is-job_intention .paper-item-head {\n  display: flex;\n  gap: 4mm;\n  padding: 2mm 3mm;\n  border-left: 1mm solid #2f7f8f;\n  background: #f4f9fa;\n  print-color-adjust: exact;\n}\n\n.tw-bijian.resume-paper .paper-section.is-job_intention .paper-item-period {\n  margin-left: auto;\n  color: #2f7f8f;\n}\n\n.tw-bijian.resume-paper .paper-section.is-job_intention .paper-item-sub {\n  margin-top: 1mm;\n  padding-left: 4mm;\n  color: #58757a;\n}\n\n.tw-bijian.resume-paper .paper-footer {\n  border-top: 1px solid #dcebed;\n  color: #708a90;\n}"
+}

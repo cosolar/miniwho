@@ -1,0 +1,35 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "liucai",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "流彩",
+    "description": "蓝紫渐变通栏页眉开场，姓名与联系方式反白压在色带上，正文白色纸面、蓝色模块标题、条目日期靠右。适合技术、设计与新产品岗位的现代单页简历。",
+    "category": "互联网",
+    "tags": [
+      "单栏",
+      "渐变",
+      "蓝色",
+      "简洁",
+      "技术岗"
+    ],
+    "author": "Cosolar",
+    "license": "CC-BY-4.0"
+  },
+  "theme": {
+    "layout": "minimal",
+    "accent": "#3a6fd8",
+    "font": "sans",
+    "sectionStyle": "line",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": false,
+    "free": true
+  },
+  "sortWeight": 955,
+  "style": "/* 流彩 —— 蓝紫渐变通栏页眉 + 蓝色模块标题 */\n\n.tw-liucai.resume-paper {\n  background: #ffffff;\n  color: #2b3243;\n}\n\n/* 页眉：整条色带铺满纸边，文字反白 */\n.tw-liucai.resume-paper .paper-header {\n  margin: -15mm -15mm 7mm;\n  padding: 13mm 15mm 9mm;\n  border: none;\n  background:\n    linear-gradient(118deg, rgba(255, 255, 255, 0.12) 0 16%, rgba(255, 255, 255, 0) 16% 100%),\n    linear-gradient(118deg, #2f7fd8 0%, #4f63dd 48%, #7a4ed2 100%);\n  color: #ffffff;\n  print-color-adjust: exact;\n}\n\n.tw-liucai.resume-paper .paper-header--photo {\n  align-items: center;\n  gap: 8mm;\n}\n\n.tw-liucai.resume-paper .paper-header__main {\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n.tw-liucai.resume-paper .paper-name-row {\n  gap: 3mm;\n}\n\n.tw-liucai.resume-paper .paper-name {\n  color: #ffffff;\n  font-size: calc(var(--paper-base-size) * 2.3);\n  font-weight: 700;\n  letter-spacing: 0.04em;\n  line-height: 1.25;\n}\n\n.tw-liucai.resume-paper .paper-identity {\n  padding: 0;\n  border: none;\n  border-radius: 0;\n  color: rgba(255, 255, 255, 0.72);\n  font-size: calc(var(--paper-base-size) * 0.88);\n}\n\n.tw-liucai.resume-paper .paper-role {\n  margin-top: 1.6mm;\n  color: rgba(255, 255, 255, 0.92);\n  font-size: calc(var(--paper-base-size) * 1.04);\n  font-weight: 500;\n  letter-spacing: 0.02em;\n}\n\n.tw-liucai.resume-paper .paper-contacts--labeled {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 1.2mm 8mm;\n  margin-top: 4.6mm;\n  padding: 0;\n  border: none;\n  color: rgba(255, 255, 255, 0.94);\n  font-size: calc(var(--paper-base-size) * 0.88);\n}\n\n.tw-liucai.resume-paper .paper-contact {\n  display: flex;\n  gap: 1.6mm;\n  min-width: 0;\n}\n\n.tw-liucai.resume-paper .paper-contact + .paper-contact::before {\n  display: none;\n}\n\n.tw-liucai.resume-paper .paper-contact__label {\n  flex: 0 0 auto;\n  color: rgba(255, 255, 255, 0.62);\n}\n\n.tw-liucai.resume-paper .paper-photo {\n  order: 2;\n  width: 24mm;\n  height: 32mm;\n  border: 1mm solid rgba(255, 255, 255, 0.85);\n  border-radius: 50%;\n  object-fit: cover;\n  box-shadow: none;\n  print-color-adjust: exact;\n}\n\n/* 模块标题：只有蓝色粗体字，去掉内置的圆圈与细线 */\n.tw-liucai.resume-paper .paper-style-line .paper-section__title {\n  display: block;\n  margin: 0 0 2.6mm;\n  padding-bottom: 0;\n  border-bottom: none;\n  color: #2f6ed2;\n  font-size: calc(var(--paper-base-size) * 1.16);\n  font-weight: 700;\n  letter-spacing: 0.04em;\n}\n\n.tw-liucai.resume-paper .paper-style-line .paper-section__title span::before {\n  display: none;\n}\n\n.tw-liucai.resume-paper .paper-section__icon {\n  display: none;\n}\n\n/* 条目：标题深色、日期浅灰靠右、专业 / 职位用主题蓝 */\n.tw-liucai.resume-paper .paper-item-title {\n  color: #222a3a;\n  font-weight: 700;\n}\n\n.tw-liucai.resume-paper .paper-item-period {\n  color: #6c778c;\n  font-size: calc(var(--paper-base-size) * 0.92);\n  font-weight: 400;\n}\n\n.tw-liucai.resume-paper .paper-item-sub {\n  color: #3a6fd8;\n  font-weight: 600;\n}\n\n.tw-liucai.resume-paper .paper-item-sub span + span::before {\n  content: \" | \";\n  margin-right: 0;\n  color: #c2cbdb;\n}\n\n.tw-liucai.resume-paper .paper-item-tag {\n  color: #3a6fd8;\n}\n\n/* 求职意向：一行流，标签浅、值深 */\n.tw-liucai.resume-paper .is-job_intention .paper-item {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 1.4mm 8mm;\n}\n\n.tw-liucai.resume-paper .is-job_intention .paper-item-head {\n  display: flex;\n  flex: 0 0 auto;\n  gap: 8mm;\n  justify-content: flex-start;\n}\n\n.tw-liucai.resume-paper .is-job_intention .paper-item-title::before {\n  content: \"意向岗位：\";\n  color: #7a879c;\n  font-weight: 400;\n}\n\n.tw-liucai.resume-paper .is-job_intention .paper-item-period::before {\n  content: \"意向城市：\";\n  color: #7a879c;\n  font-weight: 400;\n}\n\n.tw-liucai.resume-paper .is-job_intention .paper-item-sub {\n  flex: 0 0 auto;\n  display: flex;\n  flex-wrap: wrap;\n  gap: 1.2mm 8mm;\n  margin-top: 0;\n  color: #3a4155;\n  font-weight: 400;\n}\n\n.tw-liucai.resume-paper .is-job_intention .paper-item-sub span + span::before {\n  content: \"·\";\n  margin-right: 6mm;\n  color: #c2cbdb;\n}\n\n/* 正文细节 */\n.tw-liucai.resume-paper .paper-note {\n  color: #5d687b;\n}\n\n.tw-liucai.resume-paper .paper-note__tag {\n  padding: 0;\n  border: none;\n  border-radius: 0;\n  background: transparent;\n  color: #2f6ed2;\n  font-weight: 600;\n}\n\n.tw-liucai.resume-paper .paper-meta-line {\n  color: #6c778c;\n  font-size: calc(var(--paper-base-size) * 0.88);\n}\n\n.tw-liucai.resume-paper .paper-rich {\n  color: #39445a;\n}\n\n.tw-liucai.resume-paper .paper-rich li {\n  margin: 0.5mm 0;\n}\n\n.tw-liucai.resume-paper .paper-rich ul {\n  padding-left: 1.1em;\n}\n\n.tw-liucai.resume-paper .paper-rich li::marker {\n  color: #3a6fd8;\n}\n\n.tw-liucai.resume-paper .paper-skill {\n  border-bottom: 1px solid #e8eef7;\n}\n\n.tw-liucai.resume-paper .paper-skill__name {\n  color: #2b3243;\n  font-weight: 600;\n}\n\n.tw-liucai.resume-paper .paper-skill__dots {\n  display: none;\n}\n\n.tw-liucai.resume-paper .paper-skill__level {\n  display: inline;\n  color: #6c778c;\n  font-size: calc(var(--paper-base-size) * 0.86);\n}\n\n.tw-liucai.resume-paper .paper-footer {\n  margin-top: 8mm;\n  padding-top: 2.4mm;\n  border-top: 1px solid #e6ecf5;\n  color: #9aa5b8;\n}\n\n@media print {\n  .tw-liucai.resume-paper .paper-header {\n    print-color-adjust: exact;\n  }\n}\n"
+}

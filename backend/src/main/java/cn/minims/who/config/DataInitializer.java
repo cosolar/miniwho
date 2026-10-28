@@ -28,11 +28,16 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Component
 @Order(20)
 public class DataInitializer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
+
+    /** 社区模板转正前的作者命名空间：这批包曾以 cosolar--<code> 的导入编码存在，升级后要迁到官方裸编码。 */
+    private static final String LEGACY_AUTHOR_NAMESPACE = "cosolar";
 
     private final TemplateMapper templateMapper;
     private final UserMapper userMapper;
@@ -68,7 +73,9 @@ public class DataInitializer implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        seedTemplates();
+        List<TemplatePackage> packages = builtinTemplatePackages.load();
+        migrateLegacyCommunityCodes(packages);
+        seedTemplates(packages);
         if (seedDemo) {
             User demo = ensureUser("demo", demoPassword, "郝简历", "demo@miniwho.local", "user");
             ensureAdmin();
@@ -109,8 +116,60 @@ public class DataInitializer implements ApplicationRunner {
                         + " and resumes.deleted = 0)"));
     }
 
-    private void seedTemplates() {
-        for (TemplatePackage pkg : builtinTemplatePackages.load()) {
+    /**
+     * 转正前这批包以「cosolar--<code>」的导入编码存在：库里可能已有该编码的模板行和正在用它的简历。
+     * 把它们迁到官方裸编码后，随后的种子流程会把升级出来的行接管为官方模板；样式作用域类 tw-cosolar--x
+     * 也随之换成 tw-x（config 由种子按新包重算，PDF 缓存键跟着变化）。
+     */
+    private void migrateLegacyCommunityCodes(List<TemplatePackage> packages) {
+        for (TemplatePackage pkg : packages) {
+            if (!"official".equals(pkg.namespace())) {
+                continue;
+            }
+            String legacy = LEGACY_AUTHOR_NAMESPACE + "--" + pkg.code();
+            Template legacyRow = templateMapper.selectOne(new LambdaQueryWrapper<Template>()
+                    .eq(Template::getCode, legacy).last("limit 1"));
+            if (legacyRow == null) {
+                continue;
+            }
+            for (Resume resume : resumeMapper.selectList(new LambdaQueryWrapper<Resume>()
+                    .eq(Resume::getTemplateCode, legacy))) {
+                ObjectNode style = parseObject(resume.getStyle());
+                ObjectNode styleUpdate = null;
+                if (style != null && !pkg.code().equals(style.path("templateCode").asText(null))) {
+                    style.put("templateCode", pkg.code());
+                    styleUpdate = style;
+                }
+                resumeMapper.update(null, new LambdaUpdateWrapper<Resume>()
+                        .eq(Resume::getId, resume.getId())
+                        .set(Resume::getTemplateCode, pkg.code())
+                        .set(styleUpdate != null, Resume::getStyle, styleUpdate == null ? null : json.write(styleUpdate)));
+            }
+            Template officialRow = templateMapper.selectOne(new LambdaQueryWrapper<Template>()
+                    .eq(Template::getCode, pkg.code()).last("limit 1"));
+            if (officialRow == null) {
+                legacyRow.setCode(pkg.code());
+                templateMapper.updateById(legacyRow);
+                log.info("模板 {} 已随发版迁移为官方编码 {}", legacy, pkg.code());
+            } else {
+                log.info("官方编码 {} 已存在，旧导入模板 {} 保留原行", pkg.code(), legacy);
+            }
+        }
+    }
+
+    private ObjectNode parseObject(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return (ObjectNode) json.mapper().readTree(text);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void seedTemplates(List<TemplatePackage> packages) {
+        for (TemplatePackage pkg : packages) {
             String code = builtinCode(pkg);
             String config = json.write(builtinConfig(pkg, code));
             Template existing = templateMapper.selectOne(new LambdaQueryWrapper<Template>()
@@ -131,6 +190,7 @@ public class DataInitializer implements ApplicationRunner {
                 existing.setStatus(1);
                 existing.setVisibility("public");
                 existing.setExportable(1);
+                existing.setOwnerUserId(null);
                 applyPackage(existing, pkg, config);
                 existing.setCode(code);
                 templateMapper.updateById(existing);

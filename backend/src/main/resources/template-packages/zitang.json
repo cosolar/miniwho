@@ -1,0 +1,34 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "zitang",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "紫棠",
+    "description": "紫色渐变细线压顶，照片居右，模块标题铺淡紫整条并配紫色圆徽。适合设计、教育、市场等需要柔和个人风格的单页简历。",
+    "category": "通用",
+    "tags": [
+      "紫色",
+      "淡色块",
+      "照片居右",
+      "柔和"
+    ],
+    "author": "Cosolar",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "profile",
+    "accent": "#6d4fa1",
+    "font": "sans",
+    "sectionStyle": "block",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 913,
+  "style": ".tw-zitang.resume-paper {\n  color: #2b2636;\n}\n\n.tw-zitang.resume-paper .paper-header {\n  position: relative;\n  display: block;\n  margin: 0 0 6.5mm;\n  padding: 0 0 4.5mm;\n  border: none;\n  border-bottom: 1px solid #ebe5f4;\n}\n\n.tw-zitang.resume-paper .paper-header::before {\n  content: \"\";\n  position: absolute;\n  top: calc(var(--paper-mt, 15mm) * -1);\n  left: calc(var(--paper-ml, 15mm) * -1);\n  right: calc(var(--paper-mr, 15mm) * -1);\n  height: 2.2mm;\n  background: linear-gradient(90deg, #6d4fa1 0%, #9b82c8 58%, #c0aede 100%);\n  print-color-adjust: exact;\n}\n\n.tw-zitang.resume-paper .paper-header__main {\n  padding-right: 34mm;\n}\n\n.tw-zitang.resume-paper .paper-photo {\n  position: absolute;\n  top: 0;\n  right: 0;\n  width: 27mm;\n  height: 35mm;\n  border: 0.5mm solid #e2d8f2;\n  border-radius: 1mm;\n  box-shadow: none;\n  print-color-adjust: exact;\n}\n\n.tw-zitang.resume-paper .paper-photo--monogram {\n  display: grid;\n  place-items: center;\n  background: #f4effa;\n  color: #6d4fa1;\n  font-family: var(--paper-font-family);\n  font-size: calc(var(--paper-base-size) * 2);\n  font-weight: 600;\n}\n\n.tw-zitang.resume-paper .paper-name {\n  color: #33254f;\n  font-family: var(--paper-font-family);\n  font-size: calc(var(--paper-base-size) * 2.02);\n  letter-spacing: 0.06em;\n}\n\n.tw-zitang.resume-paper .paper-identity {\n  padding: 0;\n  border: none;\n  color: #74668a;\n}\n\n.tw-zitang.resume-paper .paper-role {\n  margin-top: 1.3mm;\n  color: #6d4fa1;\n  font-weight: 600;\n}\n\n.tw-zitang.resume-paper .paper-role::before {\n  content: \"求职意向：\";\n  color: #8d81a1;\n  font-weight: 400;\n  font-size: calc(var(--paper-base-size) * 0.92);\n}\n\n.tw-zitang.resume-paper .paper-contacts--labeled {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 1.3mm 8mm;\n  margin-top: 3mm;\n  padding-top: 2.8mm;\n  border-top: 1px solid #f0eaf7;\n  color: #3d3449;\n  font-size: calc(var(--paper-base-size) * 0.88);\n}\n\n.tw-zitang.resume-paper .paper-contact + .paper-contact::before {\n  display: none;\n}\n\n.tw-zitang.resume-paper .paper-contact__label {\n  color: #877d96;\n}\n\n.tw-zitang.resume-paper .paper-section .paper-section__title {\n  display: flex;\n  align-items: center;\n  gap: 2.4mm;\n  padding: 1.4mm 3mm;\n  background: #f0eaf8;\n  border-radius: 1mm;\n  color: #4b3573;\n  font-size: calc(var(--paper-base-size) * 1);\n  letter-spacing: 0.1em;\n  print-color-adjust: exact;\n}\n\n.tw-zitang.resume-paper .paper-section .paper-section__icon {\n  display: grid;\n  place-items: center;\n  width: 5mm;\n  height: 5mm;\n  border: none;\n  border-radius: 50%;\n  background: #6d4fa1;\n  color: #fff;\n}\n\n.tw-zitang.resume-paper .paper-section .paper-section__icon svg {\n  width: 58%;\n  height: 58%;\n}\n\n.tw-zitang.resume-paper .paper-section .paper-section__title::after {\n  content: none;\n}\n\n.tw-zitang.resume-paper .paper-section .paper-section__body {\n  margin-top: 2.3mm;\n  color: #332c3d;\n}\n\n.tw-zitang.resume-paper .paper-section .paper-item-title {\n  color: #2c2140;\n}\n\n.tw-zitang.resume-paper .paper-section .paper-item-period {\n  color: #6f6283;\n  font-weight: 600;\n}\n\n.tw-zitang.resume-paper .paper-section .paper-item-sub {\n  color: #4c435a;\n}\n\n.tw-zitang.resume-paper .paper-section .paper-note__tag {\n  color: #6d4fa1;\n}\n\n.tw-zitang.resume-paper .paper-section .paper-skill {\n  border-bottom-color: #ece6f4;\n}\n\n.tw-zitang.resume-paper .paper-section .paper-skill__level {\n  color: #6d4fa1;\n}\n\n.tw-zitang.resume-paper .paper-footer {\n  border-top: 1px solid #ebe5f4;\n  color: #7b7089;\n}"
+}
