@@ -1,0 +1,34 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "cosolar",
+    "code": "qingci",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "青瓷",
+    "description": "青瓷色压顶细线、淡青标题条与水色内容卡，照片居右，整体留白舒展。适合教育、文职、医疗与公共服务方向。",
+    "category": "通用",
+    "tags": [
+      "青瓷",
+      "浅色",
+      "淡雅",
+      "卡片"
+    ],
+    "author": "Cosolar",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "profile",
+    "accent": "#2b7f83",
+    "font": "sans",
+    "sectionStyle": "block",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 914,
+  "style": ".tw-cosolar--qingci.resume-paper {\n  color: #26383a;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-header {\n  position: relative;\n  display: block;\n  margin: 0 0 7mm;\n  padding: 0 0 5mm;\n  border: none;\n  border-bottom: 1px solid #dcebea;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-header::before {\n  content: \"\";\n  position: absolute;\n  top: calc(var(--paper-mt, 15mm) * -1);\n  left: calc(var(--paper-ml, 15mm) * -1);\n  right: calc(var(--paper-mr, 15mm) * -1);\n  height: 2mm;\n  background: #2b7f83;\n  print-color-adjust: exact;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-header__main {\n  padding-right: 33mm;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-photo {\n  position: absolute;\n  top: 0;\n  right: 0;\n  width: 26mm;\n  height: 34mm;\n  border: 0.5mm solid #cfe4e2;\n  border-radius: 1.2mm;\n  box-shadow: none;\n  print-color-adjust: exact;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-photo--monogram {\n  display: grid;\n  place-items: center;\n  background: #eef7f6;\n  color: #2b7f83;\n  font-family: var(--paper-font-family);\n  font-size: calc(var(--paper-base-size) * 2);\n  font-weight: 600;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-name {\n  color: #1d4448;\n  font-family: var(--paper-font-family);\n  font-size: calc(var(--paper-base-size) * 2);\n  letter-spacing: 0.06em;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-identity {\n  padding: 0;\n  border: none;\n  color: #6f8f90;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-role {\n  margin-top: 1.3mm;\n  color: #2b7f83;\n  font-weight: 600;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-role::before {\n  content: \"求职意向：\";\n  color: #85a3a4;\n  font-weight: 400;\n  font-size: calc(var(--paper-base-size) * 0.92);\n}\n\n.tw-cosolar--qingci.resume-paper .paper-contacts--labeled {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 1.2mm 8mm;\n  margin-top: 3mm;\n  padding-top: 2.8mm;\n  border-top: 1px solid #e3f0ef;\n  color: #345054;\n  font-size: calc(var(--paper-base-size) * 0.88);\n}\n\n.tw-cosolar--qingci.resume-paper .paper-contact + .paper-contact::before {\n  display: none;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-contact__label {\n  color: #7f9b9c;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-section {\n  margin-bottom: 4.6mm;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-section .paper-section__title {\n  display: flex;\n  align-items: center;\n  gap: 2.2mm;\n  padding: 1.2mm 3mm;\n  background: #e6f3f1;\n  border-radius: 1.6mm;\n  color: #1f5b60;\n  font-size: calc(var(--paper-base-size) * 1);\n  letter-spacing: 0.1em;\n  print-color-adjust: exact;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-section .paper-section__icon {\n  display: grid;\n  place-items: center;\n  width: 5mm;\n  height: 5mm;\n  border: none;\n  border-radius: 1.2mm;\n  background: #2b7f83;\n  color: #fff;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-section .paper-section__icon svg {\n  width: 60%;\n  height: 60%;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-section .paper-section__title::after {\n  content: none;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-section .paper-section__body {\n  margin-top: 2.2mm;\n  padding: 2.6mm 3mm;\n  background: #f5faf9;\n  border-radius: 1.6mm;\n  color: #2f4244;\n  print-color-adjust: exact;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-section .paper-item-title {\n  color: #1e3a3d;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-section .paper-item-period {\n  color: #5d7f80;\n  font-weight: 600;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-section .paper-item-sub {\n  color: #4a6668;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-section .paper-note__tag {\n  color: #2b7f83;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-section .paper-skill {\n  border-bottom-color: #e4f0ef;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-section .paper-skill__level {\n  color: #2b7f83;\n}\n\n.tw-cosolar--qingci.resume-paper .paper-footer {\n  border-top: 1px solid #dcebea;\n  color: #759192;\n}"
+}
