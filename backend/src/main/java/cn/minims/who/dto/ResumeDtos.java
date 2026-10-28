@@ -54,7 +54,19 @@ public final class ResumeDtos {
     public record StyleSaveRequest(String templateCode, String filter,
                                    @Min(-2) @Max(2) Integer fontSizeStep,
                                    @Min(-2) @Max(2) Integer spacingStep,
-                                   Boolean showBrandFooter) {
+                                   Boolean showBrandFooter,
+                                   PageMarginRequest pageMargin) {
+    }
+
+    /**
+     * 页边距是纸面内边距，不是浏览器的打印边距：@page 已经是 0，纸外的白边只能由这里调。
+     * custom=false 表示「跟随模板默认」，此时四边值不起作用——各版式自带的留白不一样。
+     */
+    public record PageMarginRequest(Boolean custom,
+                                    @Min(0) @Max(40) Integer top,
+                                    @Min(0) @Max(40) Integer right,
+                                    @Min(0) @Max(40) Integer bottom,
+                                    @Min(0) @Max(40) Integer left) {
     }
 
     public record SaveResult(int contentVersion, long savedAt, int completeness, int score) {

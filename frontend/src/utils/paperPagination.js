@@ -71,6 +71,12 @@ function chain(el, root, prop) {
   return total + (node ? num(getComputedStyle(node)[prop]) : 0)
 }
 
+/** 纸面的上页边（毫米）：用户设过页边距时读他设的值，否则是通用版式的 15mm。 */
+function marginTopMm(root) {
+  const mm = Number.parseFloat(getComputedStyle(root).getPropertyValue('--paper-mt'))
+  return Number.isFinite(mm) ? mm : 15
+}
+
 /**
  * 落刀点必须是某一列里某个块的真起点，同时是每一列的空隙：
  * 两列同属一个 flex 行，只要另一块的强制分页落在别的高度上，浏览器就会再挤出一页。
@@ -90,8 +96,9 @@ function cutAt(candidates, blocks, floor, ceiling) {
  * 返回断点列表（未缩放 px），页数即断点数 + 1。
  */
 function packColumns(columns, page, root, forceAsideBreak = false, splittables = []) {
-  // 通栏版式把页眉铺到纸边，根节点没有上内边距；续页仍要留出 15mm 页边。
-  const minPadTop = (root.offsetWidth / PAGE_MM.width) * 15
+  // 通栏版式把页眉铺到纸边，根节点没有上内边距；续页仍要留出与首页相同的上页边。
+  // 用户改过页边距时以他设的值为准，否则退回通用版式的 15mm。
+  const minPadTop = (root.offsetWidth / PAGE_MM.width) * marginTopMm(root)
   const cols = columns.filter((column) => column.units.length).map(({ units, spans }) => ({
     units,
     next: 0,

@@ -469,6 +469,15 @@ public class ResumeService {
         if (request.fontSizeStep() != null) style.put("fontSizeStep", request.fontSizeStep());
         if (request.spacingStep() != null) style.put("spacingStep", request.spacingStep());
         if (request.showBrandFooter() != null) style.put("showBrandFooter", request.showBrandFooter());
+        if (request.pageMargin() != null) {
+            ObjectNode margin = style.putObject("pageMargin");
+            boolean custom = Boolean.TRUE.equals(request.pageMargin().custom());
+            margin.put("custom", custom);
+            margin.put("top", request.pageMargin().top() == null ? 15 : request.pageMargin().top());
+            margin.put("right", request.pageMargin().right() == null ? 15 : request.pageMargin().right());
+            margin.put("bottom", request.pageMargin().bottom() == null ? 12 : request.pageMargin().bottom());
+            margin.put("left", request.pageMargin().left() == null ? 15 : request.pageMargin().left());
+        }
 
         resumeMapper.update(null, new LambdaUpdateWrapper<Resume>()
                 .eq(Resume::getId, resume.getId())

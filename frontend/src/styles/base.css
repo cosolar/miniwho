@@ -465,7 +465,9 @@ ul, ol {
   width: 210mm;
   min-height: 297mm;
   margin: 0 auto;
-  padding: 15mm 15mm 12mm;
+  /* 页边距走变量：@page 已经是 0，纸面外的白边浏览器管不到，只有这里能调。
+     缺省值就是通用版式的留白，具体版式（侧影/竖排）在各自规则里覆盖。 */
+  padding: var(--paper-mt, 15mm) var(--paper-mr, 15mm) var(--paper-mb, 12mm) var(--paper-ml, 15mm);
   color: #1f2723;
   background: #fff;
   font-family: var(--sans);
@@ -604,12 +606,36 @@ ul, ol {
   .paper-scaler__inner {
     display: block !important;
     width: auto !important;
+    max-width: none !important;
     height: auto !important;
     min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
     transform: none !important;
+    filter: none !important;
     background: #fff !important;
+  }
+
+  /* 打印视口只有 794px，工作台与分享页的窄屏媒体查询会照样生效：
+     两栏网格把舞台挤成 400 多 px，而纸面固定 210mm，于是溢出容器、
+     浏览器打印预览从左边裁掉一条。打印时外层一律满宽、单栏、零内边距。 */
+  .preview-layout,
+  .preview-stage-area,
+  .preview-stage__inner,
+  .share-content,
+  .share-paper-wrap {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+    filter: none !important;
   }
 
   .paper-scaler__paper {

@@ -185,13 +185,23 @@ const footerEnabled = computed(() => props.styleData?.showBrandFooter !== false)
 const paperStyle = computed(() => {
   const fontStep = Number(props.styleData?.fontSizeStep || 0)
   const spacingStep = Number(props.styleData?.spacingStep || 0)
-  return {
+  const vars = {
     '--paper-accent': config.value.accent || '#2f6f62',
     '--paper-font-family': config.value.font === 'serif' ? 'var(--serif)' : 'var(--sans)',
     '--paper-base-size': `${(10.5 + fontStep * 0.5).toFixed(2)}pt`,
     '--paper-line-height': (1.65 + spacingStep * 0.08).toFixed(2),
     '--paper-section-gap': `${(5.6 + spacingStep * 0.9).toFixed(2)}mm`
   }
+  // 只有用户自己调过才写这四个变量：各版式的默认留白并不相同（侧影通栏页眉靠 15mm 反白、
+  // 竖排用 11/14mm），缺省时让它们各自的取值生效，改这一处不会把 12 套模板的观感全推平。
+  const margin = props.styleData?.pageMargin
+  if (margin?.custom) {
+    vars['--paper-mt'] = `${Number(margin.top ?? 15)}mm`
+    vars['--paper-mr'] = `${Number(margin.right ?? 15)}mm`
+    vars['--paper-mb'] = `${Number(margin.bottom ?? 12)}mm`
+    vars['--paper-ml'] = `${Number(margin.left ?? 15)}mm`
+  }
+  return vars
 })
 
 // 导入包带来的样式已经由服务端净化过，这里只用 textContent 写进一个独立的 <style>，
@@ -750,6 +760,22 @@ function breakable(value) {
   grid-column: 2;
 }
 
+/* 校徽 / 公司 LOGO 与日期共用左栏：徽标在上、日期在下。 */
+.layout-academic :deep(.paper-item.is-marked) {
+  display: grid !important;
+}
+
+.layout-academic :deep(.paper-item.is-marked .paper-item-mark) {
+  float: none;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  margin: 0 0 1.6mm;
+}
+
+.layout-academic :deep(.paper-item.is-marked .paper-item-period) {
+  grid-row: 3 / span 4;
+}
+
 .layout-academic :deep(.is-work_experience .paper-item-title),
 .layout-academic :deep(.is-project_experience .paper-item-title) {
   color: var(--paper-accent);
@@ -906,8 +932,8 @@ function breakable(value) {
 }
 
 .layout-sidebar .paper-header {
-  margin: 0 -15mm 7mm;
-  padding: 11mm 15mm 8mm;
+  margin: 0 calc(var(--paper-mr, 15mm) * -1) 7mm calc(var(--paper-ml, 15mm) * -1);
+  padding: 11mm var(--paper-mr, 15mm) 8mm var(--paper-ml, 15mm);
   border: none;
   background: var(--paper-accent);
   color: #fff;
@@ -1183,8 +1209,8 @@ function breakable(value) {
 }
 
 .layout-center .paper-header {
-  margin: 0 -15mm 6mm;
-  padding: 2mm 15mm 0;
+  margin: 0 calc(var(--paper-mr, 15mm) * -1) 6mm calc(var(--paper-ml, 15mm) * -1);
+  padding: 2mm var(--paper-mr, 15mm) 0 var(--paper-ml, 15mm);
   border: none;
   background-color: #d9edf0;
   background-image:
@@ -1245,8 +1271,8 @@ function breakable(value) {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1mm 8mm;
-  margin: 4mm -15mm 0;
-  padding: 3.4mm 15mm 3.4mm;
+  margin: 4mm calc(var(--paper-mr, 15mm) * -1) 0 calc(var(--paper-ml, 15mm) * -1);
+  padding: 3.4mm var(--paper-mr, 15mm) 3.4mm var(--paper-ml, 15mm);
   background: #fff;
   color: #2f3a3d;
   font-size: calc(var(--paper-base-size) * 0.9);
@@ -1321,6 +1347,22 @@ function breakable(value) {
 .layout-center :deep(.paper-note),
 .layout-center :deep(.paper-rich) {
   grid-column: 2;
+}
+
+/* 校徽 / 公司 LOGO 与日期共用左栏：徽标在上、日期在下。 */
+.layout-center :deep(.paper-item.is-marked) {
+  display: grid !important;
+}
+
+.layout-center :deep(.paper-item.is-marked .paper-item-mark) {
+  float: none;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  margin: 0 0 1.6mm;
+}
+
+.layout-center :deep(.paper-item.is-marked .paper-item-period) {
+  grid-row: 3 / span 4;
 }
 
 /* 作品集、论文、技能等没有日期的条目不应保留空的日期栏。 */
@@ -1533,6 +1575,19 @@ function breakable(value) {
   margin-left: auto;
 }
 
+/* 教育条目是 flex 行：徽标排在最前，与校名同一基线。 */
+.layout-timeline :deep(.is-education .paper-item.is-marked) {
+  display: flex !important;
+}
+
+.layout-timeline :deep(.is-education .paper-item-mark) {
+  float: none;
+  flex: none;
+  align-self: flex-start;
+  order: 0;
+  margin: 0 1.6mm 0 0;
+}
+
 .layout-timeline :deep(.is-education .paper-meta-line),
 .layout-timeline :deep(.is-education .paper-note),
 .layout-timeline :deep(.is-education .paper-rich) {
@@ -1728,7 +1783,7 @@ function breakable(value) {
   --paper-gold: #dec697;
   /* 参考稿的正文右界只留 12.6mm 页边，比通用版式宽 2.4mm；左页边保持不变，
      竖线正好落在左页边线上，正文再往里缩 4.2mm。 */
-  padding-right: 12.6mm;
+  padding-right: calc(var(--paper-mr, 15mm) - 2.4mm);
 }
 
 /* 竖线用 border 而不是背景：跨页时背景会被裁掉，border 在每一页的碎片上都会重画。 */
@@ -2369,7 +2424,7 @@ function breakable(value) {
 
 .layout-rail .paper-flow {
   min-width: 0;
-  padding: 16mm 14mm 12mm 11mm;
+  padding: var(--paper-mt, 16mm) var(--paper-mr, 14mm) var(--paper-mb, 12mm) var(--paper-ml, 11mm);
 }
 
 .layout-rail .paper-header {
