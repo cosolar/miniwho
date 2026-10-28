@@ -94,6 +94,7 @@ satoken: <token>
 | 409 | `RESUME_VERSION_CONFLICT` | 内容版本冲突，`data.serverVersion` 为服务端最新版本 |
 | 409 | `TEMPLATE_CODE_TAKEN` | 导入包的编码已被别人占用，`data.code` 是冲突编码 |
 | 409 | `TEMPLATE_IN_USE` | 模板仍被简历使用，`data.resumeCount` 是在用数量 |
+| 409 | `SHARE_TOKEN_TAKEN` | 自定义链接名已被占用，`data.field` 为 `token` |
 | 410 | `SHARE_REVOKED` | 分享已撤销，或简历已删除 |
 | 410 | `SHARE_EXPIRED` | 分享已过期 |
 | 413 | `STORAGE_QUOTA_EXCEEDED` | 账号存储配额已满；用 413 而不是 400，因为卡点不是这一次的文件太大，而是这个账号已经没有地方放它 |
@@ -506,11 +507,12 @@ satoken: <token>
 | 条目 | 内容 |
 | --- | --- |
 | `说明.txt` | 包内结构的中文说明 |
-| `account.json` | 账号本身：昵称、邮箱、是否已验证、角色、状态、绑定的第三方身份、注册时间。**不含密码与令牌** |
+| `account.json` | 账号本身：昵称、邮箱、是否已验证、角色、状态、绑定的第三方身份、注册时间，外加 `avatar`（账号头像的存储 key 与包内路径，见 2.19）。**不含密码与令牌** |
 | `resumes/<简历id>-<标题>.json` | 每份简历的完整内容 JSON，外加版式设置、模块偏好、头像信息与 `files/` 里的对应路径；回收站里的简历也在 |
 | `templates/<包文件名>` | 该账号自己导入或保存的模板包（官方模板不打包，站内随时可取） |
 | `files/attachments/<简历id>/<附件id>-<原文件名>` | 附件原文件 |
-| `files/avatars/…`、`files/media/…` | 头像与公司 / 院校 logo 原文件 |
+| `files/avatars/…`、`files/media/…` | 简历照片与公司 / 院校 logo 原文件 |
+| `files/user-avatars/<用户id>/avatar.{jpg\|png}` | 账号头像原文件 |
 | `manifest.json` | 本次导出的条目清单，用来核对包是否齐全 |
 
 规划（查库、鉴权、算文件名）全部在响应开始之前完成，流出阶段只剩读文件；代价是一旦开始流出后出错，用户拿到的会是半个 zip。库里挂着行但盘上已无文件的存量脏数据会跳过该文件，其余照常打包。
@@ -543,7 +545,7 @@ Content-Type: application/json
 }
 ```
 
-这一步只是**记下申请时间**，账号照常可用，数据一个字节都不动；7 天宽限期到期后由定时任务（默认每 6 小时扫一次）把账号连数据硬删：简历（含回收站）、分享、诊断报告、附件与头像与 logo 文件、反馈、第三方身份、验证码、该账号自己导入的模板包，最后是用户行。
+这一步只是**记下申请时间**，账号照常可用，数据一个字节都不动；7 天宽限期到期后由定时任务（默认每 6 小时扫一次）把账号连数据硬删：简历（含回收站）、分享、诊断报告、附件与头像与 logo 文件、账号头像（2.19）、反馈、第三方身份、验证码、该账号自己导入的模板包，最后是用户行。
 
 - 管理员账号不能自助注销（`403`），要先移交管理员。
 - 既没密码又没已验证邮箱的第三方账号：`403`「请联系管理员注销」。
@@ -587,7 +589,7 @@ satoken: <token>
 }
 ```
 
-`usedBytes` 是**扫上传目录**算出来的：该账号名下每份简历的 `attachments/`、`avatars/`、`media/` 三个目录之和，回收站里的简历也算（那些文件同样占着部署者的盘），所以它不读库里的 `size_bytes`。`quotaBytes` 为 `0` 表示未设配额（`MINIWHO_STORAGE_QUOTA_MB`，见部署指南）。
+`usedBytes` 是**扫上传目录**算出来的：该账号名下每份简历的 `attachments/`、`avatars/`、`media/` 三个目录之和，再加上账号自己的 `user-avatars/<用户id>/`（2.19）；回收站里的简历也算（那些文件同样占着部署者的盘），所以它不读库里的 `size_bytes`。`quotaBytes` 为 `0` 表示未设配额（`MINIWHO_STORAGE_QUOTA_MB`，见部署指南）。
 
 这个接口不并进 2.8「当前用户」：用量要扫盘，而 `me` 是每次进页面都会打的热点接口。
 
@@ -615,6 +617,40 @@ Content-Type: application/json
 | 新地址已被其他账号使用 | `400` 「该邮箱已被其他账号使用」 |
 | SMTP 通道未配置 | `403` 「管理员尚未配置邮件服务，更换邮箱暂不可用，请联系管理员」 |
 | 60 秒内重复申请 / 每小时超 5 封 | `429` |
+
+
+### 2.19 账号头像（需登录）
+
+```http
+GET    /api/account/avatar
+POST   /api/account/avatar
+DELETE /api/account/avatar
+satoken: <token>
+```
+
+`POST` 用 `multipart/form-data`，字段名 `file`。三个方法的出参同形：
+
+```json
+{
+  "code": "OK",
+  "message": "ok",
+  "data": {
+    "present": true,
+    "url": "/api/public/user-avatars/1?token=<签名链接>",
+    "sizeBytes": 16937,
+    "updatedAt": 1793166323461
+  }
+}
+```
+
+- 这是**账号**的头像，走的是与 4.14 简历照片分开的通道：文件落在 `uploads/user-avatars/<用户id>/avatar.{jpg|png}`，`users.avatar_key` 存这个 key。它不属于任何一份简历，所以删简历不会带走它，删账号（2.14）才会。
+- 只用在内页：个人中心页的头像位与右上角的账号菜单。分享页、导出的 PDF、后台的用户列表都不引用它——访客看到的仍然是那份简历自己的照片。
+- `url` 是六小时有效的签名链接（与 8.5 的头像签名同一机制，因为 `<img>` 带不了 `satoken` 请求头），**现取现用**：前端只把它放在内存里，既不并进 2.8「当前用户」的返回，也不写进 localStorage；图片加载失败会强制重取一次。
+- `present` 为 `false` 时 `url` 与 `sizeBytes` 不出现（`non_null` 序列化）。库里有 key 但盘上文件已丢时同样报 `false`，服务端不会顺手改库——下一次上传自然覆盖。
+- 上传后服务端解码并降采样到长边 256px 重编码：不透明图出 JPEG（质量 0.9），带透明通道的保留 PNG，落盘文件名跟着扩展名走。目录里**只留一个文件**，格式变了先删旧的。
+- 这里的字节数计入该账号的存储配额（2.17）。配额判断在动盘之前，所以超额度被拒时，当前正在显示的头像不会被顺手删掉。
+
+常见错误（均为 `400 BAD_REQUEST`）：`请选择要上传的头像图片`、`账号头像不能超过 1MB`、`头像仅支持 JPG 或 PNG 图片`、`图片无法解析，请换一张 JPG 或 PNG`、`头像尺寸太小，建议不低于 400×400 像素`；超配额返回 `413 STORAGE_QUOTA_EXCEEDED`（见 1.3 与 2.17）。
 
 
 ---
@@ -847,7 +883,7 @@ Content-Type: application/json
 | `title` | 可选；为空用「未命名简历 / Untitled Resume」，超过 50 字符会截断 |
 | `language` | `zh`（默认）或 `en` |
 | `templateCode` | 默认 `qinghe`；必须是存在且启用中的模板，别人未分享的导入包不能用（`403`） |
-| `useSample` | 仅 `zh` 且为 `true` 时使用内置示例内容；英文忽略 |
+| `useSample` | 仅 `zh` 且为 `true` 时使用示例内容：所选模板的包里带 `sample` 预制数据时优先用它，否则回落全局内置示例；英文忽略 |
 
 返回新建的 `ResumeDetail`。空白简历默认包含 11 个核心模块，其中 `paper_publication` 默认隐藏。`contentVersion` 初始为 `0`。
 
@@ -1046,7 +1082,8 @@ Content-Type: application/json
   "filter": "soft",
   "fontSizeStep": 1,
   "spacingStep": -1,
-  "showBrandFooter": false
+  "showBrandFooter": false,
+  "pageMargin": { "custom": true, "top": 6, "right": 8, "bottom": 6, "left": 8 }
 }
 ```
 
@@ -1059,6 +1096,9 @@ Content-Type: application/json
 | `fontSizeStep` | -2 到 2 |
 | `spacingStep` | -2 到 2 |
 | `showBrandFooter` | boolean |
+| `pageMargin` | `{ custom, top, right, bottom, left }`，四边单位毫米、各 0–40。`custom=false` 表示交回模板自带的留白，此时四边取值不参与排版 |
+
+`pageMargin` 调的是纸面内边距，不是浏览器的打印边距：`@page` 已经是 `margin: 0`，纸外的白边只有这里能改。低于 5mm 的边距多数物理打印机会裁掉，导出 PDF 不受影响。
 
 此接口不使用 `contentVersion`，后写覆盖先写，返回 `ResumeDetail`。
 
@@ -1142,7 +1182,7 @@ Content-Type: multipart/form-data
 file: <二进制>
 ```
 
-教育背景与工作经历的条目可以各挂一张 logo，走独立通道，不占附件额度。服务端解码后降采样到长边 256px 以内重编码（透明通道保留 PNG，其余统一 JPEG），单张不超过 2MB，长边低于 64px 被拒绝。
+教育背景与工作经历的条目可以各挂一张 logo，走独立通道，不占附件额度。服务端解码后降采样到长边 256px 以内重编码（透明通道保留 PNG，其余统一 JPEG），单张不超过 2MB，长边低于 64px 被拒绝。所有版式都会把它排进条目左侧的带框徽标栏（白底浅灰描边，13mm 见方，金石 15.1mm）：同模块里只要有一条挂了图，每条都留出栏位，没图的条目补占位图标；整模块一条都没有时栏位不存在。
 
 返回 `ItemMediaVo`：
 
@@ -1428,6 +1468,7 @@ Content-Type: application/json
 
 ```json
 {
+  "token": "haojianli",
   "password": "test1234",
   "expiresInDays": 30,
   "allowDownload": true,
@@ -1437,6 +1478,7 @@ Content-Type: application/json
 
 | 字段 | 默认 | 规则 |
 | --- | --- | --- |
+| `token` | 空 | 可空，即访客地址里的链接名。留空由服务端签发 43 位随机令牌；自定义时限 4–40 字符，只允许 `A-Z` `a-z` `0-9` `-` `_` |
 | `password` | 空 | 可空；非空时 4–20 字符，BCrypt 存储 |
 | `expiresInDays` | `30` | `0` 永久；`1–365` 天 |
 | `allowDownload` | `false` | 是否显示打印 / 下载入口 |
@@ -1449,7 +1491,7 @@ Content-Type: application/json
 ```json
 {
   "id": 3,
-  "token": "Yk9v...43字符随机串",
+  "token": "haojianli",
   "resumeTitle": "郝简历 · 后端开发工程师",
   "expiresAt": 1795238790000,
   "allowDownload": true,
@@ -1460,7 +1502,17 @@ Content-Type: application/json
 }
 ```
 
-分享访问地址：`/s/{token}`（前端路由）。
+分享访问地址：`/share/{token}`（前端路由）。`/s/{token}` 是 1.0.3 及更早版本发出的地址，仍会自动转到 `/share/{token}`。
+
+**链接名在全库唯一**（`resume_shares.token` 上有唯一索引），因此自定义时的三种情形：
+
+| 情形 | 结果 |
+| --- | --- |
+| 名字没被用过 | 新建一条链接 |
+| 名字是**你自己的这条简历**用过的（含已撤销） | 原地重发：覆盖设置、`revoked_at` 清空、浏览量归零，`id` 不变 |
+| 名字被别人、或你自己的另一份简历占用 | `409 SHARE_TOKEN_TAKEN`，不改动任何数据 |
+
+撤销过的链接名不释放：那些行留在库里作为历史，所以「把上一次的链接名再打一遍」走的是原地重发，而不是新建。
 
 ### 8.2 当前有效分享
 
@@ -1545,6 +1597,12 @@ GET /api/public/avatars/{resumeId}?token=<签名链接>
 ```
 
 返回照片二进制。`token` 是 `HMAC-SHA256` 签名的短时链接（作用域 `avatar`，默认 6 小时），签名无效返回 `403 FORBIDDEN`，过期返回 `403 FORBIDDEN`（`签名链接已过期，请刷新页面`），简历或照片不存在返回 `404`。密钥来自 `MINIWHO_MEDIA_SECRET`，未设置时每次启动随机生成，因此重启后旧链接失效。
+
+```http
+GET /api/public/user-avatars/{userId}?token=<签名链接>
+```
+
+账号头像（2.19）的二进制，鉴权与响应头和上一条同形，只是作用域换成 `user-avatar`、按用户 id 签名，`Cache-Control: private, max-age=3600`（账号头像只给登录者自己看，不进公共缓存）。没有头像或文件已丢返回 `404`（`账号还没有头像` / `头像文件不存在，请重新上传`）。
 
 ```http
 GET /api/public/media/{resumeId}/{name}
@@ -1674,7 +1732,7 @@ GET /api/admin/stats
 
 `templates` 为启用中的模板数量，`recentUsers` 最多 6 条。
 
-后三个字段是上传目录的一次全盘扫描结果（单位字节）：`storageBytes` 是 `attachments/`、`avatars/`、`media/` 三类目录的总字节数，回收站里的简历同样计入——那些文件一样占着盘；`orphanBytes` 属于找不到属主的目录，正常部署应为 `0`，非 `0` 说明某条删除链路漏了清理；`quotaBytes` 是单账号配额，`0` 表示未设限（见部署指南的 `MINIWHO_STORAGE_QUOTA_MB`）。只扫盘、不读库里的 `size_bytes`，所以头像与 logo 这类没有大小列的文件也能算进来。
+后三个字段是上传目录的一次全盘扫描结果（单位字节）：`storageBytes` 是 `attachments/`、`avatars/`、`media/` 三类目录的总字节数，再加上该账号的 `user-avatars/<用户id>/`（账号头像，2.19），回收站里的简历同样计入——那些文件一样占着盘；`orphanBytes` 属于找不到属主的目录，正常部署应为 `0`，非 `0` 说明某条删除链路漏了清理；`quotaBytes` 是单账号配额，`0` 表示未设限（见部署指南的 `MINIWHO_STORAGE_QUOTA_MB`）。只扫盘、不读库里的 `size_bytes`，所以头像与 logo 这类没有大小列的文件也能算进来。
 
 ### 10.2 用户列表
 
@@ -2001,7 +2059,7 @@ curl -s -X POST "$BASE/resumes/1/report" -H "satoken: $TOKEN"
 curl -s -X POST "$BASE/resumes/1/shares" \
   -H "satoken: $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"password":"test1234","expiresInDays":30,"allowDownload":true}'
+  -d '{"token":"haojianli","password":"test1234","expiresInDays":30,"allowDownload":true}'
 ```
 
 ---
@@ -2025,6 +2083,7 @@ curl -s -X POST "$BASE/resumes/1/shares" \
 | 账号数据导出 | 一次请求打包全部简历、模板与文件；限流 5 次/分钟/IP |
 | 注销宽限期 | 7 天，期间登录即可撤销；到期由定时任务硬删（每 6 小时扫一次，进程启动后 90 秒先扫一次） |
 | 简历照片 | 每份 1 张 / 单文件 3MB / JPEG 与 PNG / 长边不低于 80px / 落盘长边 ≤600px |
+| 账号头像 | 每账号 1 张 / 单文件 1MB / JPEG 与 PNG / 长边不低于 80px / 落盘长边 ≤256px |
 | 条目 logo | 每个条目 1 张 / 单文件 2MB / JPEG 与 PNG / 长边不低于 64px / 落盘长边 ≤256px / 未引用且超过 10 分钟的内容落库时回收 |
 | 照片签名链接 | 默认 6 小时失效，密钥 `MINIWHO_MEDIA_SECRET` |
 | PDF 导出票据 | 5 分钟一次性，绑定简历与模板 |
@@ -2033,6 +2092,7 @@ curl -s -X POST "$BASE/resumes/1/shares" \
 | 分享密码 | 4–20 字符 |
 | 分享有效期 | 1–365 天，或 `0` 永久 |
 | 分享链接 | 每份简历同时 1 个有效链接 |
+| 分享链接名 | 留空为 43 位随机令牌；自定义 4–40 位 `A-Za-z0-9_-`，全库唯一（MySQL 按表的校对规则比较，大小写视为同一个名字） |
 | 反馈内容 | 2,000 字符 |
 | 登录令牌 | 7 天，进程内存储 |
 | 邮箱验证码 | 6 位数字 / 10 分钟有效 / 验证通过即删除 / 同一封最多试错 5 次 / 超过 24 小时的记录发信时清理；注册、找回密码、注销三条链路共用存储，靠 `purpose` 隔离，互不通用 |
