@@ -3,6 +3,7 @@ package cn.minims.who.config;
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import cn.minims.who.dto.ResumeDtos.CreateResumeRequest;
 import cn.minims.who.entity.Feedback;
 import cn.minims.who.entity.Resume;
@@ -14,8 +15,10 @@ import cn.minims.who.mapper.TemplateMapper;
 import cn.minims.who.mapper.UserMapper;
 import cn.minims.who.service.ResumeService;
 import cn.minims.who.template.BuiltinTemplatePackages;
+import cn.minims.who.template.TemplateCssSanitizer;
 import cn.minims.who.template.TemplatePackage;
 import cn.minims.who.template.TemplatePackageCodec;
+import cn.minims.who.template.TemplatePackageException;
 import cn.minims.who.util.Json;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -108,12 +111,14 @@ public class DataInitializer implements ApplicationRunner {
 
     private void seedTemplates() {
         for (TemplatePackage pkg : builtinTemplatePackages.load()) {
-            String config = json.write(codec.renderConfig(pkg));
+            String code = builtinCode(pkg);
+            String config = json.write(builtinConfig(pkg, code));
             Template existing = templateMapper.selectOne(new LambdaQueryWrapper<Template>()
-                    .eq(Template::getCode, pkg.code()).last("limit 1"));
+                    .eq(Template::getCode, code).last("limit 1"));
             if (existing == null) {
                 Template template = new Template();
                 applyPackage(template, pkg, config);
+                template.setCode(code);
                 template.setStatus(1);
                 template.setUsageCount(0);
                 templateMapper.insert(template);
@@ -121,15 +126,44 @@ public class DataInitializer implements ApplicationRunner {
             }
             String source = existing.getSource() == null ? "builtin" : existing.getSource();
             if (!"builtin".equals(source)) {
-                log.warn("编码 {} 已被导入模板占用，内置模板包不再覆盖它", pkg.code());
+                // 作者把社区模板转正随发版下发：同编码原地升级为官方模板，简历的 template_code 不用动。
+                log.info("编码 {} 原为导入模板，已随发版升级为官方模板", code);
+                existing.setStatus(1);
+                existing.setVisibility("public");
+                existing.setExportable(1);
+                applyPackage(existing, pkg, config);
+                existing.setCode(code);
+                templateMapper.updateById(existing);
                 continue;
             }
             // 官方区的版式只由发版里的包文件决定；status 是管理员改的，usageCount 是用户用出来的，都不动。
             if (needsRefresh(existing, pkg, config)) {
                 applyPackage(existing, pkg, config);
+                existing.setCode(code);
                 templateMapper.updateById(existing);
-                log.info("已刷新内置模板：{}", pkg.code());
+                log.info("已刷新内置模板：{}", code);
             }
+        }
+    }
+
+    /** 官方命名空间沿用裸编码（与历史官方模板一致）；作者自带命名空间的包按导入规则合成编码。 */
+    private String builtinCode(TemplatePackage pkg) {
+        if ("official".equals(pkg.namespace())) {
+            return pkg.code();
+        }
+        return TemplatePackageCodec.composedCode(pkg.namespace(), pkg.code());
+    }
+
+    /** 内置包允许带 style：与导入包走同一条净化链路，样式跟着 JSON 走，改样式不用动骨架代码。 */
+    private ObjectNode builtinConfig(TemplatePackage pkg, String code) {
+        if (pkg.style() == null || pkg.style().isBlank()) {
+            return codec.renderConfig(pkg);
+        }
+        try {
+            String styleCss = TemplateCssSanitizer.sanitize(pkg.style(), TemplatePackageCodec.scopeClassOf(code));
+            return codec.renderConfig(pkg, TemplatePackageCodec.scopeClassOf(code), styleCss);
+        } catch (TemplatePackageException e) {
+            throw new IllegalStateException("内置模板包 " + code + " 的 style 不合法：" + e.getMessage(), e);
         }
     }
 
@@ -146,7 +180,6 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     private void applyPackage(Template target, TemplatePackage pkg, String config) {
-        target.setCode(pkg.code());
         target.setName(pkg.name());
         target.setDescription(pkg.description());
         target.setCategory(pkg.category());
