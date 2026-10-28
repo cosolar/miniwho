@@ -1,7 +1,7 @@
 {
   "name": "miniwho-web",
   "private": true,
-  "version": "1.0.4",
+  "version": "1.0.5",
   "type": "module",
   "description": "极简简历 MiniWho · 开源在线简历工作台前端",
   "scripts": {
