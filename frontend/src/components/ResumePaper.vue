@@ -193,7 +193,7 @@ const paperStyle = computed(() => {
     '--paper-section-gap': `${(5.6 + spacingStep * 0.9).toFixed(2)}mm`
   }
   // 只有用户自己调过才写这四个变量：各版式的默认留白并不相同（侧影通栏页眉靠 15mm 反白、
-  // 竖排用 11/14mm），缺省时让它们各自的取值生效，改这一处不会把 12 套模板的观感全推平。
+  // 竖排用 11/14mm），缺省时让它们各自的取值生效，改这一处不会把 30 套模板的观感全推平。
   const margin = props.styleData?.pageMargin
   if (margin?.custom) {
     vars['--paper-mt'] = `${Number(margin.top ?? 15)}mm`

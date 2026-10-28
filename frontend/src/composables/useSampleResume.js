@@ -25,7 +25,7 @@ export function useSampleResume() {
         content.value = data.content
         if (!data.templateCode) return
         templateCode.value = data.templateCode
-        // 打包预设只含官方 12 套；示例换成导入模板时补拉一次详情，
+        // 打包预设只含官方 30 套的主题令牌（不含包 CSS）；示例换成导入模板时补拉一次详情，
         // ResumePaper 会用 config 里的 scopeClass + styleCss 注入净化 CSS。
         // 模板私有或已下架时详情接口 404，保持官方回退样式（作者本人可见）。
         if (TEMPLATE_FALLBACKS.some((tpl) => tpl.code === data.templateCode)) return

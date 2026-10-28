@@ -40,7 +40,7 @@ const steps = [
   {
     no: '01',
     title: '挑一版适合你的版式',
-    text: '12 套原创模板，覆盖校招、社招、技术与学术场景，都在页眉留了证件照位置。所有模板永久免费，没有会员墙。',
+    text: '30 套原创模板，覆盖校招、社招、技术与学术场景，多数在页眉留了证件照位置。所有模板永久免费，没有会员墙。',
     type: 'template'
   },
   {
@@ -72,7 +72,7 @@ const faqs = [
   },
   {
     q: '为什么不是 1200 套模板？',
-    a: '这是一套可维护的开源项目，目前提供 12 套由同一渲染引擎驱动的原创版式，保证每一套都真的能用。后续新增模板只需补充一份配置。'
+    a: '这是一套可维护的开源项目，目前提供 30 套由同一渲染引擎驱动的原创版式，保证每一套都真的能用。后续新增模板只需补充一份配置。'
   },
   {
     q: '诊断是 AI 生成的吗？',
@@ -114,7 +114,7 @@ const faqs = [
             <span><el-icon><Check /></el-icon> 可自托管</span>
           </div>
           <div class="hero__stats">
-            <div><strong>12</strong><span>原创模板</span></div>
+            <div><strong>30</strong><span>原创模板</span></div>
             <div><strong>18</strong><span>内容模块</span></div>
             <div><strong>5</strong><span>诊断维度</span></div>
             <div><strong>0</strong><span>付费墙</span></div>
@@ -152,7 +152,7 @@ const faqs = [
               <span class="swatch" style="background:#9a6a3f" />
               <span class="swatch" style="background:#b35c37" />
               <div>
-                <strong>12 套</strong>
+                <strong>30 套</strong>
                 <span>原创版式</span>
               </div>
             </div>
