@@ -28,6 +28,7 @@ public class TemplatePackageCodec {
     private static final Pattern VERSION = Pattern.compile("^\\d+\\.\\d+\\.\\d+$");
     private static final Pattern COLOR = Pattern.compile("^#[0-9a-fA-F]{6}$");
     private static final int MAX_TAGS = 8;
+    private static final int MAX_SAMPLE_CHARS = 200_000;
 
     private final Json json;
 
@@ -77,6 +78,7 @@ public class TemplatePackageCodec {
         }
         // 原文先照单收下，是否可用由净化器判定；这里只挡体量，避免把超大文本塞进解析器。
         String style = text(root, "/style", problems, false, TemplateCssSanitizer.MAX_CSS_CHARS, null);
+        String sample = sample(root, problems);
 
         oneOf(layout, RendererCapabilities.LAYOUTS, "theme.layout", problems);
         oneOf(font, RendererCapabilities.FONTS, "theme.font", problems);
@@ -89,13 +91,34 @@ public class TemplatePackageCodec {
         String canonical = json.write(root);
         return new TemplatePackage(api, namespace, code, version, name, description, category, tags,
                 author, license, layout, accent, font, sectionStyle, density, photo, free, sortWeight, style,
-                canonical, sha256(canonical));
+                sample, canonical, sha256(canonical));
+    }
+
+    /**
+     * 可选的模板预制数据：一份完整的简历 content。新建「示例数据」简历时优先于全局示例，
+     * 让财务、法务等垂直模板可以带自己的演示文案。只挡体量与形状，字段级校验交给渲染端的兜底。
+     */
+    private String sample(JsonNode root, List<String> problems) {
+        JsonNode node = root.at("/sample");
+        if (node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        if (!node.isObject()) {
+            problems.add("sample 必须是一个 JSON 对象（完整的简历 content）");
+            return null;
+        }
+        String canonical = json.write(node);
+        if (canonical.length() > MAX_SAMPLE_CHARS) {
+            problems.add("sample 超过 " + MAX_SAMPLE_CHARS + " 字符上限");
+            return null;
+        }
+        return canonical;
     }
 
     /**
      * 展开成前端渲染用的 config。前七个键的顺序必须与历史数据一致，否则每次启动都会写成新字符串、
      * 把按样式缓存的服务端 PDF 全部作废。
-     * scopeClass 与 styleCss 只在导入包上出现，且只能放净化后的 CSS——渲染端永远只读 config，不读 pkg。
+     * scopeClass 与 styleCss 只在带 style 的包上出现（内置或导入），且只能放净化后的 CSS——渲染端永远只读 config，不读 pkg。
      */
     public ObjectNode renderConfig(TemplatePackage pkg) {
         return renderConfig(pkg, null, null);
@@ -117,7 +140,7 @@ public class TemplatePackageCodec {
         return config;
     }
 
-    /** 导入包的 CSS 作用域类；官方包不注入 CSS，用不到它。 */
+    /** 带 style 的包（内置或导入）共用的 CSS 作用域类。 */
     public static String scopeClassOf(String code) {
         return "tw-" + code;
     }

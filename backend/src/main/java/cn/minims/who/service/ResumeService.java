@@ -130,7 +130,11 @@ public class ResumeService {
         }
 
         boolean useSample = Boolean.TRUE.equals(request.useSample()) && "zh".equals(language);
-        ObjectNode content = useSample ? defaults.sampleContent() : defaults.blankContent(language);
+        // 模板包自带预制数据时优先用它，让垂直模板（财务、法务等）配自己的示例文案；否则回退全局示例。
+        String presetSample = useSample ? templateService.sampleContentOf(template) : null;
+        ObjectNode content = presetSample != null
+                ? (ObjectNode) json.read(presetSample)
+                : useSample ? defaults.sampleContent() : defaults.blankContent(language);
         ObjectNode prefs = defaults.defaultPrefs(content);
         ObjectNode style = defaults.defaultStyle(templateCode);
         ScoreEngine.Analysis analysis = scoreEngine.analyze(content);

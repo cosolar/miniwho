@@ -203,6 +203,20 @@ public class TemplateService {
         return template;
     }
 
+    /** 模板包自带的预制示例数据；没带或包损坏时返回 null，由调用方回退到全局示例。 */
+    public String sampleContentOf(Template template) {
+        String pkg = template.getPkg();
+        if (pkg == null || pkg.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode sample = json.read(pkg).at("/sample");
+            return sample.isObject() ? json.write(sample) : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     /** 新建或换用模板时的可见性关卡：别人未分享的导入包即使知道编码也不能选用。 */
     public Template requireUsable(String code, long userId) {
         Template template = requireAny(code);

@@ -27,10 +27,37 @@ class TemplatePackageCodecTest {
             // 键序变了就是字符串变了，会把按样式缓存的服务端 PDF 整批作废。
             assertThat(keys).containsExactly(
                     "layout", "accent", "font", "sectionStyle", "density", "free", "photo");
-            assertThat(pkg.namespace()).isEqualTo("official");
+            if ("official".equals(pkg.namespace())) {
+                assertThat(pkg.code()).matches("^[a-z][a-z0-9-]{1,49}$");
+            } else {
+                // 作者自带命名空间的转正模板：合成编码必须与导入规则一致且合法。
+                assertThat(TemplatePackageCodec.composedCode(pkg.namespace(), pkg.code()))
+                        .matches("^[a-z][a-z0-9-]{1,49}$");
+            }
             assertThat(pkg.canonical()).startsWith("{");
             assertThat(pkg.checksum()).hasSize(64);
         }
+    }
+
+    @Test
+    void 包可以携带模板预制示例数据并挡住非法形状() {
+        String withSample = """
+                {
+                  "api": 1,
+                  "id": { "namespace": "demo", "code": "alpha", "version": "1.0.0" },
+                  "meta": { "name": "演示", "description": "描述", "category": "通用", "tags": [] },
+                  "theme": { "layout": "classic", "accent": "#123456", "font": "sans", "sectionStyle": "icon" },
+                  "sample": { "schemaVersion": 1, "language": "zh" }
+                }
+                """;
+        assertThat(codec.decode(withSample).sample()).isEqualTo("{\"schemaVersion\":1,\"language\":\"zh\"}");
+
+        String badSample = withSample.replace("\"sample\": { \"schemaVersion\": 1, \"language\": \"zh\" }",
+                "\"sample\": [1, 2]");
+        assertThatThrownBy(() -> codec.decode(badSample))
+                .isInstanceOf(TemplatePackageException.class)
+                .satisfies(error -> assertThat(((TemplatePackageException) error).problems())
+                        .anyMatch(problem -> problem.contains("sample")));
     }
 
     @Test
