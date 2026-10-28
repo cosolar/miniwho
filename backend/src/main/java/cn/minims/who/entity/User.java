@@ -25,6 +25,8 @@ public class User {
     private Integer emailVerified;
     /** 自助注销的申请时间；非空表示处于宽限期内待硬删，取消注销时清回 null。 */
     private Long deletionRequestedAt;
+    /** 账号头像的存储 key（user-avatars/{id}/avatar.{jpg|png}）；不属于任何一份简历。 */
+    private String avatarKey;
 
     @TableField(fill = FieldFill.INSERT)
     private Long createdAt;

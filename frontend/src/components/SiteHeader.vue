@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowDown, Menu, Close } from '@element-plus/icons-vue'
 import BrandLogo from './BrandLogo.vue'
+import UserAvatar from './UserAvatar.vue'
 import { useAuthStore } from '../stores/auth'
 import { ElMessage } from 'element-plus'
 
@@ -10,6 +11,9 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const mobileOpen = ref(false)
+
+/** 头像位没设图时退回昵称首字，和顶栏原来的字母圆一致。 */
+const letter = computed(() => (auth.user?.nickname || auth.user?.username || '我').slice(0, 1))
 
 const SECTION_OFFSET = 84
 const HOME_SECTIONS = ['how-it-works', 'privacy']
@@ -132,7 +136,7 @@ async function logout() {
           <button class="m-btn m-btn--ghost header-cta" @click="go('/dashboard')">进入工作台</button>
           <el-dropdown trigger="click" @command="(cmd) => cmd === 'logout' ? logout() : go(cmd)">
             <button class="avatar-button" type="button" aria-label="账号菜单">
-              <span class="avatar">{{ (auth.user?.nickname || auth.user?.username || '我').slice(0, 1) }}</span>
+              <UserAvatar class="avatar" :text="letter" />
               <el-icon class="avatar-caret"><ArrowDown /></el-icon>
             </button>
             <template #dropdown>

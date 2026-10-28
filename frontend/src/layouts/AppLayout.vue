@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ArrowDown, QuestionFilled, WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import BrandLogo from '../components/BrandLogo.vue'
+import UserAvatar from '../components/UserAvatar.vue'
 import { useAuthStore } from '../stores/auth'
 import { formatDateTime } from '../utils/format'
 
@@ -12,6 +13,8 @@ const router = useRouter()
 
 /** 宽限期里的账号还能用，但每一页都要看得见「正在被清除」这件事，不然取消入口就藏太深了。 */
 const deletionScheduledAt = computed(() => auth.user?.deletionScheduledAt || null)
+/** 没设头像时的兜底：昵称首字，和顶栏原来的字母圆一致。 */
+const letter = computed(() => (auth.user?.nickname || auth.user?.username || '我').slice(0, 1))
 
 async function logout() {
   await auth.logout()
@@ -49,7 +52,7 @@ async function handleCommand(command) {
           </router-link>
           <el-dropdown trigger="click" @command="handleCommand">
             <button class="app-user" type="button">
-              <span class="app-avatar">{{ (auth.user?.nickname || auth.user?.username || '我').slice(0, 1) }}</span>
+              <UserAvatar class="app-avatar" :text="letter" />
               <span class="app-name">{{ auth.user?.nickname || auth.user?.username }}</span>
               <el-icon class="caret"><ArrowDown /></el-icon>
             </button>

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { authApi } from '../api'
+import { accountApi, authApi } from '../api'
 import { TOKEN_KEY, USER_KEY } from '../api/client'
 
 function readUser() {
@@ -14,6 +14,12 @@ export const useAuthStore = defineStore('auth', {
   state: () => ({
     token: localStorage.getItem(TOKEN_KEY) || '',
     user: readUser(),
+    /**
+     * 账号头像不进 localStorage：url 是六小时的签名链接，缓存下来下次打开只会是一张碎图。
+     * loaded 用来避免每次路由切换都重复拉一次。
+     */
+    avatar: null,
+    avatarLoaded: false,
     loading: false
   }),
   getters: {
@@ -59,6 +65,24 @@ export const useAuthStore = defineStore('auth', {
         throw error
       }
     },
+    /**
+     * 拉账号头像。已拉过就跳过，除非链接过期（图片加载失败）需要 force 一次。
+     * 失败不弹提示：头像位有首字母兜底，不该为一个装饰件打断主流程。
+     */
+    async loadAvatar(force = false) {
+      if (!this.token || (this.avatarLoaded && !force)) return this.avatar
+      try {
+        this.avatar = await accountApi.avatar()
+        this.avatarLoaded = true
+      } catch {
+        this.avatar = null
+      }
+      return this.avatar
+    },
+    setAvatar(data) {
+      this.avatar = data
+      this.avatarLoaded = true
+    },
     async updateProfile(payload) {
       const user = await authApi.updateProfile(payload)
       this.user = user
@@ -79,6 +103,8 @@ export const useAuthStore = defineStore('auth', {
     clear() {
       this.token = ''
       this.user = null
+      this.avatar = null
+      this.avatarLoaded = false
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(USER_KEY)
     }

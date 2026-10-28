@@ -1,15 +1,20 @@
 package cn.minims.who.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import cn.minims.who.common.BizException;
 import cn.minims.who.entity.Resume;
+import cn.minims.who.entity.User;
 import cn.minims.who.mapper.ResumeMapper;
+import cn.minims.who.mapper.UserMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 账号维度的磁盘用量与配额。
@@ -17,24 +22,28 @@ import java.util.Map;
  * <p>用量只认盘上的文件，不认库里的 {@code size_bytes}：头像与条目 logo 根本没有大小列，
  * 而附件的历史行也可能和实际文件对不上，扫目录一次就能同时避开这两个坑。
  *
- * <p>上传目录的层级是写死的 {@code {attachments,avatars,media}/{resumeId}/文件}，
- * 所以「谁的用量」等于「他名下所有简历目录的字节数之和」，回收站里的简历也算——
- * 那些文件同样占着部署者的盘。
+ * <p>简历文件的层级是写死的 {@code {attachments,avatars,media}/{resumeId}/文件}，所以「谁的用量」
+ * 等于「他名下所有简历目录的字节数之和」，回收站里的简历也算——那些文件同样占着部署者的盘。
+ * 账号头像是另一条通道 {@code user-avatars/{userId}}：目录名直接就是属主，不需要查简历。
  */
 @Service
 public class StorageUsageService {
 
     private static final List<String> CHANNELS = List.of("attachments", "avatars", "media");
+    /** 账号自己的文件：按 userId 分目录，和简历通道分开归堆。 */
+    private static final String ACCOUNT_CHANNEL = "user-avatars";
     private static final long MB = 1024 * 1024L;
 
     private final AttachmentStore store;
     private final ResumeMapper resumeMapper;
+    private final UserMapper userMapper;
     private final long quotaBytes;
 
-    public StorageUsageService(AttachmentStore store, ResumeMapper resumeMapper,
+    public StorageUsageService(AttachmentStore store, ResumeMapper resumeMapper, UserMapper userMapper,
                                @Value("${app.storage-quota-mb:512}") long quotaMb) {
         this.store = store;
         this.resumeMapper = resumeMapper;
+        this.userMapper = userMapper;
         // 0 或负数表示不设限：给需要完全放开磁盘的部署留一个开关。
         this.quotaBytes = quotaMb <= 0 ? 0L : quotaMb * MB;
     }
@@ -44,7 +53,7 @@ public class StorageUsageService {
     }
 
     public long usageBytes(long userId) {
-        long total = 0L;
+        long total = store.sizeOfDir(ACCOUNT_CHANNEL + "/" + userId);
         for (Long resumeId : resumeMapper.selectIdsByUser(userId)) {
             total += resumeBytes(resumeId);
         }
@@ -77,6 +86,33 @@ public class StorageUsageService {
                     byUser.merge(owner, bytes, Long::sum);
                 }
                 total += bytes;
+            }
+        }
+        Map<Long, Long> accountBytes = new HashMap<>();
+        for (String name : store.subDirectories(ACCOUNT_CHANNEL)) {
+            long bytes = store.sizeOfDir(ACCOUNT_CHANNEL + "/" + name);
+            total += bytes;
+            Long userId = parseId(name);
+            if (userId == null) {
+                orphan += bytes;
+                continue;
+            }
+            accountBytes.merge(userId, bytes, Long::sum);
+        }
+        if (!accountBytes.isEmpty()) {
+            // 一次批量查存在性，别按目录各发一条查询：后台的整站扫描本来就扫所有账号。
+            Set<Long> alive = new HashSet<>();
+            userMapper.selectList(new LambdaQueryWrapper<User>()
+                            .select(User::getId)
+                            .in(User::getId, accountBytes.keySet()))
+                    .forEach(user -> alive.add(user.getId()));
+            for (Map.Entry<Long, Long> entry : accountBytes.entrySet()) {
+                if (alive.contains(entry.getKey())) {
+                    byUser.merge(entry.getKey(), entry.getValue(), Long::sum);
+                } else {
+                    // 注销会把账号目录一起带走；还在盘上说明某条清理链路漏了，报给管理员。
+                    orphan += entry.getValue();
+                }
             }
         }
         return new SiteUsage(byUser, orphan, total);

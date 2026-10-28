@@ -48,10 +48,10 @@ public class AccountExportService {
     private static final String GUIDE_TEXT = """
             极简简历 MiniWho · 账号数据导出
 
-            account.json   账号本身的信息（不含密码）
+            account.json   账号本身的信息（不含密码），含账号头像的存放位置
             resumes/       每一份简历的完整内容、版式设置与头像信息
             templates/     你自己导入或保存的模板包（官方模板不需要备份，站内随时可取）
-            files/         简历里用到的原文件：附件、头像、公司/院校 logo
+            files/         原文件：附件、简历照片、公司/院校 logo，以及账号头像
             manifest.json  本次导出的清单，可用来核对包内文件是否齐全
 
             JSON 都能用文本编辑器直接打开；图片与附件保留原格式，可自行留档或迁移。
@@ -143,6 +143,10 @@ public class AccountExportService {
                 files.add(new ExportFile(key, "files/" + key));
             }
         }
+        // 账号头像不在任何一份简历目录下，单独收一条。
+        if (user.getAvatarKey() != null && !user.getAvatarKey().isBlank()) {
+            files.add(new ExportFile(user.getAvatarKey(), "files/" + user.getAvatarKey()));
+        }
 
         // 清单排最后生成：它是包内其余条目的索引，早一步就少算几条，用户核对时会以为包坏了。
         texts.add(new ExportText("manifest.json",
@@ -215,6 +219,10 @@ public class AccountExportService {
         node.put("status", user.getStatus());
         node.put("createdAt", user.getCreatedAt());
         node.put("updatedAt", user.getUpdatedAt());
+        ObjectNode avatar = node.putObject("avatar");
+        avatar.put("key", user.getAvatarKey());
+        avatar.put("file", user.getAvatarKey() == null || user.getAvatarKey().isBlank()
+                ? null : "files/" + user.getAvatarKey());
         ArrayNode rows = node.putArray("identities");
         for (UserIdentity identity : identities) {
             ObjectNode row = rows.addObject();

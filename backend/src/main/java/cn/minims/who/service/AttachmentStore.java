@@ -27,6 +27,7 @@ public class AttachmentStore {
     public void init() throws IOException {
         Files.createDirectories(root.resolve("attachments"));
         Files.createDirectories(root.resolve("avatars"));
+        Files.createDirectories(root.resolve("user-avatars"));
         Files.createDirectories(root.resolve("media"));
     }
 

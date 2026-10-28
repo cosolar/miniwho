@@ -52,6 +52,14 @@ public final class AuthDtos {
                                boolean passwordReset) {
     }
 
+    /**
+     * 账号头像。
+     * <p>{@code url} 是六小时有效的签名链接，所以只现取现用：一旦被前端缓存进 localStorage，
+     * 换个会话就只剩一张 403 的碎图。圆形裁剪由界面负责，这里不给形状字段。
+     */
+    public record UserAvatarVo(boolean present, String url, Long sizeBytes, Long updatedAt) {
+    }
+
     public record LoginResponse(String token, String tokenName, UserVo user, Long resumeId) {
     }
 

@@ -185,6 +185,8 @@ public class AccountDeletionService {
             fileKeys.addAll(store.listKeys(avatarsDir(resume.getId())));
             fileKeys.addAll(store.listKeys(mediaDir(resume.getId())));
         }
+        // 账号头像不属于任何一份简历，单独一条通道，注销时要一起收走。
+        fileKeys.addAll(store.listKeys(accountAvatarDir(userId)));
         // 附件表里可能留着盘上已经没有的行（历史清理失败），反过来也可能有盘上多出的文件；
         // 两个来源都收，fileKeys 只用于删文件，重复项删不掉第二次而已。
         attachmentMapper.selectList(new LambdaQueryWrapper<ResumeAttachment>()
@@ -196,6 +198,7 @@ public class AccountDeletionService {
             dirs.add(avatarsDir(resumeId));
             dirs.add(mediaDir(resumeId));
         }
+        dirs.add(accountAvatarDir(userId));
         boolean ownedSample = resumes.stream()
                 .anyMatch(resume -> Integer.valueOf(1).equals(resume.getIsSample()));
         return new PurgePlan(userId, user.getUsername(), user.getEmail(), resumeIds,
@@ -274,6 +277,10 @@ public class AccountDeletionService {
 
     private static String mediaDir(long resumeId) {
         return "media/" + resumeId;
+    }
+
+    private static String accountAvatarDir(long userId) {
+        return "user-avatars/" + userId;
     }
 
     private DeletionVo toVo(User user) {

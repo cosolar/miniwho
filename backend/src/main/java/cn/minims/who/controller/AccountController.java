@@ -5,7 +5,9 @@ import cn.minims.who.common.AuthUtil;
 import cn.minims.who.dto.AuthDtos.ChangeEmailCodeRequest;
 import cn.minims.who.dto.AuthDtos.DeletionRequest;
 import cn.minims.who.dto.AuthDtos.DeletionVo;
+import cn.minims.who.dto.AuthDtos.UserAvatarVo;
 import cn.minims.who.dto.SiteDtos.StorageVo;
+import cn.minims.who.service.AccountAvatarService;
 import cn.minims.who.service.AccountDeletionService;
 import cn.minims.who.service.AccountExportService;
 import cn.minims.who.service.AuthService;
@@ -21,7 +23,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.nio.charset.StandardCharsets;
@@ -35,14 +39,17 @@ public class AccountController {
 
     private final AccountExportService exportService;
     private final AccountDeletionService deletionService;
+    private final AccountAvatarService avatarService;
     private final StorageUsageService storageUsage;
     private final AuthService authService;
     private final AuthUtil authUtil;
 
     public AccountController(AccountExportService exportService, AccountDeletionService deletionService,
-                             StorageUsageService storageUsage, AuthService authService, AuthUtil authUtil) {
+                             AccountAvatarService avatarService, StorageUsageService storageUsage,
+                             AuthService authService, AuthUtil authUtil) {
         this.exportService = exportService;
         this.deletionService = deletionService;
+        this.avatarService = avatarService;
         this.storageUsage = storageUsage;
         this.authService = authService;
         this.authUtil = authUtil;
@@ -103,5 +110,25 @@ public class AccountController {
     public ApiResponse<StorageVo> storage() {
         long userId = authUtil.userId();
         return ApiResponse.ok(new StorageVo(storageUsage.usageBytes(userId), storageUsage.quotaBytes()));
+    }
+
+    /**
+     * 账号头像的状态与签名链接。
+     * <p>链接单独一个接口、且前端不缓存：它六小时就过期，塞进 {@code /auth/me} 等于把一张
+     * 会过期的图钉在 localStorage 里，下次进来只能看到碎图。
+     */
+    @GetMapping("/avatar")
+    public ApiResponse<UserAvatarVo> avatar() {
+        return ApiResponse.ok(avatarService.describe(authUtil.userId()));
+    }
+
+    @PostMapping("/avatar")
+    public ApiResponse<UserAvatarVo> uploadAvatar(@RequestParam("file") MultipartFile file) {
+        return ApiResponse.ok(avatarService.upload(authUtil.userId(), file));
+    }
+
+    @DeleteMapping("/avatar")
+    public ApiResponse<UserAvatarVo> removeAvatar() {
+        return ApiResponse.ok(avatarService.remove(authUtil.userId()));
     }
 }

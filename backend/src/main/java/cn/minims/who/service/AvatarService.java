@@ -7,6 +7,7 @@ import cn.minims.who.dto.MediaDtos.AvatarShapeRequest;
 import cn.minims.who.dto.MediaDtos.AvatarVo;
 import cn.minims.who.entity.Resume;
 import cn.minims.who.mapper.ResumeMapper;
+import cn.minims.who.util.ImageCodec;
 import cn.minims.who.util.Json;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -17,23 +18,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.imageio.IIOImage;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageWriteParam;
-import javax.imageio.ImageWriter;
-import javax.imageio.stream.MemoryCacheImageOutputStream;
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Iterator;
 
 /**
  * 头像走独立通道：文件存 uploads/avatars/{resumeId}/，resumes 表只记 storage key 与形状。
@@ -73,17 +64,15 @@ public class AvatarService {
             throw BizException.badRequest("头像图片不能超过 3MB");
         }
         byte[] raw = readAll(file);
-        if (!isJpeg(raw) && !isPng(raw)) {
+        if (!ImageCodec.isJpeg(raw) && !ImageCodec.isPng(raw)) {
             throw BizException.badRequest("头像仅支持 JPG 或 PNG 图片");
         }
-        BufferedImage decoded = decode(raw);
-        boolean alpha = hasAlpha(decoded);
-        BufferedImage prepared = prepare(decoded, alpha);
-        String extension = alpha ? "png" : "jpg";
-        byte[] encoded = encode(prepared, extension);
+        BufferedImage decoded = ImageCodec.decode(raw, MIN_EDGE, "头像尺寸太小，建议不低于 400×500 像素");
+        ImageCodec.Encoded encoded = ImageCodec.normalize(decoded, MAX_EDGE);
+        String extension = encoded.alpha() ? "png" : "jpg";
         String key = "avatars/" + resume.getId() + "/avatar." + extension;
         dropStoredFiles(resume.getId());
-        try (InputStream input = new ByteArrayInputStream(encoded)) {
+        try (InputStream input = new ByteArrayInputStream(encoded.bytes())) {
             store.write(key, input);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -94,7 +83,7 @@ public class AvatarService {
                 .set(Resume::getUpdatedAt, System.currentTimeMillis()));
         resume.setAvatarKey(key);
         resume.setUpdatedAt(System.currentTimeMillis());
-        return toVo(resume, (long) encoded.length);
+        return toVo(resume, (long) encoded.bytes().length);
     }
 
     public AvatarVo updateShape(long userId, long resumeId, AvatarShapeRequest request) {
@@ -243,95 +232,5 @@ public class AvatarService {
         } catch (IOException e) {
             throw BizException.badRequest("头像读取失败，请重新选择");
         }
-    }
-
-    private BufferedImage decode(byte[] raw) {
-        BufferedImage image;
-        try {
-            image = ImageIO.read(new ByteArrayInputStream(raw));
-        } catch (IOException e) {
-            image = null;
-        }
-        if (image == null) {
-            throw BizException.badRequest("图片无法解析，请换一张 JPG 或 PNG");
-        }
-        if (image.getWidth() < MIN_EDGE || image.getHeight() < MIN_EDGE) {
-            throw BizException.badRequest("头像尺寸太小，建议不低于 400×500 像素");
-        }
-        return image;
-    }
-
-    private BufferedImage prepare(BufferedImage source, boolean alpha) {
-        int longest = Math.max(source.getWidth(), source.getHeight());
-        int width = source.getWidth();
-        int height = source.getHeight();
-        if (longest > MAX_EDGE) {
-            double ratio = (double) MAX_EDGE / longest;
-            width = Math.max(1, (int) Math.round(width * ratio));
-            height = Math.max(1, (int) Math.round(height * ratio));
-        }
-        int type = alpha ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
-        BufferedImage target = new BufferedImage(width, height, type);
-        Graphics2D graphics = target.createGraphics();
-        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        if (!alpha) {
-            graphics.setColor(Color.WHITE);
-            graphics.fillRect(0, 0, width, height);
-        }
-        graphics.drawImage(source, 0, 0, width, height, null);
-        graphics.dispose();
-        return target;
-    }
-
-    private boolean hasAlpha(BufferedImage image) {
-        if (!image.getColorModel().hasAlpha()) {
-            return false;
-        }
-        for (int x = 0; x < image.getWidth(); x += Math.max(1, image.getWidth() / 24)) {
-            for (int y = 0; y < image.getHeight(); y += Math.max(1, image.getHeight() / 24)) {
-                if (((image.getRGB(x, y) >>> 24) & 0xFF) < 250) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    private byte[] encode(BufferedImage image, String extension) {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        if ("png".equals(extension)) {
-            try {
-                ImageIO.write(image, "png", out);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            return out.toByteArray();
-        }
-        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
-        if (!writers.hasNext()) {
-            throw new IllegalStateException("当前 JDK 缺少 JPEG 编码器");
-        }
-        ImageWriter writer = writers.next();
-        ImageWriteParam param = writer.getDefaultWriteParam();
-        param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-        param.setCompressionQuality(0.9f);
-        try (MemoryCacheImageOutputStream stream = new MemoryCacheImageOutputStream(out)) {
-            writer.setOutput(stream);
-            writer.write(null, new IIOImage(image, null, null), param);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } finally {
-            writer.dispose();
-        }
-        return out.toByteArray();
-    }
-
-    private boolean isJpeg(byte[] head) {
-        return head.length >= 3 && (head[0] & 0xFF) == 0xFF && (head[1] & 0xFF) == 0xD8 && (head[2] & 0xFF) == 0xFF;
-    }
-
-    private boolean isPng(byte[] head) {
-        return head.length >= 4 && (head[0] & 0xFF) == 0x89 && head[1] == 0x50 && head[2] == 0x4E && head[3] == 0x47;
     }
 }

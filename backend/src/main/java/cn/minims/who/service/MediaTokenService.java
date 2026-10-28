@@ -46,16 +46,16 @@ public class MediaTokenService {
         }
     }
 
-    public String issue(String scope, long resumeId) {
+    public String issue(String scope, long resourceId) {
         long expiresAt = System.currentTimeMillis() + ttlMillis;
         byte[] nonce = new byte[8];
         RANDOM.nextBytes(nonce);
-        String payload = scope + ":" + resumeId + ":" + expiresAt + ":" + URL_ENCODER.encodeToString(nonce);
+        String payload = scope + ":" + resourceId + ":" + expiresAt + ":" + URL_ENCODER.encodeToString(nonce);
         return URL_ENCODER.encodeToString(payload.getBytes(StandardCharsets.UTF_8)) + "."
                 + URL_ENCODER.encodeToString(sign(payload));
     }
 
-    public void verify(String token, String scope, long resumeId) {
+    public void verify(String token, String scope, long resourceId) {
         int dot = token == null ? -1 : token.lastIndexOf('.');
         if (dot <= 0 || dot == token.length() - 1) {
             throw BizException.forbidden("签名链接无效");
@@ -72,7 +72,7 @@ public class MediaTokenService {
             throw BizException.forbidden("签名链接无效");
         }
         String[] parts = payload.split(":");
-        if (parts.length != 4 || !parts[0].equals(scope) || !String.valueOf(resumeId).equals(parts[1])) {
+        if (parts.length != 4 || !parts[0].equals(scope) || !String.valueOf(resourceId).equals(parts[1])) {
             throw BizException.forbidden("签名链接无效");
         }
         long expiresAt;

@@ -3,9 +3,12 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Calendar, ChatDotSquare, Check, Delete, Document, Download, InfoFilled, Key, Lock, SwitchButton, TrendCharts, User
+  Calendar, ChatDotSquare, Check, Delete, Document, Download, InfoFilled, Key, Lock, Picture, SwitchButton,
+  TrendCharts, Upload, User
 } from '@element-plus/icons-vue'
 import AppLayout from '../layouts/AppLayout.vue'
+import AvatarCropper from '../components/AvatarCropper.vue'
+import UserAvatar from '../components/UserAvatar.vue'
 import { useAuthStore } from '../stores/auth'
 import { accountApi, feedbackApi, resumeApi } from '../api'
 import { notifyError } from '../api/client'
@@ -26,6 +29,9 @@ const codeSending = ref(false)
 const resumes = ref([])
 const statsLoading = ref(true)
 const storage = ref(null)
+
+/** 与服务端 AccountAvatarService 的 1MB 闸门同一口径，改一处要改两处。 */
+const AVATAR_MAX_BYTES = 1024 * 1024
 
 /** 上限由部署者的 MINIWHO_STORAGE_QUOTA_MB 决定；0 表示没设限，这时只显示已用量。 */
 const storageUsed = computed(() => formatFileSize(storage.value?.usedBytes || 0))
@@ -132,6 +138,66 @@ async function loadStorage() {
     storage.value = await accountApi.storage()
   } catch {
     storage.value = null
+  }
+}
+
+const avatarInput = ref(null)
+const avatarBusy = ref(false)
+const avatarSource = ref(null)
+const avatarCropper = ref(false)
+
+function pickAvatar() {
+  avatarInput.value?.click()
+}
+
+/** 1MB 与格式在服务端也要判，这里先挡一道：免得挑完图、裁完剪才收到报错。 */
+function onAvatarFile(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  if (!/image\/(jpeg|png)/.test(file.type)) {
+    ElMessage.warning('头像仅支持 JPG 或 PNG 图片')
+    return
+  }
+  if (file.size > AVATAR_MAX_BYTES) {
+    ElMessage.warning('头像图片不能超过 1MB')
+    return
+  }
+  avatarSource.value = file
+  avatarCropper.value = true
+}
+
+async function onAvatarCropped(blob) {
+  avatarCropper.value = false
+  avatarSource.value = null
+  avatarBusy.value = true
+  try {
+    const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' })
+    auth.setAvatar(await accountApi.uploadAvatar(file))
+    ElMessage.success('头像已更新')
+  } catch (error) {
+    notifyError(error, '头像上传失败')
+  } finally {
+    avatarBusy.value = false
+  }
+}
+
+async function removeAvatar() {
+  try {
+    await ElMessageBox.confirm('移除后账号恢复显示昵称首字母，简历里的照片不受影响。', '移除头像', {
+      confirmButtonText: '移除', cancelButtonText: '取消', type: 'warning'
+    })
+  } catch {
+    return
+  }
+  avatarBusy.value = true
+  try {
+    auth.setAvatar(await accountApi.removeAvatar())
+    ElMessage.success('头像已移除')
+  } catch (error) {
+    notifyError(error, '移除头像失败')
+  } finally {
+    avatarBusy.value = false
   }
 }
 
@@ -361,7 +427,7 @@ onBeforeUnmount(() => {
       <div class="profile-shell">
         <header class="profile-hero">
           <div class="profile-id">
-            <span class="profile-avatar">{{ avatarText }}</span>
+            <UserAvatar class="profile-avatar" :text="avatarText" />
             <div>
               <div class="profile-name-row">
                 <h1 class="display">{{ displayName }}</h1>
@@ -437,6 +503,51 @@ onBeforeUnmount(() => {
                   </el-button>
                 </div>
               </el-form>
+            </section>
+
+            <section class="surface profile-card">
+              <header class="profile-card__head">
+                <div>
+                  <span class="card-kicker">Avatar</span>
+                  <h2>账号头像</h2>
+                  <p>头像只用在站内：这个页面与右上角的账号菜单。访客在分享页看到的仍然是那份简历自己的照片。</p>
+                </div>
+                <span class="card-icon"><el-icon><Picture /></el-icon></span>
+              </header>
+              <div class="avatar-row">
+                <UserAvatar class="avatar-tile" :text="avatarText" />
+                <div class="avatar-row__side">
+                  <div class="avatar-row__buttons">
+                    <el-button type="primary" :loading="avatarBusy" @click="pickAvatar">
+                      <el-icon v-if="!avatarBusy"><Upload /></el-icon>
+                      {{ auth.avatar?.present ? '更换头像' : '上传头像' }}
+                    </el-button>
+                    <el-button v-if="auth.avatar?.present" plain :disabled="avatarBusy" @click="removeAvatar">
+                      <el-icon><Delete /></el-icon>
+                      移除
+                    </el-button>
+                  </div>
+                  <span class="field-note">
+                    {{ auth.avatar?.present
+                      ? `当前 ${formatFileSize(auth.avatar.sizeBytes || 0)}；不上传时显示昵称首字。`
+                      : 'JPG / PNG，不超过 1MB，建议 400×400 像素以上；选图后可以拖动裁剪。' }}
+                  </span>
+                </div>
+              </div>
+              <input
+                ref="avatarInput"
+                type="file"
+                class="avatar-input"
+                accept="image/jpeg,image/png"
+                @change="onAvatarFile"
+              />
+              <AvatarCropper
+                :visible="avatarCropper"
+                :source="avatarSource"
+                shape="circle"
+                @confirm="onAvatarCropped"
+                @cancel="avatarCropper = false; avatarSource = null"
+              />
             </section>
 
             <section class="surface profile-card">
@@ -682,6 +793,39 @@ onBeforeUnmount(() => {
   color: #f8f5ed;
   font-family: var(--serif);
   font-size: 28px;
+}
+
+.avatar-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.avatar-tile {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #f8f5ed;
+  font-family: var(--serif);
+  font-size: 26px;
+}
+
+.avatar-row__side {
+  display: grid;
+  gap: 8px;
+}
+
+.avatar-row__buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.avatar-input {
+  display: none;
 }
 
 .profile-name-row {

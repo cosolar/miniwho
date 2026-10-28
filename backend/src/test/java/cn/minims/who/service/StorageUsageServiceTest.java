@@ -2,7 +2,13 @@ package cn.minims.who.service;
 
 import cn.minims.who.common.BizException;
 import cn.minims.who.entity.Resume;
+import cn.minims.who.entity.User;
 import cn.minims.who.mapper.ResumeMapper;
+import cn.minims.who.mapper.UserMapper;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -15,6 +21,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -30,11 +37,19 @@ class StorageUsageServiceTest {
     Path root;
 
     private ResumeMapper resumeMapper;
+    private UserMapper userMapper;
     private AttachmentStore store;
+
+    /** scanSite 会用 LambdaQueryWrapper 查账号存在性，没有表信息缓存就连 lambda 都取不到。 */
+    @BeforeAll
+    static void initTableInfo() {
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), User.class);
+    }
 
     @BeforeEach
     void setUp() {
         resumeMapper = mock(ResumeMapper.class);
+        userMapper = mock(UserMapper.class);
         store = new AttachmentStore(root.toString());
     }
 
@@ -85,8 +100,28 @@ class StorageUsageServiceTest {
         assertThatCode(() -> service(0).assertRoom(3L, 8 * MB)).doesNotThrowAnyException();
     }
 
+    @Test
+    void countsTheAccountAvatarAsTheUsersOwnBytes() throws IOException {
+        write("user-avatars/3/avatar.jpg", 120);
+        when(resumeMapper.selectIdsByUser(3L)).thenReturn(List.of());
+
+        assertThat(service(0).usageBytes(3L)).isEqualTo(120L);
+    }
+
+    @Test
+    void reportsAvatarDirectoriesOfDeletedAccountsAsOrphans() throws IOException {
+        write("user-avatars/3/avatar.jpg", 120);
+        write("user-avatars/99/avatar.png", 80);
+        when(userMapper.selectList(any())).thenReturn(List.of(user(3L)));
+
+        StorageUsageService.SiteUsage scan = service(0).scanSite();
+        assertThat(scan.byUser()).containsEntry(3L, 120L);
+        assertThat(scan.orphanBytes()).isEqualTo(80L);
+        assertThat(scan.totalBytes()).isEqualTo(200L);
+    }
+
     private StorageUsageService service(long quotaMb) {
-        return new StorageUsageService(store, resumeMapper, quotaMb);
+        return new StorageUsageService(store, resumeMapper, userMapper, quotaMb);
     }
 
     private void write(String key, long bytes) throws IOException {
@@ -101,5 +136,11 @@ class StorageUsageServiceTest {
         resume.setId(id);
         resume.setUserId(userId);
         return resume;
+    }
+
+    private static User user(long id) {
+        User user = new User();
+        user.setId(id);
+        return user;
     }
 }

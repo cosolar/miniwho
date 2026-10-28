@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
     email_verified INTEGER      NOT NULL DEFAULT 0,
     -- 自助注销的申请时间：非空即「待注销」，到期由定时任务硬删整个账号；取消时清回 NULL。
     deletion_requested_at BIGINT,
+    -- 账号头像的存储 key；与简历照片分通道，因为这份文件不属于任何一份简历。
+    avatar_key     VARCHAR(500),
     created_at     BIGINT,
     updated_at     BIGINT
 );

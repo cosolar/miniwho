@@ -29,7 +29,18 @@ export const accountApi = {
   /** 换绑邮箱的验证码发给「新」地址，随保存资料接口一起提交。 */
   changeEmailCode: (payload) => client.post('/account/email-code', payload),
   /** 磁盘用量与配额：要扫目录，所以不进 /auth/me，个人中心按需拉一次。 */
-  storage: () => client.get('/account/storage')
+  storage: () => client.get('/account/storage'),
+  /**
+   * 账号头像的状态与签名链接。链接六小时过期，所以每次进页面现取，
+   * 不进 /auth/me：那个接口的返回值会被缓存进 localStorage。
+   */
+  avatar: () => client.get('/account/avatar'),
+  uploadAvatar: (file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return client.post('/account/avatar', form, { timeout: 60000 })
+  },
+  removeAvatar: () => client.delete('/account/avatar')
 }
 
 export const resumeApi = {

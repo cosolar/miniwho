@@ -59,6 +59,8 @@ public class SchemaMigrator implements ApplicationRunner {
         users.put("email_verified", "TINYINT NOT NULL DEFAULT 0");
         // 自助注销的申请时间；存量库默认 NULL，也就是「没在注销」。
         users.put("deletion_requested_at", "BIGINT");
+        // 账号头像：和简历照片分通道，存量库默认 NULL，即继续显示昵称首字母。
+        users.put("avatar_key", "VARCHAR(500)");
         TABLE_COLUMNS.put("users", users);
     }
 
