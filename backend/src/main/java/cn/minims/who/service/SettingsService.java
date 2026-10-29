@@ -34,6 +34,13 @@ public class SettingsService {
     public static final String GITHUB_CLIENT_SECRET = "github_client_secret";
     public static final String PUBLIC_BASE_URL = "public_base_url";
 
+    /** 站点内容宽度：前台所有页面外壳共用这一个值，单位 px。 */
+    public static final String CONTENT_WIDTH = "content_width";
+    public static final int CONTENT_WIDTH_DEFAULT = 1200;
+    /** 下限留足 A4 纸面（794px）加预览侧栏的宽度，再窄双栏版式就挤不下了。 */
+    public static final int CONTENT_WIDTH_MIN = 1100;
+    public static final int CONTENT_WIDTH_MAX = 1600;
+
     /** computeIfAbsent 不能返回 null，用空串代表「库里没有这条」。 */
     private static final String ABSENT = "";
 
@@ -89,6 +96,15 @@ public class SettingsService {
     public boolean orBool(String key, boolean fallback) {
         String stored = get(key);
         return stored == null ? fallback : Boolean.parseBoolean(stored);
+    }
+
+    /** 手改库改坏了也只是布局难看，夹回合法区间即可，不必让整站抛错。 */
+    public int contentWidth() {
+        return clampContentWidth(orInt(CONTENT_WIDTH, CONTENT_WIDTH_DEFAULT));
+    }
+
+    public static int clampContentWidth(int width) {
+        return Math.min(CONTENT_WIDTH_MAX, Math.max(CONTENT_WIDTH_MIN, width));
     }
 
     private String value(String key) {

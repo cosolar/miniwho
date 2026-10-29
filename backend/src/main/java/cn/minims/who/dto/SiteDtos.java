@@ -32,6 +32,14 @@ public final class SiteDtos {
     public record SiteStatsVo(long visits, int online) {
     }
 
+    /**
+     * 前台布局要用到的站点配置，匿名可读。
+     *
+     * @param contentWidth 页面内容区最大宽度（px），布局靠它换算，由管理员在后台调整
+     */
+    public record SiteConfigVo(int contentWidth) {
+    }
+
     /** 访客 id 由前端本地生成，只用于去重与心跳，服务端不落库。 */
     public record SiteVisitRequest(@Size(max = 64, message = "访客标识过长") String visitorId) {
     }

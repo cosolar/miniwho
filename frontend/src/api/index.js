@@ -142,6 +142,11 @@ export const statsApi = {
   ping: (visitorId) => client.post('/public/stats/ping', { visitorId })
 }
 
+export const siteApi = {
+  /** 前台布局要用的站点配置（目前只有内容宽度），无需鉴权。 */
+  config: () => client.get('/public/site-config')
+}
+
 export const adminApi = {
   stats: () => client.get('/admin/stats'),
   system: () => client.get('/admin/system'),
@@ -156,5 +161,7 @@ export const adminApi = {
   sample: () => client.get('/admin/sample'),
   setSample: (id, sample) => client.put(`/admin/resumes/${id}/sample`, { sample }),
   authSettings: () => client.get('/admin/settings'),
-  updateAuthSettings: (payload) => client.put('/admin/settings', payload)
+  updateAuthSettings: (payload) => client.put('/admin/settings', payload),
+  siteConfig: () => client.get('/admin/site-config'),
+  updateSiteConfig: (payload) => client.put('/admin/site-config', payload)
 }

@@ -10,6 +10,8 @@ import cn.minims.who.dto.AdminDtos.AdminFeedbackRequest;
 import cn.minims.who.dto.AdminDtos.AdminFeedbackVo;
 import cn.minims.who.dto.AdminDtos.AdminSampleRequest;
 import cn.minims.who.dto.AdminDtos.AdminSampleVo;
+import cn.minims.who.dto.AdminDtos.AdminSiteConfigRequest;
+import cn.minims.who.dto.AdminDtos.AdminSiteConfigVo;
 import cn.minims.who.dto.AdminDtos.AdminStatsVo;
 import cn.minims.who.dto.AdminDtos.AdminSystemVo;
 import cn.minims.who.dto.AdminDtos.AdminTemplateStatusRequest;
@@ -145,5 +147,16 @@ public class AdminController {
     public ApiResponse<AdminAuthSettingsVo> updateSettings(
             @Valid @RequestBody AdminAuthSettingsRequest request) {
         return ApiResponse.ok(adminService.updateAuthSettings(request));
+    }
+
+    /** 站点外观：目前只有内容宽度，它决定前台页面外壳的最大宽度。 */
+    @GetMapping("/site-config")
+    public ApiResponse<AdminSiteConfigVo> siteConfig() {
+        return ApiResponse.ok(adminService.siteConfig());
+    }
+
+    @PutMapping("/site-config")
+    public ApiResponse<AdminSiteConfigVo> updateSiteConfig(@RequestBody AdminSiteConfigRequest request) {
+        return ApiResponse.ok(adminService.updateSiteConfig(request));
     }
 }

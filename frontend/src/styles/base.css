@@ -27,6 +27,8 @@
   --shadow: 0 2px 8px rgba(31, 38, 32, 0.05), 0 20px 44px -24px rgba(31, 38, 32, 0.24);
   --shadow-lg: 0 30px 80px -32px rgba(24, 38, 31, 0.34), 0 8px 24px rgba(24, 38, 31, 0.06);
   --header-h: 72px;
+  /* 站点内容区最大宽度：管理员可在后台改，前端启动时从 /api/public/site-config 覆写。 */
+  --content-width: 1200px;
   --el-color-primary: #0a7d76;
   --el-color-primary-light-3: #54a49f;
   --el-color-primary-light-5: #84bebc;
@@ -96,7 +98,7 @@ ul, ol {
 }
 
 .container {
-  width: min(1200px, calc(100% - 64px));
+  width: min(var(--content-width), calc(100% - 64px));
   margin: 0 auto;
 }
 

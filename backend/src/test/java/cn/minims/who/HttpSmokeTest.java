@@ -18,6 +18,7 @@ import java.nio.file.Path;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -131,6 +132,35 @@ class HttpSmokeTest {
                         .content("{\"password\":\"x\"}"))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.code").value("TOO_MANY_REQUESTS"));
+    }
+
+    /**
+     * 内容宽度是匿名可读的布局参数：默认 1200，越界要拒绝而不是悄悄夹紧，
+     * 改完前台立刻能读到新值（HTTPS 缓存只是响应头，不影响服务端状态）。
+     */
+    @Test
+    @Order(7)
+    void 内容宽度默认一千二且越界被拒() throws Exception {
+        mockMvc.perform(get("/api/public/site-config"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.contentWidth").value(1200));
+
+        String token = login("admin", "smoke-admin");
+        mockMvc.perform(put("/api/admin/site-config")
+                        .header("satoken", token)
+                        .contentType("application/json")
+                        .content("{\"contentWidth\":2000}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+        mockMvc.perform(put("/api/admin/site-config")
+                        .header("satoken", token)
+                        .contentType("application/json")
+                        .content("{\"contentWidth\":1400}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.contentWidth").value(1400))
+                .andExpect(jsonPath("$.data.minWidth").value(1100));
+        mockMvc.perform(get("/api/public/site-config"))
+                .andExpect(jsonPath("$.data.contentWidth").value(1400));
     }
 
     private String login(String username, String password) throws Exception {

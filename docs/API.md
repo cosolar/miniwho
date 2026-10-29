@@ -60,11 +60,12 @@ satoken: <token>
 
 - `GET /health`
 - `POST /auth/login`
-- `POST /auth/register`（需管理员在「认证设置」打开用户名注册，否则 403）
+- `POST /auth/register`（需管理员在「站点设置」打开用户名注册，否则 403）
 - `POST /auth/email-code`、`POST /auth/register-email`（需打开邮箱注册且 SMTP 已配置，否则 403）
 - `POST /auth/password-code`、`POST /auth/password-reset`（找回密码，只要求 SMTP 已配置，见 2.11）
 - `GET /auth/oauth/github`、`GET /auth/oauth/github/callback`（GitHub 登录的两个浏览器跳转入口，只回 302，不给 XHR 用）
 - `GET /public/auth-config`（登录页据此决定渲染哪些注册 / 登录入口）
+- `GET /public/site-config`（前台布局参数，目前只有内容宽度，见 1.7）
 - `GET /public/stats`、`POST /public/stats/visit`、`POST /public/stats/ping`（首页页脚的访问量与在线数）
 - `GET /templates`、`GET /templates/{code}`
 - `GET /templates/{code}/export`（官方包，以及作者允许导出的已分享包；其余情况要登录且是作者或管理员）
@@ -176,11 +177,42 @@ object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; 
 
 HSTS 的判定同时看直连 TLS 与 `X-Forwarded-Proto`——反向代理终结 HTTPS 时容器只知道自己是 http。明文站点不发这个头，否则会把用户之后的 http 访问一起锁死。该判定只用于决定要不要发 HSTS，不参与任何鉴权。
 
+### 1.7 站点配置（无需登录）
+
+```http
+GET /api/public/site-config
+```
+
+```json
+{
+  "code": "OK",
+  "message": "ok",
+  "data": { "contentWidth": 1200 }
+}
+```
+
+前台所有页面外壳的宽度都靠 `contentWidth`，管理员在后台「站点设置」里调（见 10.13）。默认 `1200`，合法区间 `1100`–`1600`。前端把它写进 CSS 变量 `--content-width`：
+
+| 页面 | 实际宽度 |
+| --- | --- |
+| 首页、模板中心、我的简历 | `min(var(--content-width), 100% - 64px)` |
+| 工作台、预览页、登录后顶栏 | `min(var(--content-width) + 80px, 100% - 48px)` |
+| 个人中心、管理后台、诊断报告 | `min(var(--content-width), 100% - 56px)` |
+| 分享页顶栏与内容 | `min(var(--content-width), 100% - 48px)` |
+
+工作台与预览页多 80px 是有意的：它们要并排放编辑器 / 侧栏，沿用原本比正文宽一档的关系。窗口比设定值窄时按百分比收缩，不会横向滚动。
+
+卡片网格用 `auto-fill` + 最小卡宽（模板中心 340px、我的简历 320px），列数是宽度的结果而不是写死的：模板中心默认 1200px 三列，调到 1600px 自动变四列。用 `auto-fill` 而非 `auto-fit`，是为了让筛选后或简历较少时留出空轨道、卡片保持原尺寸，而不是被拉胖填满整行。
+
+不跟这个值的只有登录页的表单卡片与简历纸面（A4 固定 794px）。
+
+响应带 `Cache-Control: no-store`。这里没有沿用其它公开接口的 30 秒缓存：管理员保存后刷新页面本就期待立刻看到新宽度，缓存带来的「保存了却没变」只会被当成功能坏了。
+
 ---
 
 ## 2. 认证与个人资料
 
-三种注册 / 登录方式（用户名注册、邮箱注册、GitHub 登录）都由管理后台的「认证设置」控制，并且要对应通道已经配置好才会真正开放；通道既能用环境变量配，也能直接在同一页的「通道配置」里填，保存即生效（见 10.10）。除用户名密码登录外，所有注册入口在被管理员关闭时统一返回 `403 FORBIDDEN`。
+三种注册 / 登录方式（用户名注册、邮箱注册、GitHub 登录）都由管理后台的「站点设置」控制，并且要对应通道已经配置好才会真正开放；通道既能用环境变量配，也能直接在同一页的「通道配置」里填，保存即生效（见 10.10）。除用户名密码登录外，所有注册入口在被管理员关闭时统一返回 `403 FORBIDDEN`。
 
 ### 2.1 注册 / 登录方式配置（无需登录）
 
@@ -267,7 +299,7 @@ Content-Type: application/json
 { "email": "me@example.com" }
 ```
 
-`data` 为 `null`。邮件由标准 SMTP 发出（通道配置取自后台「认证设置」，其次 `MINIWHO_MAIL_*`，见部署指南 2.4），正文是 6 位数字验证码，10 分钟内有效。邮件同时带 HTML 与纯文本两份正文，品牌 LOGO 以内联附件（`cid`）跟着走，不引用任何外部图片地址。
+`data` 为 `null`。邮件由标准 SMTP 发出（通道配置取自后台「站点设置 → 通道配置」，其次 `MINIWHO_MAIL_*`，见部署指南 2.4），正文是 6 位数字验证码，10 分钟内有效。邮件同时带 HTML 与纯文本两份正文，品牌 LOGO 以内联附件（`cid`）跟着走，不引用任何外部图片地址。
 
 限制与失败码：
 
@@ -2031,6 +2063,48 @@ Content-Type: application/json
 6–32 位，不做其他复杂度要求（与注册同档）。这是自助重置（2.11）走不通时的兜底：邮箱没验证过、收不到信、或者账号本来就没绑邮箱，都只能由管理员在这里直接设。
 
 不能对当前登录的管理员自己使用（`400`「请改用个人中心的「修改密码」修改自己的密码」），账号不存在返回 `404`。设完会吊销该账号的全部登录态，包括第三方登录建的无密码账号——这次写入会把 `has_password` 置为 `1`，该账号从此也能用密码登录。返回 `data: null`。
+
+### 10.13 站点外观（内容宽度）
+
+```http
+GET /api/admin/site-config
+satoken: <admin token>
+```
+
+```json
+{
+  "code": "OK",
+  "message": "ok",
+  "data": {
+    "contentWidth": 1200,
+    "minWidth": 1100,
+    "maxWidth": 1600,
+    "defaultWidth": 1200
+  }
+}
+```
+
+区间与默认值随响应一起下发，后台滑杆和数字框的上下限因此不用在前端硬编码——以后调区间只改服务端。
+
+```http
+PUT /api/admin/site-config
+satoken: <admin token>
+Content-Type: application/json
+```
+
+```json
+{ "contentWidth": 1400 }
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `contentWidth` | 整数 px，必须在 `minWidth`–`maxWidth` 之间；`null` / 省略表示本次不改动 |
+
+越界返回 `400`「内容宽度需在 1100–1600 px 之间」，**不会静默夹到边界值**：管理员填 2000 却看到 1600，只会以为保存坏了。响应与 `GET` 同构，是保存后的最新值。
+
+值存在 `site_settings` 的 `content_width` 里，和 10.10 的开关同一张表、同一个内存缓存，所以**保存即生效，不需要重启**。两条接口行为上的差别：`PUT` 严格校验并拒绝越界；读取路径（含 1.7 的公开接口）会把手工改库改出的野值夹回合法区间，因为那只是布局难看，没必要让整站报错。
+
+改完立刻生效的是**后台这次会话**：后台保存后会直接改写当前页面的 CSS 变量，管理员切到前台标签页刷新即可看到；其它访客的设备在下一次加载页面时拿到新值。前端为免启动时先闪一下默认宽度，会把上次的宽度缓存进 `localStorage`，再异步向 1.7 校正。
 
 ---
 

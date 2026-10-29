@@ -12,6 +12,8 @@ import cn.minims.who.dto.AdminDtos.AdminAuthSettingsVo;
 import cn.minims.who.dto.AdminDtos.AdminFeedbackVo;
 import cn.minims.who.dto.AdminDtos.AdminRecentUserVo;
 import cn.minims.who.dto.AdminDtos.AdminSampleVo;
+import cn.minims.who.dto.AdminDtos.AdminSiteConfigRequest;
+import cn.minims.who.dto.AdminDtos.AdminSiteConfigVo;
 import cn.minims.who.dto.AdminDtos.AdminStatsVo;
 import cn.minims.who.dto.AdminDtos.AdminTemplateVo;
 import cn.minims.who.dto.AdminDtos.AdminUserVo;
@@ -45,12 +47,14 @@ public class AdminService {
     private final ResumeReportMapper reportMapper;
     private final TemplateService templateService;
     private final AuthSettingsService authSettingsService;
+    private final SettingsService settingsService;
     private final StorageUsageService storageUsage;
 
     public AdminService(UserMapper userMapper, ResumeMapper resumeMapper, TemplateMapper templateMapper,
                         FeedbackMapper feedbackMapper, ResumeShareMapper shareMapper,
                         ResumeReportMapper reportMapper, TemplateService templateService,
-                        AuthSettingsService authSettingsService, StorageUsageService storageUsage) {
+                        AuthSettingsService authSettingsService, SettingsService settingsService,
+                        StorageUsageService storageUsage) {
         this.userMapper = userMapper;
         this.resumeMapper = resumeMapper;
         this.templateMapper = templateMapper;
@@ -59,6 +63,7 @@ public class AdminService {
         this.reportMapper = reportMapper;
         this.templateService = templateService;
         this.authSettingsService = authSettingsService;
+        this.settingsService = settingsService;
         this.storageUsage = storageUsage;
     }
 
@@ -70,6 +75,24 @@ public class AdminService {
     public AdminAuthSettingsVo updateAuthSettings(AdminAuthSettingsRequest request) {
         authSettingsService.apply(request);
         return authSettingsService.adminConfig();
+    }
+
+    public AdminSiteConfigVo siteConfig() {
+        return new AdminSiteConfigVo(settingsService.contentWidth(), SettingsService.CONTENT_WIDTH_MIN,
+                SettingsService.CONTENT_WIDTH_MAX, SettingsService.CONTENT_WIDTH_DEFAULT);
+    }
+
+    /** 越界直接拒绝而不是悄悄夹紧：管理员填了 2000 却看到 1600，会以为是保存坏了。 */
+    public AdminSiteConfigVo updateSiteConfig(AdminSiteConfigRequest request) {
+        Integer width = request.contentWidth();
+        if (width != null) {
+            if (width < SettingsService.CONTENT_WIDTH_MIN || width > SettingsService.CONTENT_WIDTH_MAX) {
+                throw BizException.badRequest("内容宽度需在 %d–%d px 之间".formatted(
+                        SettingsService.CONTENT_WIDTH_MIN, SettingsService.CONTENT_WIDTH_MAX));
+            }
+            settingsService.set(SettingsService.CONTENT_WIDTH, String.valueOf(width));
+        }
+        return siteConfig();
     }
 
     public AdminStatsVo stats() {

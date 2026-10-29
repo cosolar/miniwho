@@ -109,4 +109,14 @@ public final class AdminDtos {
                                            @Size(max = 200) String githubClientSecret,
                                            @Size(max = 200) String publicBaseUrl) {
     }
+
+    /**
+     * 站点外观：当前内容宽度连同可选区间一起回给后台，滑杆的上下限就不必在前端硬编码。
+     */
+    public record AdminSiteConfigVo(int contentWidth, int minWidth, int maxWidth, int defaultWidth) {
+    }
+
+    /** null 表示这次不改动；其余值由服务端按区间校验。 */
+    public record AdminSiteConfigRequest(Integer contentWidth) {
+    }
 }
