@@ -570,7 +570,7 @@ onMounted(loadTemplates)
   display: flex;
   flex-direction: column;
   gap: 22px;
-  max-width: 1080px;
+  width: min(var(--content-width), calc(100% - 64px));
   margin: 0 auto;
 }
 

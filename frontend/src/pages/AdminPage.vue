@@ -2,13 +2,14 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  ChatDotSquare, Check, Close, DataBoard, Document, Download, Grid, Key, Message, Odometer, Refresh, Search, Share,
+  ChatDotSquare, Check, Close, DataBoard, Document, Download, Grid, Odometer, Refresh, Search, Setting, Share,
   User, UserFilled, View
 } from '@element-plus/icons-vue'
 import AppLayout from '../layouts/AppLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import { adminApi, templateApi } from '../api'
 import { notifyError } from '../api/client'
+import { applyContentWidth } from '../utils/appearance'
 import { formatDate, formatDateTime, formatFileSize, saveBlob } from '../utils/format'
 
 const auth = useAuthStore()
@@ -41,13 +42,22 @@ const mailForm = reactive({
 })
 const githubForm = reactive({ clientId: '', clientSecret: '', publicBaseUrl: '' })
 
+const siteConfig = ref(null)
+const siteWidth = ref(1200)
+const widthSaving = ref(false)
+
 const tabs = computed(() => [
   { key: 'overview', label: '运营概览', icon: DataBoard },
   { key: 'users', label: '用户管理', icon: UserFilled, count: users.value.length },
   { key: 'templates', label: '模板管理', icon: Grid, count: templates.value.length },
   { key: 'feedback', label: '意见反馈', icon: ChatDotSquare, count: pendingFeedback.value.length },
-  { key: 'auth', label: '认证设置', icon: Key }
+  { key: 'site', label: '站点设置', icon: Setting }
 ])
+
+/** 示意块按 1600px 窗口等比缩放：上限宽度刚好铺满，默认 1200px 占四分之三。 */
+const DEMO_VIEWPORT = 1600
+const widthDemoStyle = computed(() => ({ width: `${Math.min(100, (siteWidth.value / DEMO_VIEWPORT) * 100)}%` }))
+const widthGutter = computed(() => Math.max(0, Math.round((DEMO_VIEWPORT - siteWidth.value) / 2)))
 
 const filteredUsers = computed(() => {
   const query = keyword.value.trim().toLowerCase()
@@ -66,14 +76,14 @@ const visibleFeedback = computed(() => {
 
 const overviewCards = computed(() => {
   const data = stats.value || {}
+  // 待处理反馈不进这一条：它是「待办」不是「统计」，页签角标与下方待处理面板都能看到。
   return [
     { key: 'users', label: '注册用户', value: data.users, delta: data.newUsers7d, deltaLabel: '近 7 天新增', icon: UserFilled },
     { key: 'resumes', label: '简历总数', value: data.resumes, delta: data.newResumes7d, deltaLabel: '近 7 天创建', icon: Document },
     { key: 'templates', label: '启用模板', value: data.templates, icon: Grid },
     { key: 'reports', label: '诊断报告', value: data.reports, icon: DataBoard },
     { key: 'shares', label: '分享链接', value: data.shares, icon: Share },
-    { key: 'storage', label: '上传占用', value: formatFileSize(data.storageBytes || 0), icon: Odometer },
-    { key: 'feedback', label: '待处理反馈', value: data.feedbackPending, icon: Message }
+    { key: 'storage', label: '上传占用', value: formatFileSize(data.storageBytes || 0), icon: Odometer }
   ]
 })
 
@@ -245,17 +255,38 @@ function syncChannelForm(data) {
   })
 }
 
-async function loadAuthSettings() {
+async function loadSiteSettings() {
   settingsLoading.value = true
   try {
-    const data = await adminApi.authSettings()
-    authSettings.value = data
-    syncAuthForm(data)
-    syncChannelForm(data)
+    const [authData, siteData] = await Promise.all([adminApi.authSettings(), adminApi.siteConfig()])
+    authSettings.value = authData
+    syncAuthForm(authData)
+    syncChannelForm(authData)
+    siteConfig.value = siteData
+    siteWidth.value = siteData.contentWidth
+    applyContentWidth(siteData.contentWidth)
   } catch (error) {
-    notifyError(error, '加载认证设置失败')
+    notifyError(error, '加载站点设置失败')
   } finally {
     settingsLoading.value = false
+  }
+}
+
+/** 保存后立刻写进 CSS 变量，管理员不用刷新就能在其它标签页看到效果。 */
+async function saveContentWidth() {
+  if (widthSaving.value) return
+  widthSaving.value = true
+  try {
+    const data = await adminApi.updateSiteConfig({ contentWidth: siteWidth.value })
+    siteConfig.value = data
+    siteWidth.value = data.contentWidth
+    applyContentWidth(data.contentWidth)
+    ElMessage.success('内容宽度已保存，前台刷新后按新宽度排版')
+  } catch (error) {
+    notifyError(error, '保存内容宽度失败')
+    await loadSiteSettings()
+  } finally {
+    widthSaving.value = false
   }
 }
 
@@ -269,7 +300,7 @@ async function saveAuthSettings() {
     ElMessage.success('设置已保存，登录页最多 30 秒后生效')
   } catch (error) {
     notifyError(error, '保存失败')
-    await loadAuthSettings()
+    await loadSiteSettings()
   } finally {
     settingsSaving.value = false
   }
@@ -290,7 +321,7 @@ async function saveChannel(group, payload, clear = false) {
     ElMessage.success(clear ? '已清空后台配置，回落到环境变量' : '已保存，立即生效，无需重启')
   } catch (error) {
     notifyError(error, '保存失败')
-    await loadAuthSettings()
+    await loadSiteSettings()
   } finally {
     channelSaving.value = ''
   }
@@ -343,7 +374,7 @@ async function copyText(text) {
 async function loadAll(showLoading = true) {
   if (showLoading) loading.value = true
   await Promise.all([
-    loadStats(), loadSystem(), loadUsers(), loadTemplates(), loadFeedback(), loadSample(), loadAuthSettings()
+    loadStats(), loadSystem(), loadUsers(), loadTemplates(), loadFeedback(), loadSample(), loadSiteSettings()
   ])
   loading.value = false
 }
@@ -540,7 +571,7 @@ onMounted(() => loadAll())
                   <span>+{{ card.delta ?? 0 }}</span>
                   {{ card.deltaLabel }}
                 </p>
-                <p v-else class="stat-delta">{{ card.key === 'feedback' ? '需要管理员回复' : '当前累计' }}</p>
+                <p v-else class="stat-delta">当前累计</p>
               </article>
             </div>
 
@@ -843,13 +874,73 @@ onMounted(() => loadAll())
             </ul>
           </section>
 
-          <section v-show="activeTab === 'auth'" class="admin-section">
+          <section v-show="activeTab === 'site'" class="admin-section">
             <div class="table-toolbar">
               <div>
-                <span class="card-kicker">Authentication</span>
-                <h2>认证设置 <small>注册与登录方式</small></h2>
+                <span class="card-kicker">Site settings</span>
+                <h2>站点设置 <small>内容宽度与登录方式</small></h2>
               </div>
-              <el-button size="small" :loading="settingsLoading" @click="loadAuthSettings">重新读取</el-button>
+              <el-button size="small" :loading="settingsLoading" @click="loadSiteSettings">重新读取</el-button>
+            </div>
+
+            <section class="surface site-width" v-loading="settingsLoading">
+              <header class="panel-head">
+                <div>
+                  <span class="card-kicker">Layout</span>
+                  <h2>内容宽度 <small>页面内容区最大宽度</small></h2>
+                </div>
+                <strong class="site-width__value">{{ siteWidth }}<span>px</span></strong>
+              </header>
+              <p class="auth-callback__hint">
+                全站页面（首页、模板中心、工作台、预览页、个人中心与本页）都按这个宽度排版：
+                窗口更宽时内容不再继续拉伸，窗口变窄时按屏幕自适应，不会出现横向滚动。默认 1200px。
+              </p>
+              <div class="site-width__control">
+                <el-slider
+                  v-model="siteWidth"
+                  :min="siteConfig?.minWidth || 1100"
+                  :max="siteConfig?.maxWidth || 1600"
+                  :step="20"
+                  :disabled="widthSaving"
+                />
+                <el-input-number
+                  v-model="siteWidth"
+                  :min="siteConfig?.minWidth || 1100"
+                  :max="siteConfig?.maxWidth || 1600"
+                  :step="20"
+                  controls-position="right"
+                  size="small"
+                  :disabled="widthSaving"
+                />
+              </div>
+              <div class="site-width__demo">
+                <div class="site-width__demo-frame">
+                  <div class="site-width__demo-content" :style="widthDemoStyle">
+                    <span>{{ siteWidth }}</span>
+                  </div>
+                </div>
+                <p class="site-width__demo-caption">
+                  1600px 窗口下的示意：内容区两侧各留 {{ widthGutter }}px
+                </p>
+              </div>
+              <div class="channel-actions">
+                <el-button type="primary" size="small" :loading="widthSaving" @click="saveContentWidth">
+                  保存宽度
+                </el-button>
+                <el-button
+                  size="small"
+                  text
+                  :disabled="widthSaving"
+                  @click="siteWidth = siteConfig?.defaultWidth || 1200"
+                >
+                  恢复默认
+                </el-button>
+              </div>
+            </section>
+
+            <div class="admin-subhead">
+              <span class="card-kicker">Authentication</span>
+              <h3>认证设置</h3>
             </div>
 
             <div class="surface auth-panel" v-loading="settingsLoading">
@@ -1093,7 +1184,7 @@ onMounted(() => loadAll())
 }
 
 .admin-shell {
-  width: min(1180px, calc(100% - 56px));
+  width: min(var(--content-width), calc(100% - 56px));
   margin: 0 auto;
 }
 
@@ -1876,6 +1967,85 @@ onMounted(() => loadAll())
 .auth-panel {
   margin-bottom: 22px;
   padding: 4px 24px;
+}
+
+.site-width {
+  margin-bottom: 26px;
+  padding: 24px 28px;
+}
+
+.site-width__value {
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.site-width__value span {
+  margin-left: 3px;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.site-width__control {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin: 4px 0 2px;
+}
+
+.site-width__control .el-slider {
+  flex: 1;
+}
+
+.site-width__demo {
+  margin-top: 10px;
+}
+
+.site-width__demo-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 74px;
+  padding: 0 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--paper-deep);
+}
+
+.site-width__demo-content {
+  display: grid;
+  place-items: center;
+  height: 42px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  transition: width 0.2s ease;
+}
+
+.site-width__demo-caption {
+  margin-top: 8px;
+  color: var(--faint);
+  font-size: 10.5px;
+}
+
+.site-width .channel-actions {
+  margin-top: 16px;
+}
+
+.admin-subhead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.admin-subhead h3 {
+  font-family: var(--serif);
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .auth-alert {

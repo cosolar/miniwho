@@ -114,7 +114,7 @@ function goBack() {
   grid-template-columns: minmax(0, 1fr) 400px;
   align-items: center;
   gap: 72px;
-  width: min(1060px, calc(100% - 64px));
+  width: min(var(--content-width), calc(100% - 64px));
   margin: auto;
   padding: 48px 0 64px;
 }

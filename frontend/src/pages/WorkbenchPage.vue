@@ -5,7 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import draggable from 'vuedraggable'
 import {
   Aim, ArrowLeft, Check, CircleCheck, Coffee, Cpu, DataAnalysis, Delete, Document, EditPen,
-  Flag, Hide, Medal, MoreFilled, Notebook, Paperclip, Picture, Plus, Postcard, Rank, Reading,
+  Flag, FullScreen, Hide, Medal, MoreFilled, Notebook, Paperclip, Picture, Plus, Postcard, Rank, Reading,
   Refresh, School, Star, Suitcase, Tools, Trophy, User, View, Warning
 } from '@element-plus/icons-vue'
 import AppLayout from '../layouts/AppLayout.vue'
@@ -1016,7 +1016,10 @@ onBeforeRouteLeave(async () => {
             <div class="side-preview">
               <div class="side-preview__head">
                 <span>{{ template.name }} · 共 {{ pageCount }} 页实时预览</span>
-                <button type="button" @click="previewPage()">放大</button>
+                <button type="button" class="side-preview__expand" @click="previewPage()">
+                  <el-icon><FullScreen /></el-icon>
+                  放大
+                </button>
               </div>
               <div class="side-preview__stage">
                 <PaperFrame
@@ -1026,6 +1029,14 @@ onBeforeRouteLeave(async () => {
                   :avatar="avatar"
                   @pages="(count) => (pageCount = count)"
                 />
+                <button
+                  type="button"
+                  class="side-preview__zoom"
+                  aria-label="放大预览"
+                  @click="previewPage()"
+                >
+                  <span><el-icon><FullScreen /></el-icon>点击查看完整预览</span>
+                </button>
               </div>
               <div class="side-preview__foot">
                 <span>A4 · 210 × 297mm</span>
@@ -1121,7 +1132,7 @@ onBeforeRouteLeave(async () => {
 
 <style scoped>
 .wb-loading {
-  width: min(1200px, calc(100% - 64px));
+  width: min(var(--content-width), calc(100% - 64px));
   margin: 0 auto;
   padding: 70px 0;
 }
@@ -1168,7 +1179,7 @@ onBeforeRouteLeave(async () => {
 }
 
 .workbench-inner {
-  width: min(1280px, calc(100% - 48px));
+  width: min(calc(var(--content-width) + 80px), calc(100% - 48px));
   margin: 0 auto;
 }
 
@@ -2001,11 +2012,83 @@ onBeforeRouteLeave(async () => {
   cursor: pointer;
 }
 
+/* 原来只是一行 9px 纯文字，点击区不到 20×12px，几乎点不中。
+   给一个真正的按钮外观与内边距，至少 26px 高。 */
+.side-preview__head .side-preview__expand {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgba(10, 125, 118, 0.28);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.side-preview__head .side-preview__expand:hover {
+  border-color: var(--accent);
+  background: rgba(10, 125, 118, 0.16);
+}
+
+.side-preview__head .side-preview__expand .el-icon {
+  font-size: 11px;
+}
+
 .side-preview__stage {
+  position: relative;
   padding: 12px;
   background:
     radial-gradient(400px 300px at 50% -20%, rgba(10, 125, 118, 0.08), transparent),
     var(--canvas-deep);
+}
+
+/* 整张缩略图都能点：透明按钮铺满舞台，光标变放大镜，悬停浮出一枚提示胶囊。
+   提示贴舞台上沿而不是垂直居中：侧栏是 sticky 的，舞台比视口高，居中的提示会落到视口外。 */
+.side-preview__zoom {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 14px 12px;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+  transition: background 0.16s ease;
+}
+
+.side-preview__zoom span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(18, 33, 29, 0.82);
+  color: #f4f8f4;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.side-preview__zoom:hover {
+  background: rgba(18, 33, 29, 0.06);
+}
+
+.side-preview__zoom:hover span,
+.side-preview__zoom:focus-visible span {
+  opacity: 1;
+  transform: none;
+}
+
+.side-preview__zoom:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .side-preview__stage :deep(.paper-scaler__paper) {

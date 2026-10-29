@@ -739,6 +739,7 @@ onBeforeUnmount(() => {
                   {{ storageQuota
                     ? '附件、头像与条目图片都计入，回收站里的简历同样占盘。'
                     : '部署者没有为单个账号设置存储上限。' }}
+                  原图上传时会压到版面需要的尺寸（照片长边 600px，校徽与账号头像 256px），这里统计的是压缩落盘后的字节。
                 </p>
               </div>
             </section>
@@ -763,7 +764,7 @@ onBeforeUnmount(() => {
 }
 
 .profile-shell {
-  width: min(1060px, calc(100% - 56px));
+  width: min(var(--content-width), calc(100% - 56px));
   margin: 0 auto;
 }
 

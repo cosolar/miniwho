@@ -394,7 +394,7 @@ onMounted(async () => {
 }
 
 .dashboard-inner {
-  width: min(1200px, calc(100% - 64px));
+  width: min(var(--content-width), calc(100% - 64px));
   margin: 0 auto;
 }
 
@@ -546,7 +546,9 @@ onMounted(async () => {
 
 .resume-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* 列数跟着内容宽度走（默认 1200px 三列、1600px 四列）。
+     auto-fill 而不是 auto-fit：简历不到一屏时要留出空轨道，卡片不被拉胖。 */
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 22px;
 }
 

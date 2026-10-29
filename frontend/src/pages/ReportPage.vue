@@ -342,7 +342,7 @@ onMounted(load)
 }
 
 .report-shell {
-  width: min(1080px, calc(100% - 56px));
+  width: min(var(--content-width), calc(100% - 56px));
   margin: 0 auto;
 }
 

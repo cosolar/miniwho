@@ -835,7 +835,7 @@ onBeforeRouteLeave(async () => {
 
 <style scoped>
 .preview-loading {
-  width: min(1280px, calc(100% - 48px));
+  width: min(calc(var(--content-width) + 80px), calc(100% - 48px));
   margin: 0 auto;
   padding: 60px 0;
 }
@@ -878,7 +878,9 @@ onBeforeRouteLeave(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 12px max(24px, calc((100% - 1280px) / 2));
+  /* 左右让出与 .preview-layout 相同的边距（外壳宽度 = 内容宽度 + 80px），
+     这样「返回编辑」和右侧按钮组分别与下方舞台、样式面板的外沿对齐。 */
+  padding: 12px max(24px, calc((100% - var(--content-width) - 80px) / 2));
   border-bottom: 1px solid var(--line);
   background: rgba(244, 241, 233, 0.9);
   backdrop-filter: blur(14px);
@@ -986,7 +988,7 @@ onBeforeRouteLeave(async () => {
   grid-template-columns: minmax(0, 1fr) 312px;
   gap: 26px;
   align-items: start;
-  width: min(1280px, calc(100% - 48px));
+  width: min(calc(var(--content-width) + 80px), calc(100% - 48px));
   margin: 22px auto 0;
 }
 

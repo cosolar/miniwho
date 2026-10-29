@@ -284,7 +284,7 @@ onMounted(load)
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  width: min(1180px, calc(100% - 48px));
+  width: min(var(--content-width), calc(100% - 48px));
   margin: 0 auto;
   padding: 20px 0;
 }
@@ -474,7 +474,7 @@ onMounted(load)
 }
 
 .share-content {
-  width: min(1040px, calc(100% - 48px));
+  width: min(var(--content-width), calc(100% - 48px));
   margin: 0 auto;
   padding-bottom: 50px;
 }

@@ -100,7 +100,7 @@ async function handleCommand(command) {
   display: flex;
   align-items: center;
   gap: 34px;
-  width: min(1280px, calc(100% - 48px));
+  width: min(calc(var(--content-width) + 80px), calc(100% - 48px));
   height: 62px;
   margin: 0 auto;
 }

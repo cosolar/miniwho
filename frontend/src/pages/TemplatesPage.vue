@@ -1,8 +1,8 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Download, Search, User, View, Check } from '@element-plus/icons-vue'
+import { ArrowDown, Download, Search, User, View, Check } from '@element-plus/icons-vue'
 import TemplateThumb from '../components/TemplateThumb.vue'
 import PaperFrame from '../components/PaperFrame.vue'
 import { TEMPLATE_CATEGORIES } from '../data/templatePresets'
@@ -51,6 +51,63 @@ const filtered = computed(() => templates.value.filter((template) => {
   const inKeyword = !keyword.value.trim() || text.includes(keyword.value.trim().toLowerCase())
   return inCategory && inKeyword
 }))
+
+// 分类固定一行：放不下的收进「更多」下拉，而不是横向滚动（桌面滚轮不横向、滚动条也藏起来了，等于不可用）。
+const pillsRow = ref(null)
+const visibleCount = ref(999)
+const visibleCategories = computed(() => categories.value.slice(0, visibleCount.value))
+const hiddenCategories = computed(() => categories.value.slice(visibleCount.value))
+const activeHidden = computed(() => hiddenCategories.value.includes(category.value))
+
+let measuring = false
+let measurePending = false
+
+async function measurePills() {
+  if (measuring) {
+    measurePending = true
+    return
+  }
+  const row = pillsRow.value
+  if (!row) return
+  measuring = true
+  // 先让全部胶囊参与布局量宽度，再决定裁到哪里；两步都在同一帧内完成，不会闪。
+  visibleCount.value = categories.value.length
+  await nextTick()
+  const available = row.clientWidth
+  const pills = [...row.querySelectorAll('button[data-cat]')]
+  const widths = categories.value.map((cat) => {
+    const pill = pills.find((item) => item.dataset.cat === cat)
+    return pill ? pill.offsetWidth : 0
+  })
+  const gap = 6
+  const total = widths.reduce((sum, width) => sum + width, 0) + gap * (widths.length - 1)
+  if (total <= available - 2) {
+    visibleCount.value = widths.length
+  } else {
+    const moreWidth = row.querySelector('button[data-more]')?.offsetWidth || 78
+    let used = 0
+    let fit = 0
+    for (let i = 0; i < widths.length; i += 1) {
+      const need = widths[i] + (i ? gap : 0)
+      if (used + need + gap + moreWidth <= available - 2) {
+        used += need
+        fit = i + 1
+      } else {
+        break
+      }
+    }
+    visibleCount.value = fit
+  }
+  measuring = false
+  if (measurePending) {
+    measurePending = false
+    measurePills()
+  }
+}
+
+function pickCategory(cat) {
+  category.value = cat
+}
 
 function openTemplate(template) {
   selectedTemplate.value = template
@@ -117,12 +174,17 @@ async function exportPackage(template) {
 
 onMounted(async () => {
   await refreshTemplates()
+  measurePills()
   const code = route.query.use
   if (code && auth.isLoggedIn) {
     const template = templates.value.find((item) => item.code === code)
     if (template) openTemplate(template)
   }
 })
+
+watch(categories, measurePills, { flush: 'post' })
+window.addEventListener('resize', measurePills)
+onBeforeUnmount(() => window.removeEventListener('resize', measurePills))
 </script>
 
 <template>
@@ -147,17 +209,43 @@ onMounted(async () => {
     <section class="templates-body">
       <div class="container">
         <div class="filter-bar">
-          <div class="category-pills">
+          <div ref="pillsRow" class="category-pills">
             <button
-              v-for="cat in categories"
+              v-for="cat in visibleCategories"
               :key="cat"
               type="button"
+              :data-cat="cat"
               :class="{ active: category === cat }"
               @click="category = cat"
             >
               {{ cat }}
               <span>{{ countOf(cat) }}</span>
             </button>
+            <el-dropdown v-if="hiddenCategories.length" trigger="click" popper-class="category-dropdown" @command="pickCategory">
+              <button type="button" data-more :class="{ active: activeHidden }">
+                <template v-if="activeHidden">
+                  {{ category }}
+                  <span>{{ countOf(category) }}</span>
+                </template>
+                <template v-else>
+                  更多
+                  <el-icon><ArrowDown /></el-icon>
+                </template>
+              </button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    v-for="cat in hiddenCategories"
+                    :key="cat"
+                    :command="cat"
+                    :class="{ 'is-current': category === cat }"
+                  >
+                    {{ cat }}
+                    <span class="category-dropdown__count">{{ countOf(cat) }}</span>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
           <div class="filter-search">
             <el-input v-model="keyword" placeholder="搜索模板、场景或标签" clearable>
@@ -352,21 +440,27 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 20px;
   margin-bottom: 38px;
 }
 
+/* 分类保持单行：放不下的胶囊交给「更多」下拉，不做横向滚动。 */
 .category-pills {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 2px 0;
+  overflow: hidden;
 }
 
 .category-pills button {
   display: inline-flex;
+  flex: none;
   align-items: center;
-  gap: 7px;
-  padding: 7px 14px;
+  gap: 6px;
+  padding: 6px 11px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: rgba(255, 254, 251, 0.5);
@@ -375,6 +469,35 @@ onMounted(async () => {
   font-size: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.category-pills > :deep(.el-dropdown) {
+  display: inline-flex;
+  flex: none;
+}
+
+.category-pills button .el-icon {
+  font-size: 12px;
+}
+
+/* 下拉菜单挂在 body 上，样式要走 :global。 */
+:global(.category-dropdown .el-dropdown-menu__item) {
+  padding: 7px 14px;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 12px;
+}
+
+:global(.category-dropdown .el-dropdown-menu__item.is-current) {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+:global(.category-dropdown .category-dropdown__count) {
+  margin-left: 8px;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 9px;
 }
 
 .category-pills button span {
@@ -399,13 +522,15 @@ onMounted(async () => {
 }
 
 .filter-search {
-  width: 260px;
+  width: 220px;
   flex-shrink: 0;
 }
 
 .template-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* 列数跟着内容宽度走（默认 1200px 三列、1600px 四列）。
+     auto-fill 而不是 auto-fit：筛选后只剩几张时也保持卡片尺寸，不被拉胖。 */
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 40px 26px;
 }
 
@@ -791,6 +916,10 @@ onMounted(async () => {
   .filter-bar {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .category-pills {
+    flex: none;
   }
 
   .filter-search {
