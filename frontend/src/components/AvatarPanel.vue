@@ -289,4 +289,24 @@ async function remove() {
 .avatar-panel__input {
   display: none;
 }
+
+@media (max-width: 520px) {
+  .avatar-panel__actions {
+    flex: 1;
+    min-width: 0;
+    justify-items: stretch;
+  }
+
+  .avatar-btn {
+    justify-content: center;
+  }
+
+  .avatar-shape {
+    display: flex;
+  }
+
+  .avatar-shape button {
+    flex: 1;
+  }
+}
 </style>

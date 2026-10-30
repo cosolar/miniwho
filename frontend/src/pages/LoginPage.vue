@@ -311,6 +311,11 @@ onMounted(async () => {
     </aside>
 
     <main class="auth-main">
+      <header class="auth-mobile-head">
+        <BrandLogo />
+        <router-link to="/" class="back-home">返回首页 ↗</router-link>
+      </header>
+
       <div class="auth-card">
         <div v-if="canRegister && !isReset" class="auth-tabs" role="tablist">
           <button type="button" role="tab" :class="{ active: !isRegister }" @click="switchMode('login')">登录</button>
@@ -660,6 +665,11 @@ onMounted(async () => {
   width: min(420px, 100%);
 }
 
+/* 桌面端品牌在左侧深色栏里，手机上没有那一栏，所以单独补一条。 */
+.auth-mobile-head {
+  display: none;
+}
+
 .auth-tabs {
   position: relative;
   display: flex;
@@ -960,13 +970,47 @@ onMounted(async () => {
   }
 
   .auth-main {
-    padding: 40px 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 20px;
+    min-height: 100svh;
+    padding: 20px 24px 40px;
+  }
+
+  .auth-mobile-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: min(420px, 100%);
+    margin: 0 auto;
+  }
+
+  .auth-mobile-head .back-home {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .auth-card {
+    width: min(420px, 100%);
+    margin: 0 auto;
+    padding: 26px 24px 28px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--paper);
+    box-shadow: 0 24px 50px -38px rgba(23, 35, 30, 0.55);
   }
 }
 
 @media (max-width: 520px) {
   .auth-main {
-    padding: 28px 20px;
+    padding: 16px 16px 32px;
+  }
+
+  .auth-card {
+    padding: 22px 18px 24px;
+    border-radius: 14px;
   }
 
   .auth-tabs {
@@ -975,6 +1019,20 @@ onMounted(async () => {
 
   .auth-heading h1 {
     font-size: 26px;
+  }
+
+  .demo-hint {
+    flex-wrap: wrap;
+  }
+
+  .demo-hint p {
+    flex-basis: calc(100% - 28px);
+    font-size: 11px;
+  }
+
+  .demo-hint button {
+    margin-left: auto;
+    font-size: 11px;
   }
 }
 </style>

@@ -1118,11 +1118,7 @@ onMounted(async () => {
   }
 
   .dash-note {
-    flex-wrap: wrap;
-  }
-
-  .dash-note .link-arrow {
-    margin-left: 64px;
+    align-items: flex-start;
   }
 }
 
@@ -1132,19 +1128,56 @@ onMounted(async () => {
   }
 
   .stat-strip {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .stat-item {
+    padding: 14px 12px;
+  }
+
+  .stat-item > span {
+    font-size: 10px;
+    letter-spacing: 0;
+  }
+
+  .stat-item__value strong {
+    font-size: 24px;
+  }
+
+  .stat-item p {
+    display: none;
   }
 
   .stat-advice {
-    grid-column: auto;
+    grid-column: 1 / -1;
+    padding: 15px 16px;
+  }
+
+  .stat-advice p {
+    margin-top: 6px;
+    font-size: 10.5px;
+  }
+
+  /* 手机上原来靠 flex-wrap 换行，文字块会被压成一条窄列，每行只剩几个字。 */
+  .dash-note {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 34px;
+    padding-top: 22px;
+  }
+
+  .dash-note__quote {
+    font-size: 34px;
+  }
+
+  .dash-note > div:nth-child(2) {
+    flex: none;
+    width: 100%;
   }
 
   .resume-card--new {
     min-height: 210px;
-  }
-
-  .stat-item__value strong {
-    font-size: 32px;
   }
 
   .template-choices {

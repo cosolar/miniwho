@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { ArrowDown, QuestionFilled, WarningFilled } from '@element-plus/icons-vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ArrowDown, Collection, Document, Grid, QuestionFilled, User, WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import BrandLogo from '../components/BrandLogo.vue'
 import UserAvatar from '../components/UserAvatar.vue'
@@ -9,8 +9,11 @@ import { useAuthStore } from '../stores/auth'
 import { formatDateTime } from '../utils/format'
 
 const auth = useAuthStore()
+const route = useRoute()
 const router = useRouter()
 
+/** 工作台和预览是沉浸式编辑页，手机底部那排 tab 会把 A4 版面挤没，所以在路由上标了 immersive。 */
+const immersive = computed(() => Boolean(route.meta.immersive))
 /** 宽限期里的账号还能用，但每一页都要看得见「正在被清除」这件事，不然取消入口就藏太深了。 */
 const deletionScheduledAt = computed(() => auth.user?.deletionScheduledAt || null)
 /** 没设头像时的兜底：昵称首字，和顶栏原来的字母圆一致。 */
@@ -36,7 +39,7 @@ async function handleCommand(command) {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'app-shell--immersive': immersive }">
     <header class="app-header no-print">
       <div class="app-header__inner">
         <BrandLogo small />
@@ -76,6 +79,24 @@ async function handleCommand(command) {
     <main class="app-main">
       <slot />
     </main>
+    <nav v-if="!immersive" class="app-tabbar no-print" aria-label="主要导航">
+      <router-link to="/dashboard" class="app-tab" active-class="is-active">
+        <el-icon><Document /></el-icon>
+        <span>简历</span>
+      </router-link>
+      <router-link to="/templates" class="app-tab" active-class="is-active">
+        <el-icon><Grid /></el-icon>
+        <span>模板</span>
+      </router-link>
+      <router-link to="/my-templates" class="app-tab" active-class="is-active">
+        <el-icon><Collection /></el-icon>
+        <span>我的模板</span>
+      </router-link>
+      <router-link to="/profile" class="app-tab" active-class="is-active">
+        <el-icon><User /></el-icon>
+        <span>我的</span>
+      </router-link>
+    </nav>
   </div>
 </template>
 
@@ -201,6 +222,10 @@ async function handleCommand(command) {
   min-height: calc(100vh - 62px);
 }
 
+.app-tabbar {
+  display: none;
+}
+
 .deletion-strip {
   display: flex;
   align-items: center;
@@ -230,22 +255,76 @@ async function handleCommand(command) {
 
 @media (max-width: 700px) {
   .app-header__inner {
-    width: calc(100% - 28px);
-    gap: 18px;
+    width: calc(100% - 32px);
+    gap: 12px;
     height: 56px;
   }
 
   .app-nav {
-    gap: 14px;
+    display: none;
   }
 
-  .app-nav a {
-    font-size: 12px;
+  .app-actions {
+    gap: 12px;
+    margin-left: auto;
   }
 
-  .help-link span,
+  .app-user {
+    padding: 2px 6px 2px 2px;
+    border-color: var(--line);
+    background: var(--paper);
+  }
+
   .app-name {
     display: none;
+  }
+
+  .app-main {
+    padding-bottom: calc(62px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-shell--immersive .app-main {
+    padding-bottom: 0;
+  }
+
+  .app-tabbar {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 85;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 5px 6px calc(5px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--line);
+    background: rgba(251, 250, 246, 0.96);
+    backdrop-filter: blur(18px) saturate(1.2);
+  }
+
+  .app-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 5px 0 3px;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1;
+    transition: color 0.2s ease;
+  }
+
+  .app-tab .el-icon {
+    font-size: 19px;
+  }
+
+  .app-tab.is-active {
+    color: var(--accent);
+  }
+
+  .deletion-strip {
+    flex-wrap: wrap;
+    padding: 9px 16px;
+    line-height: 1.7;
   }
 }
 </style>

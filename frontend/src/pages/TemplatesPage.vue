@@ -929,16 +929,33 @@ onBeforeUnmount(() => window.removeEventListener('resize', measurePills))
 
 @media (max-width: 620px) {
   .templates-hero {
-    padding: 50px 0 38px;
+    padding: 32px 0 26px;
+  }
+
+  .templates-hero h1 {
+    margin: 12px 0 10px;
+  }
+
+  .templates-hero p {
+    font-size: 12.5px;
+    line-height: 1.85;
+  }
+
+  .templates-hero__meta strong {
+    font-size: 32px;
+  }
+
+  .templates-body {
+    padding: 24px 0 70px;
+  }
+
+  .filter-bar {
+    margin-bottom: 26px;
   }
 
   .template-grid {
     grid-template-columns: 1fr;
     gap: 32px;
-  }
-
-  .templates-body {
-    padding-bottom: 70px;
   }
 
   .template-note {

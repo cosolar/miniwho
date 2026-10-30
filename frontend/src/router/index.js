@@ -26,13 +26,13 @@ const routes = [
     path: '/resumes/:id(\\d+)',
     name: 'workbench',
     component: () => import('../pages/WorkbenchPage.vue'),
-    meta: { title: '编辑简历', requiresAuth: true }
+    meta: { title: '编辑简历', requiresAuth: true, immersive: true }
   },
   {
     path: '/resumes/:id(\\d+)/preview',
     name: 'preview',
     component: () => import('../pages/PreviewPage.vue'),
-    meta: { title: '预览与下载', requiresAuth: true }
+    meta: { title: '预览与下载', requiresAuth: true, immersive: true }
   },
   {
     path: '/resumes/:id(\\d+)/report',
@@ -56,7 +56,7 @@ const routes = [
     path: '/admin',
     name: 'admin',
     component: () => import('../pages/AdminPage.vue'),
-    meta: { title: '管理后台', requiresAuth: true, requiresAdmin: true }
+    meta: { title: '管理后台', requiresAuth: true, requiresAdmin: true, immersive: true }
   },
   {
     path: '/share/:token',

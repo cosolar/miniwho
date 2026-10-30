@@ -459,6 +459,21 @@ ul, ol {
     height: 44px;
     padding: 0 18px;
   }
+
+  /* 弹窗宽度都是按桌面写的固定值，手机上统一收到两侧各留 12px，页面里不必逐个再写一遍。
+     内容比屏幕高时让弹窗本体滚动，避免标题和按钮被顶出可视区。 */
+  .el-dialog {
+    display: flex;
+    flex-direction: column;
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+
+  .el-dialog > .el-dialog__body {
+    min-height: 0;
+    overflow-y: auto;
+  }
 }
 
 /* A4 paper & print */
