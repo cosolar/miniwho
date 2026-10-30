@@ -1,17 +1,22 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRight, Check, Key, Lock, View, Files, MagicStick } from '@element-plus/icons-vue'
 import PaperFrame from '../components/PaperFrame.vue'
 import TemplateThumb from '../components/TemplateThumb.vue'
 import { TEMPLATE_FALLBACKS } from '../data/templatePresets'
 import { useSampleResume } from '../composables/useSampleResume'
+import { useTemplates } from '../composables/useTemplates'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
 const auth = useAuthStore()
 const isDev = import.meta.env.DEV
 const { content: sampleContent, template: homeTemplate, displayName: sampleName, avatar: sampleAvatar } = useSampleResume()
+// 版式数量写死过一次（十二套 → 30 套），所以一律取模板目录的官方条目数：先用打包预设出数字，接口回来再覆盖。
+const { official, refresh: refreshTemplates } = useTemplates()
+const templateCount = computed(() => official.value.length)
+onMounted(refreshTemplates)
 const showcase = ['qinghe', 'qingwa', 'ceying', 'chengshi', 'moxian', 'chenxing', 'qihang', 'jianya']
   .map((code) => TEMPLATE_FALLBACKS.find((tpl) => tpl.code === code))
 const activeFaq = ref('')
@@ -36,11 +41,11 @@ const features = [
   }
 ]
 
-const steps = [
+const steps = computed(() => [
   {
     no: '01',
     title: '挑一版适合你的版式',
-    text: '30 套原创模板，覆盖校招、社招、技术与学术场景，多数在页眉留了证件照位置。所有模板永久免费，没有会员墙。',
+    text: `${templateCount.value} 套原创模板，覆盖校招、社招、技术与学术场景，多数在页眉留了证件照位置。所有模板永久免费，没有会员墙。`,
     type: 'template'
   },
   {
@@ -55,16 +60,16 @@ const steps = [
     text: '在 A4 版面上检查结果，用确定性规则诊断内容，再用浏览器打印成 PDF 或生成可控分享链接。',
     type: 'preview'
   }
-]
+])
 
-const faqs = [
+const faqs = computed(() => [
   {
     q: '这个项目真的免费吗？',
     a: '是的。极简简历以 Apache License 2.0 开源，没有会员、付费模板或导出限制。你可以直接使用，也可以部署到自己的服务器。'
   },
   {
     q: '简历数据存在哪里？',
-    a: '默认存储在你自己运行的后端 SQLite 数据库中，附件同样保存在本地目录；也可以切换到 MySQL 8。项目不依赖第三方 AI 或统计服务，数据不离开你的环境。'
+    a: '默认存储在你自己运行的后端 SQLite 数据库中，附件同样保存在本地目录；也可以切换到 MySQL 8。项目不包含广告或第三方统计脚本，数据不离开你的环境。'
   },
   {
     q: '可以导出 PDF 和 Word 吗？',
@@ -72,7 +77,7 @@ const faqs = [
   },
   {
     q: '为什么不是 1200 套模板？',
-    a: '这是一套可维护的开源项目，目前提供 30 套由同一渲染引擎驱动的原创版式，保证每一套都真的能用。后续新增模板只需补充一份配置。'
+    a: `这是一套可维护的开源项目，目前提供 ${templateCount.value} 套由同一渲染引擎驱动的原创版式，保证每一套都真的能用。后续新增模板只需补充一份配置。`
   },
   {
     q: '诊断是 AI 生成的吗？',
@@ -82,7 +87,7 @@ const faqs = [
     q: '手机上能完成编辑吗？',
     a: '可以。工作台在窄屏下会把模块导航收成横向标签，表单变为单列，预览页支持缩放查看。附件上传、保存和分享在手机端同样可用。'
   }
-]
+])
 </script>
 
 <template>
@@ -206,7 +211,7 @@ const faqs = [
         <div class="section-heading">
           <div>
             <div class="eyebrow">OUR TEMPLATES</div>
-            <h2>十二套版式，十二种语气。</h2>
+            <h2>{{ templateCount }} 套版式，{{ templateCount }} 种语气。</h2>
           </div>
           <div class="showcase-aside">
             <p>全部由同一套结构化内容驱动。现在看到的每一页，都是真实可用的简历模板。</p>
