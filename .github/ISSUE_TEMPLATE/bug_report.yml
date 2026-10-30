@@ -1,0 +1,74 @@
+name: 缺陷报告
+description: 功能不符合预期、报错、版面或导出异常
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请尽量把「环境 + 复现步骤 + 预期」写全，能省掉一轮来回。
+        安全问题**不要**发在这里，请走 [SECURITY.md](../../blob/main/SECURITY.md) 里的私密通道。
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我搜索过已有 issue，没有重复
+          required: true
+        - label: 我使用的是最新版本或 `latest` 镜像
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 镜像标签（如 `latest` 或具体版本号）或提交号
+      placeholder: latest
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: 部署方式
+      options:
+        - Docker 镜像 + 内置 SQLite
+        - Docker Compose + MySQL
+        - 源码运行（mvn + npm）
+        - 官方站点 who.minims.cn
+        - 其他
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: 环境
+      description: 浏览器 / 系统 / 设备（导出类问题请注明是否走了服务端 PDF）
+      placeholder: Chrome 130 / Windows 11 / 服务端 PDF 导出
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 从哪个页面开始、点了什么、用的哪个账号或模板
+      placeholder: |
+        1. 登录 demo 账号
+        2. 打开简历 → 预览 → 选「青瓦」模板
+        3. 点击「导出 PDF」
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期结果与实际结果
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 截图 / 日志
+      description: 后端日志可执行 `docker logs miniwho --tail=200`；请先去掉里面的邮箱、手机号等隐私信息

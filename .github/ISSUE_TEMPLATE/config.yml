@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞
+    url: https://github.com/cosolar/miniwho/security/advisories/new
+    about: 请走私密报告，不要在公开 issue 里贴漏洞细节。
+  - name: 部署问题自查
+    url: https://github.com/cosolar/miniwho/blob/main/docs/%E6%96%B0%E6%89%8B%E5%BA%94%E7%94%A8%E9%95%9C%E5%83%8F%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2%E6%95%99%E7%A8%8B.md
+    about: 装 Docker、拉镜像、Compose + MySQL、域名与 HTTPS、常见报错，先看这份教程。
