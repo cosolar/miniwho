@@ -100,7 +100,6 @@ onBeforeUnmount(() => {
           </a>
           <span>前端：Vue 3 + Element Plus</span>
           <span>后端：Spring Boot 3 + SQLite/MySQL</span>
-          <span>不依赖第三方 AI 服务</span>
           <div v-if="stats" class="footer-stats">
             <span class="footer-stats__live"><i></i>{{ stats.online }} 人在线</span>
             <span class="footer-stats__sep" aria-hidden="true"></span>

@@ -2,13 +2,20 @@
   <img src="docs/assets/logo-lockup.png" alt="极简简历 MiniWho · who.minims.cn" width="360" />
 </p>
 
-# 极简简历 MiniWho
+# 极简简历
+
+<p>
+  <a href="https://github.com/cosolar/miniwho/actions/workflows/ci.yml"><img src="https://github.com/cosolar/miniwho/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
+  <a href="https://hub.docker.com/r/cosolar/miniwho/tags"><img src="https://img.shields.io/docker/v/cosolar/miniwho?label=docker&color=0a7d76" alt="Docker image"></a>
+  <a href="https://who.minims.cn"><img src="https://img.shields.io/badge/demo-who.minims.cn-0a7d76.svg" alt="Demo"></a>
+</p>
 
 **把履历写清楚，比堆满一页更有力量。**
 
-极简简历 MiniWho 是一个可自部署的开源在线简历工作台。它用结构化模块代替花哨排版，让你专注在「做了什么、怎么做的、结果如何」；同时提供 30 套 A4 实时模板、可导出导入的模板包、证件照上传、服务端 PDF 导出、可控的分享链接和基于固定规则的简历诊断。
+极简简历（MiniWho） 是一个可自部署的开源在线简历工作台。它用结构化模块代替花哨排版，让你专注在「做了什么、怎么做的、结果如何」；同时提供 30 套官方 A4 实时模板（模板中心另有社区分享版式）、可导出导入的模板包、证件照上传、服务端 PDF 导出、可控的分享链接和基于固定规则的简历诊断。
 
-前端 Vue 3 + Element Plus，后端 Java 17 + Spring Boot 3 + Sa-Token + MyBatis-Plus，默认 SQLite、可选 MySQL 8。**全部功能免费，无会员、无付费模板、无外部 AI 调用。**
+前端 Vue 3 + Element Plus，后端 Java 17 + Spring Boot 3 + Sa-Token + MyBatis-Plus，默认 SQLite、可选 MySQL 8。**全部功能免费，无会员、无付费模板、无广告与第三方统计。**
 
 简历制作：**[who.minims.cn](https://who.minims.cn)**（官方站点）
 
@@ -22,6 +29,18 @@
 **Who** 是你是谁——简历的本质就是回答这个问题。名字合起来是 **用最小的篇幅回答「我是谁」**：不靠花哨排版和堆砌形容词，让每段经历自己说话。品牌域名 `who.minims.cn` 取的也是这个 Who。
 
 所以 Mini 不是「简陋」，而是克制：去掉多余的装饰，把注意力还给内容本身。
+
+---
+
+## 界面预览
+
+官方网站首页，右侧是真实渲染的 A4 简历（不是示意图）：
+
+![首页](docs/assets/shots/home.png)
+
+模板中心：36 套版式，官方 30 套随镜像发版，社区 6 套由用户分享，预览全部来自真实结构化内容：
+
+![模板中心](docs/assets/shots/templates.png)
 
 ---
 
@@ -121,10 +140,12 @@
 
 - [使用教程](docs/使用教程.md)
 - [部署指南](docs/部署指南.md)
+- [新手应用镜像快速部署教程](docs/新手应用镜像快速部署教程.md)
 - [API 文档](docs/API.md)
 - [模板包格式](docs/模板包格式.md)
 - [模板主题开发指南](docs/模板主题开发指南.md)
 - [自定义模板资源](docs/template/模版资源.md)：作者仍在维护的 6 套社区模板包存档（更早 18 套已随发版升级为官方模板）
+- [更新日志](CHANGELOG.md) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md)
 - [Apache License 2.0](LICENSE)
 ---
 
@@ -189,7 +210,7 @@ docker run -d --name miniwho \
   -e MINIWHO_DEMO_PASSWORD='改成强密码' \
   -e MINIWHO_MEDIA_SECRET="$(openssl rand -hex 32)" \
   --shm-size=512m \
-  cosolar/miniwho:1.0.6
+  cosolar/miniwho:latest
 ```
 
 访问 `http://localhost:8088`。镜像仅 `linux/amd64`，内置 Chromium 与 Noto CJK 字体，服务端 PDF 开箱可用；`MINIWHO_DB` 指向卷内，删容器不丢数据。
@@ -204,7 +225,7 @@ docker compose up -d --build
 
 访问 `http://localhost:8088`。前端页面与 API 打在**同一个镜像**里（前端产物随 jar 发布），对外只暴露一个端口；MySQL 仍是独立服务。
 
-只想用 MySQL、又不想本地构建时，把 compose 里的 `app` 改成 `image: cosolar/miniwho:1.0.6` 即可，现成文件与全部参数见 [部署指南](docs/部署指南.md)。
+只想用 MySQL、又不想本地构建时，把 compose 里的 `app` 改成 `image: cosolar/miniwho:latest` 即可，现成文件与全部参数见 [部署指南](docs/部署指南.md)。
 
 ---
 
@@ -327,7 +348,7 @@ GitHub OAuth App 的回调地址填 `https://<你的域名>/api/auth/oauth/githu
 - 账号头像走另一条通道 `uploads/user-avatars/{用户 ID}/`，不属于任何一份简历，只用在登录后的站内界面（分享页与导出 PDF 里出现的仍是那份简历自己的照片）；上传限 1MB，服务端压到长边 256px，注销账号时一并清除。
 - 删除简历会同时清理该简历的附件记录与磁盘文件、诊断报告记录，并撤销有效分享链接。
 - 分享页按白名单移除隐藏字段后返回，前端无法还原被隐藏的手机号或邮箱。
-- 评分在服务端本地计算，不调用第三方 AI 或分析服务。
+- 评分在服务端本地计算，不调用第三方分析服务。
 - 附件默认保存在本地磁盘；容器部署使用 named volume。
 - 项目不包含广告或第三方统计脚本。页脚的访问次数与在线人数由本项目自己统计：只用一个前端本地生成的随机访客 id 去重与心跳，不采集 IP、UA 或浏览行为，也不会发往任何外部服务。
 - 演示数据均为虚构，请勿在公开实例中填写真实身份证号等敏感信息。
@@ -353,10 +374,14 @@ GitHub OAuth App 的回调地址填 `https://<你的域名>/api/auth/oauth/githu
 
 ## 贡献
 
-1. Fork 仓库并创建功能分支。
-2. 保持现有代码风格，前端建议先执行 `npm run build`，后端执行 `mvn test` / `mvn package`。
-3. 提交 PR 时说明动机、改动范围与验证方式；涉及接口变更请同步更新 `docs/API.md`。
-4. 不提交 `.env`、数据库文件、上传附件或任何真实个人信息。
+欢迎 issue、PR 和模板投稿，也欢迎直接 Fork 改造成团队内部工具。
+
+- [贡献指南](CONTRIBUTING.md)：本地怎么跑、测试命令、代码约定、提交与 PR 规范。
+- 遇到功能异常用 [Bug 模板](https://github.com/cosolar/miniwho/issues/new?template=bug_report.yml)；新想法用 [功能建议模板](https://github.com/cosolar/miniwho/issues/new?template=feature_request.yml)。
+- **安全问题不要发公开 issue**，请按[安全策略](SECURITY.md)走私密报告。
+- 每个版本的用户可见变化记在[更新日志](CHANGELOG.md)。
+
+提交前请确认：后端 `mvn -B test --file backend/pom.xml` 通过，前端 `npm test` 与 `npm run build` 通过，并且没有带上 `.env`、数据库文件、上传附件或任何真实个人信息。
 
 ## License
 
