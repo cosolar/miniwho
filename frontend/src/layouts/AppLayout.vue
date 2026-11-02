@@ -49,10 +49,15 @@ async function handleCommand(command) {
           <router-link to="/my-templates" active-class="is-active">我的模板</router-link>
         </nav>
         <div class="app-actions">
-          <router-link to="/#faq" class="help-link">
+          <a
+            class="help-link"
+            href="https://docs.minims.cn/share/miniwho"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             <el-icon><QuestionFilled /></el-icon>
             <span>帮助</span>
-          </router-link>
+          </a>
           <el-dropdown trigger="click" @command="handleCommand">
             <button class="app-user" type="button">
               <UserAvatar class="app-avatar" :text="letter" />
