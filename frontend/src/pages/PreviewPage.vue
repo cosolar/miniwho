@@ -513,7 +513,7 @@ onBeforeRouteLeave(async () => {
           <div class="controls-head">
             <div>
               <span class="mono">STYLE</span>
-              <h2>样式设置</h2>
+              <h2>风格设置</h2>
             </div>
             <el-icon class="controls-head__icon"><Setting /></el-icon>
           </div>
