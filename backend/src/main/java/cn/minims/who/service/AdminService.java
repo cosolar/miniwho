@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import cn.minims.who.common.BizException;
 import cn.minims.who.dto.AdminDtos.AdminFeedbackRequest;
+import cn.minims.who.dto.AdminDtos.AdminPasswordResetVo;
 import cn.minims.who.dto.AdminDtos.AdminAuthSettingsRequest;
 import cn.minims.who.dto.AdminDtos.AdminAuthSettingsVo;
 import cn.minims.who.dto.AdminDtos.AdminFeedbackVo;
@@ -49,12 +50,13 @@ public class AdminService {
     private final AuthSettingsService authSettingsService;
     private final SettingsService settingsService;
     private final StorageUsageService storageUsage;
+    private final MailService mailService;
 
     public AdminService(UserMapper userMapper, ResumeMapper resumeMapper, TemplateMapper templateMapper,
                         FeedbackMapper feedbackMapper, ResumeShareMapper shareMapper,
                         ResumeReportMapper reportMapper, TemplateService templateService,
                         AuthSettingsService authSettingsService, SettingsService settingsService,
-                        StorageUsageService storageUsage) {
+                        StorageUsageService storageUsage, MailService mailService) {
         this.userMapper = userMapper;
         this.resumeMapper = resumeMapper;
         this.templateMapper = templateMapper;
@@ -65,6 +67,7 @@ public class AdminService {
         this.authSettingsService = authSettingsService;
         this.settingsService = settingsService;
         this.storageUsage = storageUsage;
+        this.mailService = mailService;
     }
 
     /** 注册 / 登录方式面板：管理员要看的不是三个孤立开关，而是「开没开 + 还差什么」。 */
@@ -160,22 +163,35 @@ public class AdminService {
     }
 
     /**
-     * 后台给单个账号设新密码：邮箱未验证或收不到验证码的用户，自助重置走不通，这是唯一兜底。
+     * 后台重置密码：服务端生成 8 位随机密码。
+     * <p>账号有已验证邮箱时，先发信成功再落库；没有可用邮箱时保留旧的兜底路径，
+     * 把密码一次性返回给管理员线下转告，避免账号彻底失去找回入口。
      * <p>不给管理员改自己的密码：这条路径会连带踢掉当前会话，改完立刻掉线反而像操作失败，
      * 自己改密码有个人中心那条「验原密码」的正路。
      */
-    public void resetUserPassword(long adminId, long userId, String newPassword) {
+    public AdminPasswordResetVo resetUserPassword(long adminId, long userId) {
         if (adminId == userId) {
             throw BizException.badRequest("请改用个人中心的「修改密码」修改自己的密码");
         }
         User user = userMapper.selectById(userId);
         if (user == null) throw BizException.notFound("用户不存在");
+        String password = AdminPasswordNotice.generatePassword();
+        boolean emailDeliverable = user.getEmail() != null && !user.getEmail().isBlank()
+                && Integer.valueOf(1).equals(user.getEmailVerified());
+        if (emailDeliverable) {
+            mailService.send(user.getEmail(), AdminPasswordNotice.subject(),
+                    AdminPasswordNotice.textBody(user.getEmail(), password),
+                    AdminPasswordNotice.htmlBody(user.getEmail(), password));
+        }
         userMapper.update(null, new LambdaUpdateWrapper<User>()
                 .eq(User::getId, userId)
-                .set(User::getPasswordHash, BCrypt.hashpw(newPassword))
+                .set(User::getPasswordHash, BCrypt.hashpw(password))
                 .set(User::getHasPassword, 1)
                 .set(User::getUpdatedAt, System.currentTimeMillis()));
         StpUtil.logout(userId);
+        return emailDeliverable
+                ? new AdminPasswordResetVo("email", null)
+                : new AdminPasswordResetVo("manual", password);
     }
 
     public List<AdminTemplateVo> templates() {

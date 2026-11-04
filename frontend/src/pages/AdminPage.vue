@@ -22,6 +22,7 @@ const feedbackLoading = ref(false)
 const stats = ref(null)
 const system = ref(null)
 const users = ref([])
+const resettingPasswordId = ref(null)
 const templates = ref([])
 const feedback = ref([])
 const sample = ref(null)
@@ -420,37 +421,47 @@ async function toggleUser(row) {
 }
 
 /**
- * 兜底重置：邮箱没验证过或收不到信的账号走不了自助找回，这里由管理员直接设一个临时密码。
- * 后端设完会踢掉该账号全部会话，所以提示里要写清「下次登录就用这个密码」。
+ * 重置密码：后端生成 8 位随机密码。有已验证邮箱就自动发送；没有则直接返回密码给管理员转告。
+ * 发送期间锁住按钮，避免连点产生两封密码不同的邮件。
  */
 async function resetUserPassword(row) {
   if (row.id === auth.user?.id) {
     ElMessage.info('改自己的密码请用个人中心的「修改密码」')
     return
   }
-  let password
+  const deliverable = Boolean(row.email && row.emailVerified)
+  const deliveryHint = deliverable
+    ? `发送到 ${row.email}`
+    : '直接显示给你（该账号没有已验证邮箱）'
   try {
-    const result = await ElMessageBox.prompt(
-      `为「${row.nickname || row.username}」设置新的登录密码。保存后该账号已登录的会话会全部退出，请用新密码登录，并提醒本人尽快改掉。`,
+    await ElMessageBox.confirm(
+      `将为「${row.nickname || row.username}」生成 8 位随机密码并${deliveryHint}。重置后该账号已登录的会话会全部退出，确认重置吗？`,
       '重置密码',
       {
-        confirmButtonText: '设置密码',
+        confirmButtonText: deliverable ? '重置并发送' : '重置并显示',
         cancelButtonText: '取消',
-        inputType: 'password',
-        inputPlaceholder: '6-32 位',
-        inputPattern: /^.{6,32}$/,
-        inputErrorMessage: '密码长度需为 6-32 位'
+        type: 'warning'
       }
     )
-    password = result.value
   } catch {
     return
   }
+  resettingPasswordId.value = row.id
   try {
-    await adminApi.resetUserPassword(row.id, password)
-    ElMessage.success('密码已重置，该账号需要重新登录')
+    const result = await adminApi.resetUserPassword(row.id)
+    if (result?.delivery === 'manual') {
+      ElMessageBox.alert(
+        `该账号没有已验证邮箱，无法发送邮件。<br><br>新密码：<b style="font-family:monospace;font-size:20px;color:#0a7d76;">${result.password}</b><br><br>请通过安全渠道转告本人，并提醒登录后尽快修改。`,
+        '临时密码',
+        { confirmButtonText: '我已记下', type: 'warning', dangerouslyUseHTMLString: true }
+      ).catch(() => {})
+    } else {
+      ElMessage.success(`新密码已发送到 ${row.email}，该账号需要重新登录`)
+    }
   } catch (error) {
     notifyError(error, '重置密码失败')
+  } finally {
+    resettingPasswordId.value = null
   }
 }
 
@@ -769,7 +780,7 @@ onMounted(() => loadAll())
                 </el-table-column>
                 <el-table-column label="操作" width="150" align="right">
                   <template #default="{ row }">
-                    <el-button size="small" link :disabled="row.id === auth.user?.id" @click="resetUserPassword(row)">
+                    <el-button size="small" link :loading="resettingPasswordId === row.id" :disabled="row.id === auth.user?.id" @click="resetUserPassword(row)">
                       重置密码
                     </el-button>
                     <el-button

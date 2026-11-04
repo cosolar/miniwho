@@ -440,7 +440,7 @@ onMounted(async () => {
           <p class="oauth-note">首次登录会自动创建账号，之后用同一个 GitHub 账号即可继续。</p>
         </div>
 
-        <p v-if="isReset" class="reset-note">只有已通过验证码确认的邮箱才能自助重置，在个人中心换绑过的邮箱同样算数。用户名注册的账号、或这里提示邮箱未验证时，请联系管理员在后台设新密码。</p>
+        <p v-if="isReset" class="reset-note">只有已通过验证码确认的邮箱才能自助重置，在个人中心换绑过的邮箱同样算数。用户名注册的账号、或这里提示邮箱未验证时，请联系管理员在后台重置密码。</p>
 
         <div v-if="isDev && !isReset" class="demo-hint">
           <span class="demo-hint__icon"><el-icon><Check /></el-icon></span>

@@ -16,7 +16,7 @@ import cn.minims.who.dto.AdminDtos.AdminStatsVo;
 import cn.minims.who.dto.AdminDtos.AdminSystemVo;
 import cn.minims.who.dto.AdminDtos.AdminTemplateStatusRequest;
 import cn.minims.who.dto.AdminDtos.AdminTemplateVo;
-import cn.minims.who.dto.AdminDtos.AdminUserPasswordRequest;
+import cn.minims.who.dto.AdminDtos.AdminPasswordResetVo;
 import cn.minims.who.dto.AdminDtos.AdminUserStatusRequest;
 import cn.minims.who.dto.AdminDtos.AdminUserVo;
 import cn.minims.who.service.AdminService;
@@ -82,12 +82,10 @@ public class AdminController {
         return ApiResponse.ok();
     }
 
-    /** 给单个账号设新密码：自助重置走不通（邮箱未验证 / 收不到信）时的兜底，设完该账号需重新登录。 */
+    /** 给单个账号重置密码：生成 8 位随机密码，优先发到用户已验证邮箱；没有可用邮箱时返回给管理员转告。 */
     @PutMapping("/users/{id}/password")
-    public ApiResponse<Void> resetUserPassword(@PathVariable long id,
-                                               @Valid @RequestBody AdminUserPasswordRequest request) {
-        adminService.resetUserPassword(authUtil.userId(), id, request.password());
-        return ApiResponse.ok();
+    public ApiResponse<AdminPasswordResetVo> resetUserPassword(@PathVariable long id) {
+        return ApiResponse.ok(adminService.resetUserPassword(authUtil.userId(), id));
     }
 
     @GetMapping("/templates")

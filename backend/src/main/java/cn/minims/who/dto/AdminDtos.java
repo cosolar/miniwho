@@ -1,6 +1,5 @@
 package cn.minims.who.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -58,10 +57,11 @@ public final class AdminDtos {
     public record AdminUserStatusRequest(@NotNull Integer status) {
     }
 
-    /** 后台给单个账号设新密码：收不到验证码、又忘了原密码的账号只剩这条兜底路径。 */
-    public record AdminUserPasswordRequest(
-            @NotBlank(message = "请输入新密码")
-            @Size(min = 6, max = 32, message = "密码长度需为 6-32 位") String password) {
+    /**
+     * 重置密码的结果：email 表示已发到用户已验证邮箱，密码不回传；
+     * manual 表示账号没有可用邮箱，密码一次性返回给管理员线下转告。
+     */
+    public record AdminPasswordResetVo(String delivery, String password) {
     }
 
     public record AdminTemplateStatusRequest(@NotNull Integer status) {
