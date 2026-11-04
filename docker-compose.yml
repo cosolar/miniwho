@@ -31,7 +31,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: miniwho:latest
+    image: minimscn/miniwho:latest
     container_name: miniwho
     restart: unless-stopped
     environment:
