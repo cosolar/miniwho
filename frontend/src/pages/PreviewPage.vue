@@ -471,16 +471,16 @@ onBeforeRouteLeave(async () => {
         <div class="preview-toolbar__actions">
           <el-button plain @click="openShare">
             <el-icon><Share /></el-icon>
-            分享
+            <span>分享</span>
             <span v-if="shareCount" class="share-count">{{ shareCount }}</span>
           </el-button>
           <el-button plain @click="openPrint">
             <el-icon><Printer /></el-icon>
-            浏览器打印
+            <span>打印</span>
           </el-button>
           <el-button type="primary" :loading="generating" @click="generatePdf">
             <el-icon><Download /></el-icon>
-            {{ generating ? '正在生成 PDF' : '下载 PDF' }}
+            <span>{{ generating ? '生成中' : '下载' }}</span>
           </el-button>
         </div>
       </header>
@@ -967,13 +967,24 @@ onBeforeRouteLeave(async () => {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 10px;
   flex-shrink: 0;
 }
 
 .preview-toolbar__actions :deep(.el-button) {
-  height: 36px;
-  font-size: 12px;
+  min-width: 88px;
+  height: 38px;
+  padding: 0 16px;
+  font-size: 13px;
+  justify-content: center;
+}
+
+.preview-toolbar__actions :deep(.el-button .el-icon) {
+  font-size: 15px;
+}
+
+.preview-toolbar__actions :deep(.el-button [class*='el-icon'] + span) {
+  margin-left: 7px;
 }
 
 .share-count {
@@ -1903,6 +1914,8 @@ onBeforeRouteLeave(async () => {
 
   .preview-toolbar__actions :deep(.el-button) {
     flex: 1;
+    min-width: 0;
+    padding: 0 10px;
   }
 
   .preview-layout {
