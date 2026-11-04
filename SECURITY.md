@@ -14,7 +14,7 @@
 
 报告里请包含：
 
-- 受影响的版本或镜像标签（`docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' cosolar/miniwho:latest` 可查提交）
+- 受影响的版本或镜像标签（`docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' minimscn/miniwho:latest` 可查提交）
 - 部署形态：SQLite 还是 MySQL、是否在反向代理后面、开放了哪些注册方式
 - 复现步骤或最小 PoC，以及你判断的影响面（能否读到别人的数据、能否提权到管理员等）
 

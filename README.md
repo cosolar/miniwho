@@ -7,7 +7,7 @@
 <p>
   <a href="https://github.com/cosolar/miniwho/actions/workflows/ci.yml"><img src="https://github.com/cosolar/miniwho/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
-  <a href="https://hub.docker.com/r/cosolar/miniwho/tags"><img src="https://img.shields.io/docker/v/cosolar/miniwho?label=docker&color=0a7d76" alt="Docker image"></a>
+  <a href="https://hub.docker.com/r/minimscn/miniwho/tags"><img src="https://img.shields.io/docker/v/minimscn/miniwho?label=docker&color=0a7d76" alt="Docker image"></a>
   <a href="https://who.minims.cn"><img src="https://img.shields.io/badge/demo-who.minims.cn-0a7d76.svg" alt="Demo"></a>
 </p>
 
@@ -105,7 +105,7 @@
 - **三种方式默认全部关闭**：不配置 SMTP / GitHub 凭据、也不手动打开用户名注册时，站点不提供任何自助注册，登录页只显示账号密码登录。
 - **账号自主权**：个人中心可一键打包导出本账号的全部数据（zip：账号信息、每份简历的完整 JSON、自行导入的模板包、附件与图片原文件、清单与说明，不含密码），显示该账号在服务器上占的实际容量与上限，并申请自助注销——7 天宽限期内随时可撤销，到期才硬删除全部简历（含回收站）、文件、自行导入的模板与验证码；管理员账号不能自助注销。导出件是备份用，暂不支持导回站内。
 - 个人中心：昵称、邮箱（含验证状态）、修改密码、简历统计；GitHub 建的号没有可用密码，那里显示「登录方式」而不是修改密码。
-- 管理后台：运营概览（含上传占用与「运行环境」健康卡片）、用户列表与冻结 / 恢复（含邮箱验证状态）与重置密码、站点设置（内容宽度 + 注册方式与通道配置）、模板启停、一键导出全部官方模板包（部署迁移备份）、首页示例简历设置、意见反馈回复。
+- 管理后台：运营概览（含上传占用与「运行环境」健康卡片）、用户列表与冻结 / 恢复（含邮箱验证状态）与重置密码（随机密码邮件发送）、站点设置（内容宽度 + 注册方式与通道配置）、模板启停、一键导出全部官方模板包（部署迁移备份）、首页示例简历设置、意见反馈回复。
 - 用户反馈入口：登录后可在个人中心提交反馈，管理员在后台查看与处理。
 
 ### 工程与安全
@@ -124,7 +124,7 @@
 - 导入模板包的 CSS 由服务端逐条规则重新生成后注入：选择器强制限定在该模板的作用域类下，属性名走白名单，`url()` 只接受 `data:`，`<`、`@import`、`expression()`、`behavior`、`-moz-binding`、`!important` 直接拒绝；模板包格式本身不给 HTML / JS 留任何入口。
 - 分享密码 BCrypt 存储，公开接口失败码区分「需要密码 / 密码错误 / 已过期 / 已撤销」。
 - 公开接口按 IP 限流（每窗口一分钟：登录与分享解锁 10 次，注册 / 各类验证码 / 找回密码 / 全量导出 / 注销 5 次，GitHub 跳转与回调合计 20 次，统计心跳 120 次），与邮箱维度的发信限制叠加；`X-Forwarded-For` 默认只在直连对端是回环或内网地址时才采信，防止伪造请求头绕过限流，`MINIWHO_TRUST_FORWARDED_FOR` 可显式覆盖。GitHub 的 `state` 一次性、10 分钟过期。
-- Docker 一键部署：官方镜像 `cosolar/miniwho` 或 Compose 源码构建，MySQL 8 / SQLite 二选一，数据与上传持久化。
+- Docker 一键部署：官方镜像 `minimscn/miniwho` 或 Compose 源码构建，MySQL 8 / SQLite 二选一，数据与上传持久化。
 - 所有页面响应式适配，打印样式独立处理。
 
 ---
@@ -136,7 +136,7 @@
 | 前端 | Vue 3.5、Vite 6、Element Plus 2.9、Pinia、Vue Router、Axios、vuedraggable、DOMPurify |
 | 后端 | Java 17、Spring Boot 3.3、Sa-Token 1.39、MyBatis-Plus 3.5、Hutool、jsoup、Jackson、PDFBox（仅用于改写导出 PDF 的文字映射表，不参与排版） |
 | 数据库 | SQLite（默认）/ MySQL 8 |
-| 部署 | Docker 镜像（`cosolar/miniwho`）/ Docker Compose、Nginx、Maven、npm |
+| 部署 | Docker 镜像（`minimscn/miniwho`）/ Docker Compose、Nginx、Maven、npm |
 
 - [使用教程](docs/使用教程.md)
 - [部署指南](docs/部署指南.md)
@@ -210,7 +210,7 @@ docker run -d --name miniwho \
   -e MINIWHO_DEMO_PASSWORD='改成强密码' \
   -e MINIWHO_MEDIA_SECRET="$(openssl rand -hex 32)" \
   --shm-size=512m \
-  cosolar/miniwho:latest
+  minimscn/miniwho:latest
 ```
 
 访问 `http://localhost:8088`。镜像仅 `linux/amd64`，内置 Chromium 与 Noto CJK 字体，服务端 PDF 开箱可用；`MINIWHO_DB` 指向卷内，删容器不丢数据。
@@ -225,7 +225,7 @@ docker compose up -d --build
 
 访问 `http://localhost:8088`。前端页面与 API 打在**同一个镜像**里（前端产物随 jar 发布），对外只暴露一个端口；MySQL 仍是独立服务。
 
-只想用 MySQL、又不想本地构建时，把 compose 里的 `app` 改成 `image: cosolar/miniwho:latest` 即可，现成文件与全部参数见 [部署指南](docs/部署指南.md)。
+只想用 MySQL、又不想本地构建时，把 compose 里的 `app` 改成 `image: minimscn/miniwho:latest` 即可，现成文件与全部参数见 [部署指南](docs/部署指南.md)。
 
 ---
 
