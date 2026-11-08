@@ -87,7 +87,7 @@ onBeforeUnmount(() => {
           <a href="/#faq">常见问题</a>
           <a href="/#privacy">隐私设计</a>
         </div>
-        <div class="footer-col">
+        <div class="footer-col footer-col--repo">
           <h4>开源</h4>
           <a class="footer-github" :href="GITHUB_URL" target="_blank" rel="noopener">
             <svg class="footer-github__mark" viewBox="0 0 16 16" aria-hidden="true">
@@ -289,22 +289,105 @@ onBeforeUnmount(() => {
 
 @media (max-width: 560px) {
   .site-footer {
-    padding-top: 44px;
+    padding: 36px 0 22px;
   }
 
   .footer-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 24px 26px;
+  }
+
+  .footer-brand {
+    grid-column: 1 / -1;
+    text-align: center;
+  }
+
+  .footer-brand__logo {
+    width: min(196px, 66%);
+    margin: 0 auto;
+  }
+
+  .footer-brand p {
+    max-width: 340px;
+    margin: 13px auto 11px;
+    font-size: 12.5px;
+    line-height: 1.75;
+  }
+
+  .license {
+    padding: 2px 9px;
+    font-size: 9.5px;
+  }
+
+  .footer-col {
+    gap: 7px;
+  }
+
+  .footer-col h4 {
+    margin-bottom: 3px;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+  }
+
+  .footer-col a,
+  .footer-col button {
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .footer-col--repo {
+    grid-column: 1 / -1;
+    display: grid;
     grid-template-columns: 1fr;
-    gap: 26px;
+    gap: 9px;
+    padding-top: 17px;
+    border-top: 1px dashed var(--line-strong);
+  }
+
+  .footer-col--repo h4 {
+    display: none;
+  }
+
+  .footer-col--repo .footer-github {
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.45);
+    color: var(--ink);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+
+  .footer-col--repo .footer-github:hover {
+    border-color: var(--accent);
+    background: rgba(10, 125, 118, 0.06);
+    color: var(--ink);
+  }
+
+  .footer-col--repo > span {
+    display: none;
+  }
+
+  .footer-stats {
+    justify-content: center;
+    margin-top: 0;
+    padding-top: 9px;
+    border-top: 0;
   }
 
   .footer-bottom {
     flex-direction: column;
-    align-items: flex-start;
-    margin-top: 32px;
+    align-items: center;
+    gap: 6px;
+    margin-top: 24px;
+    padding-top: 16px;
+    text-align: center;
   }
 
   .footer-note {
-    text-align: left;
+    text-align: center;
   }
 }
 </style>
