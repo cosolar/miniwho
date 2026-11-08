@@ -19,7 +19,7 @@ const { content: sampleContent, avatar: sampleAvatar } = useSampleResume()
 
 /** 站点是托管给别人用的，他们手上没有仓库，说明统一指向文档中心（MiniDocs 分享页）。 */
 const DOCS_BASE = 'https://docs.minims.cn/share/miniwho?path=docs/'
-const THEME_GUIDE_URL = `${DOCS_BASE}模板主题开发指南.md`
+const USER_GUIDE_URL = `${DOCS_BASE}使用教程.md`
 const PACKAGE_FORMAT_URL = `${DOCS_BASE}模板包格式.md`
 
 const packageInput = ref(null)
@@ -114,7 +114,7 @@ async function importPackageFile(file) {
   try {
     payload = JSON.parse(await file.text())
   } catch {
-    ElMessage.error('这个文件不是合法的 JSON，模板包需要保存为 .json')
+    ElMessage.error('这个文件打不开，请确认它是别人发给你的 .json 模板包')
     return
   }
   importing.value = true
@@ -245,7 +245,7 @@ async function saveEditor() {
     const problems = error?.details?.problems
     if (Array.isArray(problems) && problems.length) {
       editorProblems.value = problems
-      ElMessage.error('模板包未通过校验，按下面提示改完再保存')
+      ElMessage.error('文件里还有需要修改的地方，按提示改完再保存')
     } else {
       notifyError(error, '模板包保存失败')
     }
@@ -265,14 +265,14 @@ onMounted(loadTemplates)
           <div class="card-kicker">MY TEMPLATES</div>
           <h1 class="display">我的模板</h1>
           <p>
-            这里管理你自己导入的模板包：{{ mine.length }} 套，其中 {{ sharedCount }} 套已分享到模板中心。
-            导入的包只包含版式令牌与净化过的 CSS，服务端会逐条规则重新生成后才注入页面，不含任何脚本。
+            这里放你自己导入的模板：{{ mine.length }} 套，其中 {{ sharedCount }} 套已分享到模板中心。
+            模板包可以理解成一套现成的排版方案，导入后就能在简历预览页直接换用，简历内容不会被改动。
           </p>
         </div>
         <div class="mine-hero__actions">
           <el-button type="primary" :loading="importing" @click="openPackagePicker">
             <el-icon><Upload /></el-icon>
-            <span>{{ importing ? '正在校验…' : '导入模板包' }}</span>
+            <span>{{ importing ? '正在导入…' : '导入模板包' }}</span>
           </el-button>
           <input
             ref="packageInput"
@@ -297,9 +297,9 @@ onMounted(loadTemplates)
         <span class="mine-empty__badge"><el-icon><InfoFilled /></el-icon></span>
         <h2>还没有导入过模板包</h2>
         <p>
-          模板包就是一个 <code>.json</code> 文件：别人分享给你的，或者你从模板中心导出后改过配色、间距的，装进来就能用。
-          想自己调样式，先看这份
-          <a :href="THEME_GUIDE_URL" target="_blank" rel="noopener">模板包怎么写</a>。
+          模板包是一套现成的简历排版方案，通常是一个 <code>.json</code> 文件。
+          朋友分享给你的，或你从模板中心下载的，都可以在这里导入；导入后不会改动简历里的任何内容。
+          <a :href="USER_GUIDE_URL" target="_blank" rel="noopener">第一次用？看看图文教程</a>
         </p>
         <button
           type="button"
@@ -310,11 +310,11 @@ onMounted(loadTemplates)
         >
           <span class="package-drop__icon"><el-icon><UploadFilled /></el-icon></span>
           <span class="package-drop__title">
-            {{ importing ? '正在校验模板包…' : (dragging ? '松开鼠标即可导入' : '选择 .json 模板包') }}
+            {{ importing ? '正在导入模板包…' : (dragging ? '松开鼠标即可导入' : '选择模板包文件') }}
           </span>
           <span class="package-drop__hint">
-            <template v-if="dragging">导入后服务端会逐条重写规则，不会执行多余脚本</template>
-            <template v-else>或直接把文件拖到这里 · 只接受 .json</template>
+            <template v-if="dragging">松开后开始导入，简历内容不会改变</template>
+            <template v-else>也可以把 .json 文件直接拖到这里</template>
           </span>
         </button>
       </div>
@@ -322,7 +322,7 @@ onMounted(loadTemplates)
       <template v-else>
         <div class="mine-toolbar">
           <div class="mine-toolbar__search">
-            <el-input v-model="keyword" placeholder="搜索名称、编码、作者或描述" clearable>
+            <el-input v-model="keyword" placeholder="搜索模板名称、作者或描述" clearable>
               <template #prefix><el-icon><Search /></el-icon></template>
             </el-input>
           </div>
@@ -339,7 +339,7 @@ onMounted(loadTemplates)
         <div v-if="!shownTemplates.length" class="surface mine-empty">
           <span class="mine-empty__badge"><el-icon><Search /></el-icon></span>
           <h2>没有找到匹配的模板</h2>
-          <p>试试名称、编码、作者或版式里的关键词，比如「qingling」「青领」「头像单栏」。</p>
+          <p>换个关键词试试，比如模板名称、作者，或「双栏」「头像」这样的版式特点。</p>
           <el-button @click="keyword = ''">清除搜索</el-button>
         </div>
 
@@ -372,8 +372,6 @@ onMounted(loadTemplates)
               </header>
 
               <ul class="mine-card__facts">
-                <li class="mono-code">{{ tpl.code }}</li>
-                <li>v{{ tpl.version || '1.0.0' }}</li>
                 <li>{{ tpl.author || '未署名' }}</li>
                 <li><b>{{ tpl.usageCount ?? 0 }}</b> 份简历在用</li>
               </ul>
@@ -384,7 +382,7 @@ onMounted(loadTemplates)
                 <label class="switch-row">
                   <span class="switch-copy">
                     <strong>分享到模板中心</strong>
-                    <small>本站其他用户可在模板中心看到「{{ tpl.author || '未署名' }} 分享」并选用</small>
+                    <small>分享后，本站其他用户能在模板中心看到并选用这套模板</small>
                   </span>
                   <el-switch
                     :model-value="tpl.visibility === 'public'"
@@ -396,7 +394,7 @@ onMounted(loadTemplates)
                   <span class="switch-copy">
                     <strong>允许他人导出模板包</strong>
                     <small>{{ tpl.visibility === 'public'
-                      ? (tpl.exportable !== false ? '关闭后别人只能选用，下载按钮对他们隐藏' : '别人只能选用，不能把包下载走')
+                      ? (tpl.exportable !== false ? '别人除了选用，还能下载模板包文件' : '别人只能选用，不能下载模板包文件')
                       : '分享后才能设置' }}</small>
                   </span>
                   <el-switch
@@ -414,7 +412,7 @@ onMounted(loadTemplates)
                 </button>
                 <div class="mine-card__ghosts">
                   <el-button size="small" link @click="openJsonEditor(tpl)">
-                    <el-icon><Edit /></el-icon> 编辑
+                    <el-icon><Edit /></el-icon> 高级编辑
                   </el-button>
                   <span class="ghost-sep" aria-hidden="true"></span>
                   <el-button size="small" link :loading="busyCode === tpl.code" @click="exportPackage(tpl)">
@@ -438,8 +436,8 @@ onMounted(loadTemplates)
       </template>
 
       <p class="mine-note">
-        <el-icon><Warning /></el-icon>
-        <span>删除不会动已经选用它的简历：还有简历在用时服务端会拒绝删除，请先给那些简历换模板。取消分享后，别人已用的简历仍按该版式渲染，只是不再能被新简历选中。</span>
+        <el-icon><InfoFilled /></el-icon>
+        <span><strong>关于删除与取消分享：</strong>删除模板不会影响已经用它做好的简历；如果还有简历正在使用，请先给它们换一套模板。取消分享也只是让别人不能再选到它，已经用过的简历仍保持原样。</span>
       </p>
     </div>
 
@@ -453,7 +451,7 @@ onMounted(loadTemplates)
       <template #header>
         <div v-if="previewTarget" class="preview-dialog__head">
           <div>
-            <span class="mono">TEMPLATE / {{ previewTarget.code.toUpperCase() }}</span>
+            <span class="mono">TEMPLATE PREVIEW</span>
             <h2>{{ previewTarget.name }}</h2>
           </div>
           <span class="tag tag--accent">
@@ -476,7 +474,6 @@ onMounted(loadTemplates)
           <ul class="preview-dialog__facts">
             <li>版式 {{ LAYOUT_LABELS[configOf(previewTarget).layout] || '单栏' }}</li>
             <li>作者 {{ previewTarget.author || '未署名' }}</li>
-            <li>v{{ previewTarget.version || '1.0.0' }}</li>
             <li>{{ previewTarget.usageCount ?? 0 }} 份简历在用</li>
           </ul>
           <div class="preview-dialog__actions">
@@ -485,7 +482,7 @@ onMounted(loadTemplates)
               <el-icon><Download /></el-icon> 导出模板包
             </el-button>
           </div>
-          <p class="preview-dialog__hint">预览用的是站内示例简历。分享与导出权限在卡片上的开关里调整。</p>
+          <p class="preview-dialog__hint">预览用的是站内示例简历，不会改动你的内容。分享与导出权限在卡片上的开关里调整。</p>
         </aside>
       </div>
     </el-dialog>
@@ -500,7 +497,7 @@ onMounted(loadTemplates)
       <template #header>
         <div class="json-dialog__head">
           <div>
-            <span class="mono">EDIT PACKAGE / {{ editingTpl?.code }}</span>
+            <span class="mono">ADVANCED EDIT</span>
             <h2>{{ editingTpl?.name || '编辑模板包' }}</h2>
           </div>
           <span class="tag">保存后立即生效</span>
@@ -508,9 +505,9 @@ onMounted(loadTemplates)
       </template>
 
       <p class="json-dialog__hint">
-        直接改模板包 JSON，字段与校验规则见
-        <a :href="PACKAGE_FORMAT_URL" target="_blank" rel="noopener">模板包格式</a>。
-        不能修改 <code>id.namespace</code> / <code>id.code</code>，否则会变成另一个模板；CSS 仍会由服务端逐条重新生成。
+        这是给熟悉模板包文件的用户准备的高级编辑，平时换版式不需要打开这里。
+        文件各部分的含义见 <a :href="PACKAGE_FORMAT_URL" target="_blank" rel="noopener">模板包格式</a>；
+        请保留 <code>id.namespace</code> 与 <code>id.code</code>，否则会被当成另一套模板。
       </p>
 
       <el-input
@@ -524,7 +521,7 @@ onMounted(loadTemplates)
       />
 
       <div v-if="editorProblems.length" class="json-problems">
-        <p>未通过校验（{{ editorProblems.length }} 处）：</p>
+        <p>还有 {{ editorProblems.length }} 处需要修改：</p>
         <ol>
           <li v-for="(problem, index) in editorProblems" :key="index">{{ problem }}</li>
         </ol>
@@ -547,8 +544,8 @@ onMounted(loadTemplates)
         <div class="package-dialog__head">
           <span class="package-dialog__icon"><el-icon><Warning /></el-icon></span>
           <div>
-            <h2>模板包未通过校验</h2>
-            <p>共 {{ packageProblems.length }} 处问题，一次改完再导入。</p>
+            <h2>这个模板包还需要修改</h2>
+            <p>共 {{ packageProblems.length }} 处，按提示改好后再导入。</p>
           </div>
         </div>
       </template>
@@ -557,7 +554,7 @@ onMounted(loadTemplates)
       </ol>
       <template #footer>
         <div class="package-dialog__foot">
-          <span class="mono">字段含义见 <a :href="PACKAGE_FORMAT_URL" target="_blank" rel="noopener">模板包格式</a></span>
+          <span class="mono">各部分的含义见 <a :href="PACKAGE_FORMAT_URL" target="_blank" rel="noopener">模板包格式</a></span>
           <el-button type="primary" @click="packageDialog = false">知道了</el-button>
         </div>
       </template>
@@ -1153,6 +1150,11 @@ onMounted(loadTemplates)
   color: var(--muted);
   font-size: 11.5px;
   line-height: 1.75;
+}
+
+.mine-note strong {
+  color: var(--ink-soft);
+  font-weight: 600;
 }
 
 .mine-note .el-icon {
