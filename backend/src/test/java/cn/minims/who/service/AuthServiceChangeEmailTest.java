@@ -53,7 +53,7 @@ class AuthServiceChangeEmailTest {
     }
 
     @Test
-    void 邮箱没变时不要求验证码也不碰验证状态() {
+    void unchangedEmailNeedsNoCodeAndKeepsVerification() {
         when(userMapper.selectById(7L)).thenReturn(user(7L, "old@x.com"));
         service().updateProfile(7L, new UpdateProfileRequest("新昵称", "OLD@X.com", null));
 
@@ -65,7 +65,7 @@ class AuthServiceChangeEmailTest {
     }
 
     @Test
-    void 邮箱变了但没有验证码时拒绝保存() {
+    void changedEmailWithoutCodeIsRejected() {
         when(userMapper.selectById(7L)).thenReturn(user(7L, "old@x.com"));
 
         assertThatThrownBy(() -> service().updateProfile(7L, new UpdateProfileRequest(null, "new@x.com", null)))
@@ -76,7 +76,7 @@ class AuthServiceChangeEmailTest {
     }
 
     @Test
-    void 换绑成功后新邮箱直接算已验证() {
+    void successfulChangeMarksNewEmailVerified() {
         when(userMapper.selectById(7L)).thenReturn(user(7L, "old@x.com"));
 
         service().updateProfile(7L, new UpdateProfileRequest(null, "  New@X.COM  ", "123456"));
@@ -89,7 +89,7 @@ class AuthServiceChangeEmailTest {
     }
 
     @Test
-    void 发码拒绝与当前相同的邮箱() {
+    void codeRequestRejectsCurrentEmail() {
         when(userMapper.selectById(7L)).thenReturn(user(7L, "old@x.com"));
         when(authSettings.changeEmailEnabled()).thenReturn(true);
 
@@ -100,7 +100,7 @@ class AuthServiceChangeEmailTest {
     }
 
     @Test
-    void 发码拒绝已被占用的邮箱() {
+    void codeRequestRejectsTakenEmail() {
         when(userMapper.selectById(7L)).thenReturn(user(7L, "old@x.com"));
         when(authSettings.changeEmailEnabled()).thenReturn(true);
         when(userMapper.selectOne(any())).thenReturn(user(99L, "taken@x.com"));
@@ -112,7 +112,7 @@ class AuthServiceChangeEmailTest {
     }
 
     @Test
-    void 邮件通道未配置时换绑整体不可用() {
+    void emailChangeUnavailableWhenMailChannelMissing() {
         when(userMapper.selectById(7L)).thenReturn(user(7L, "old@x.com"));
         when(authSettings.changeEmailEnabled()).thenReturn(false);
 
@@ -123,7 +123,7 @@ class AuthServiceChangeEmailTest {
     }
 
     @Test
-    void 通道就绪且地址可用时把码发给规范化后的新地址() {
+    void sendsCodeToNormalizedAddressWhenChannelReady() {
         when(userMapper.selectById(7L)).thenReturn(user(7L, "old@x.com"));
         when(authSettings.changeEmailEnabled()).thenReturn(true);
 

@@ -10,7 +10,7 @@ class RateLimiterTest {
     private static final long WINDOW = 60_000L;
 
     @Test
-    void 允许窗口内未超限的请求() {
+    void allowsRequestsWithinWindowLimit() {
         RateLimiter limiter = new RateLimiter(100);
         for (int i = 0; i < 5; i++) {
             assertTrue(limiter.tryAcquire("login:1.2.3.4", 5, WINDOW));
@@ -19,7 +19,7 @@ class RateLimiterTest {
     }
 
     @Test
-    void 不同键各自计数() {
+    void countsKeysIndependently() {
         RateLimiter limiter = new RateLimiter(100);
         for (int i = 0; i < 5; i++) {
             assertTrue(limiter.tryAcquire("login:1.2.3.4", 5, WINDOW));
@@ -29,7 +29,7 @@ class RateLimiterTest {
     }
 
     @Test
-    void 过期窗口重新计数() throws InterruptedException {
+    void resetsCountAfterWindowExpires() throws InterruptedException {
         RateLimiter limiter = new RateLimiter(100);
         for (int i = 0; i < 3; i++) {
             assertTrue(limiter.tryAcquire("register:1.2.3.4", 3, 10));
@@ -40,7 +40,7 @@ class RateLimiterTest {
     }
 
     @Test
-    void 键数量超过硬上限时清空重来() {
+    void clearsStateWhenKeyLimitExceeded() {
         RateLimiter limiter = new RateLimiter(3);
         assertTrue(limiter.tryAcquire("k1", 1, WINDOW));
         assertTrue(limiter.tryAcquire("k2", 1, WINDOW));

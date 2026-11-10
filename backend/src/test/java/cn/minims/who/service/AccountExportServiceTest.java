@@ -25,7 +25,7 @@ class AccountExportServiceTest {
             new AccountExportService(null, null, null, null, null, null, null, json);
 
     @Test
-    void 附件原名里的路径段不会带进包里() {
+    void pathSegmentsInAttachmentNamesAreStripped() {
         assertThat(AccountExportService.safeName("../../../../etc/passwd")).isEqualTo("passwd");
         assertThat(AccountExportService.safeName("C:\\简历\\第一版.pdf")).isEqualTo("第一版.pdf");
         assertThat(AccountExportService.safeName("...")).isEqualTo("未命名");
@@ -33,13 +33,13 @@ class AccountExportServiceTest {
     }
 
     @Test
-    void 非法文件名字符换成下划线() {
+    void illegalFilenameCharsBecomeUnderscores() {
         assertThat(AccountExportService.safeName("a<b>:c\"d|e?.pdf")).isEqualTo("a_b__c_d_e_.pdf");
         assertThat(AccountExportService.safeName("尾部点空格  ")).isEqualTo("尾部点空格");
     }
 
     @Test
-    void 超长原名截断后仍保住扩展名() {
+    void longNamesAreTruncatedButKeepExtension() {
         String longName = "名".repeat(180) + ".docx";
         String safe = AccountExportService.safeName(longName);
 
@@ -48,7 +48,7 @@ class AccountExportServiceTest {
     }
 
     @Test
-    void 账号信息里没有密码哈希() {
+    void accountInfoExcludesPasswordHash() {
         User user = new User();
         user.setId(7L);
         user.setUsername("demo");
@@ -65,7 +65,7 @@ class AccountExportServiceTest {
     }
 
     @Test
-    void 简历内容导出成节点而不是转义字符串() {
+    void resumeContentIsExportedAsNodes() {
         Resume resume = new Resume();
         resume.setId(3L);
         resume.setTitle("后端工程师简历");
@@ -83,7 +83,7 @@ class AccountExportServiceTest {
     }
 
     @Test
-    void 没设头像时不编出文件路径() {
+    void noAvatarMeansNoFilePath() {
         Resume resume = new Resume();
         resume.setId(4L);
         resume.setTitle("空白简历");
@@ -92,7 +92,7 @@ class AccountExportServiceTest {
     }
 
     @Test
-    void 清单条目与包内文件一一对应() {
+    void manifestEntriesMatchPackagedFiles() {
         User user = new User();
         user.setUsername("demo");
         user.setNickname("郝简历");

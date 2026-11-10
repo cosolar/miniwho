@@ -54,7 +54,7 @@ class HttpSmokeTest {
 
     @Test
     @Order(1)
-    void 健康检查只报核心项且接口不带CSP() throws Exception {
+    void healthCheckReportsCoreItemsOnlyAndSkipsCsp() throws Exception {
         // 本用例把服务端 PDF 关了：状态是 DEGRADED，但响应仍是 200。
         // 容器的健康检查只认状态码，关掉导出的部署不该被编排判成不健康。
         mockMvc.perform(get("/api/health"))
@@ -77,7 +77,7 @@ class HttpSmokeTest {
 
     @Test
     @Order(2)
-    void 公开接口匿名可读() throws Exception {
+    void publicEndpointsAreReadableAnonymously() throws Exception {
         mockMvc.perform(get("/api/public/auth-config"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("OK"));
@@ -85,7 +85,7 @@ class HttpSmokeTest {
 
     @Test
     @Order(3)
-    void 未登录访问私有接口是401信封() throws Exception {
+    void privateEndpointReturns401EnvelopeWhenNotLoggedIn() throws Exception {
         mockMvc.perform(get("/api/account/storage"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
@@ -93,7 +93,7 @@ class HttpSmokeTest {
 
     @Test
     @Order(4)
-    void 登录后能取到存储用量() throws Exception {
+    void loggedInUserCanReadStorageUsage() throws Exception {
         String token = login("demo", "smoke-demo");
         mockMvc.perform(get("/api/account/storage").header("satoken", token))
                 .andExpect(status().isOk())
@@ -103,7 +103,7 @@ class HttpSmokeTest {
 
     @Test
     @Order(5)
-    void 管理员才看得到运行环境() throws Exception {
+    void onlyAdminCanReadSystemStatus() throws Exception {
         mockMvc.perform(get("/api/admin/system").header("satoken", login("demo", "smoke-demo")))
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/admin/system").header("satoken", login("admin", "smoke-admin")))
@@ -115,7 +115,7 @@ class HttpSmokeTest {
 
     @Test
     @Order(6)
-    void 转发头策略为never时只认直连地址() throws Exception {
+    void neverTrustForwardedHeaderUsesDirectAddress() throws Exception {
         // 同一个进程里所有请求的直连地址都是 127.0.0.1，伪造的 X-Forwarded-For 不该另开桶。
         // 令牌不存在时业务先拒 410，第十一次才会撞到限流。
         for (int i = 0; i < 10; i++) {
@@ -140,7 +140,7 @@ class HttpSmokeTest {
      */
     @Test
     @Order(7)
-    void 内容宽度默认一千二且越界被拒() throws Exception {
+    void contentWidthDefaultsTo1200AndRejectsOutOfRange() throws Exception {
         mockMvc.perform(get("/api/public/site-config"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.contentWidth").value(1200));
@@ -161,6 +161,22 @@ class HttpSmokeTest {
                 .andExpect(jsonPath("$.data.minWidth").value(1100));
         mockMvc.perform(get("/api/public/site-config"))
                 .andExpect(jsonPath("$.data.contentWidth").value(1400));
+    }
+
+    @Test
+    @Order(8)
+    void userListExposesOnlineStatusAndPollingIsAdminOnly() throws Exception {
+        String admin = login("admin", "smoke-admin");
+        // 管理员这次请求本身就是一次心跳，所以在线列表里至少有他。
+        mockMvc.perform(get("/api/admin/users/online").header("satoken", admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data[0]").isNumber());
+        mockMvc.perform(get("/api/admin/users").header("satoken", admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].online").isBoolean());
+        mockMvc.perform(get("/api/admin/users/online").header("satoken", login("demo", "smoke-demo")))
+                .andExpect(status().isForbidden());
     }
 
     private String login(String username, String password) throws Exception {

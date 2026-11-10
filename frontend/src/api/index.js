@@ -151,6 +151,7 @@ export const adminApi = {
   stats: () => client.get('/admin/stats'),
   system: () => client.get('/admin/system'),
   users: () => client.get('/admin/users'),
+  onlineUsers: () => client.get('/admin/users/online'),
   updateUserStatus: (id, status) => client.put(`/admin/users/${id}/status`, { status }),
   resetUserPassword: (id) => client.put(`/admin/users/${id}/password`),
   templates: () => client.get('/admin/templates'),

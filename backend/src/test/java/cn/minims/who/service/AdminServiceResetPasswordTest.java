@@ -42,7 +42,7 @@ class AdminServiceResetPasswordTest {
         userMapper = mock(UserMapper.class);
         mailService = mock(MailService.class);
         adminService = new AdminService(userMapper, null, null, null, null, null, null,
-                null, null, null, mailService);
+                null, null, null, mailService, null);
         stp = mockStatic(StpUtil.class);
     }
 
@@ -52,7 +52,7 @@ class AdminServiceResetPasswordTest {
     }
 
     @Test
-    void 已验证邮箱会发信并写入新密码() {
+    void verifiedEmailReceivesMailAndNewPasswordIsStored() {
         User user = user(42L, "reader@example.com", 1);
         when(userMapper.selectById(42L)).thenReturn(user);
         when(userMapper.update(nullable(User.class), any())).thenReturn(1);
@@ -74,7 +74,7 @@ class AdminServiceResetPasswordTest {
     }
 
     @Test
-    void 没有已验证邮箱时返回一次性密码且不发信() {
+    void withoutVerifiedEmailReturnsOneTimePasswordWithoutMail() {
         User user = user(42L, "unverified@example.com", 0);
         when(userMapper.selectById(42L)).thenReturn(user);
         when(userMapper.update(nullable(User.class), any())).thenReturn(1);
@@ -89,7 +89,7 @@ class AdminServiceResetPasswordTest {
     }
 
     @Test
-    void 发信失败不改动原密码() {
+    void mailFailureLeavesPasswordUnchanged() {
         User user = user(42L, "reader@example.com", 1);
         when(userMapper.selectById(42L)).thenReturn(user);
         doThrow(new BizException("MAIL_SEND_FAILED", "邮件发送失败", HttpStatus.BAD_GATEWAY))

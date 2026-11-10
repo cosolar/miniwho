@@ -12,7 +12,7 @@ class OAuthStateStoreTest {
     private final OAuthStateStore store = new OAuthStateStore();
 
     @Test
-    void 发出的状态值互不相同且非空() {
+    void issuedStatesAreUniqueAndNonBlank() {
         Set<String> states = new HashSet<>();
         for (int i = 0; i < 50; i++) {
             String state = store.issue();
@@ -23,14 +23,14 @@ class OAuthStateStoreTest {
     }
 
     @Test
-    void 状态值只能核销一次重放直接被拒() {
+    void stateCanOnlyBeConsumedOnce() {
         String state = store.issue();
         assertThat(store.consume(state)).isTrue();
         assertThat(store.consume(state)).isFalse();
     }
 
     @Test
-    void 没发过的状态值一律不认() {
+    void unissuedStateIsRejected() {
         assertThat(store.consume(null)).isFalse();
         assertThat(store.consume("")).isFalse();
         assertThat(store.consume("   ")).isFalse();

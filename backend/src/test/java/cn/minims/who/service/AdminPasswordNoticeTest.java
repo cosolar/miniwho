@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AdminPasswordNoticeTest {
 
     @Test
-    void 生成的密码固定八位且不含易混字符() {
+    void generatedPasswordHasEightCharsAndNoAmbiguousOnes() {
         Set<String> seen = new HashSet<>();
         for (int i = 0; i < 500; i++) {
             String password = AdminPasswordNotice.generatePassword();
@@ -27,7 +27,7 @@ class AdminPasswordNoticeTest {
     }
 
     @Test
-    void 邮件正文里出现同一个密码且收件地址被转义() {
+    void mailBodyContainsSamePasswordAndEscapesRecipient() {
         String email = "evil\"><script>@example.com";
         String password = "Ab3dE5gH";
         String html = AdminPasswordNotice.htmlBody(email, password);

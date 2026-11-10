@@ -54,7 +54,7 @@ class VerifyCodeMailTest {
     private final MailService mail = new MailService(settings);
 
     @Test
-    void 邮件带纯文本与HTML两份正文并把logo内联进来() throws Exception {
+    void mailHasTextAndHtmlPartsWithInlineLogo() throws Exception {
         settings.set(SettingsService.MAIL_FROM, "no-reply@example.com");
         String html = EmailCodeService.htmlBody("reader@example.com", "980135", EmailCodeService.PURPOSE_REGISTER);
         String text = EmailCodeService.textBody("reader@example.com", "980135", EmailCodeService.PURPOSE_REGISTER);
@@ -81,7 +81,7 @@ class VerifyCodeMailTest {
     }
 
     @Test
-    void 有效期跟着TTL走且收件地址不会带歪HTML() {
+    void expiryFollowsTtlAndRecipientDoesNotBreakHtml() {
         String html = EmailCodeService.htmlBody("evil\"><script>@example.com", "424242",
                 EmailCodeService.PURPOSE_REGISTER);
 
@@ -91,7 +91,7 @@ class VerifyCodeMailTest {
 
     /** 找回密码的码能直接改密码，所以信里必须写得明明白白；写成注册文案就是给「以为在注册其实被改了密码」开门。 */
     @Test
-    void 两种用途各自用自己的文案() {
+    void eachPurposeUsesItsOwnCopy() {
         String register = EmailCodeService.htmlBody("me@example.com", "111111", EmailCodeService.PURPOSE_REGISTER);
         String reset = EmailCodeService.htmlBody("me@example.com", "222222", EmailCodeService.PURPOSE_RESET);
         String resetText = EmailCodeService.textBody("me@example.com", "222222", EmailCodeService.PURPOSE_RESET);
@@ -105,7 +105,7 @@ class VerifyCodeMailTest {
 
     /** 收件地址最后才进模板：早一步替换的话，本地部分里的 __CODE__ 会被当成占位符换成真验证码。 */
     @Test
-    void 收件地址里的占位符原样保留且不会被顶包() {
+    void placeholdersInRecipientArePreserved() {
         String html = EmailCodeService.htmlBody("__CODE__@example.com", "424242", EmailCodeService.PURPOSE_REGISTER);
 
         assertThat(html).contains("__CODE__@example.com");

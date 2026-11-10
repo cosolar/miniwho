@@ -12,37 +12,37 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RateLimitInterceptorTest {
 
     @Test
-    void 代理在内网时取转发头的第一跳() {
+    void usesFirstForwardedHopForPrivateProxy() {
         assertThat(interceptor("auto").clientIp(request("172.18.0.1", "203.0.113.9, 172.18.0.1")))
                 .isEqualTo("203.0.113.9");
     }
 
     @Test
-    void 公网直连时不相信伪造的转发头() {
+    void ignoresSpoofedForwardedHeaderOnPublicConnection() {
         assertThat(interceptor("auto").clientIp(request("203.0.113.7", "198.51.100.1")))
                 .isEqualTo("203.0.113.7");
     }
 
     @Test
-    void 没有转发头时用直连地址() {
+    void fallsBackToDirectAddressWithoutForwardedHeader() {
         assertThat(interceptor("auto").clientIp(request("172.18.0.1", null))).isEqualTo("172.18.0.1");
         assertThat(interceptor("auto").clientIp(request("172.18.0.1", "  "))).isEqualTo("172.18.0.1");
     }
 
     @Test
-    void never只认直连地址() {
+    void neverStrategyUsesDirectAddressOnly() {
         assertThat(interceptor("never").clientIp(request("172.18.0.1", "203.0.113.9")))
                 .isEqualTo("172.18.0.1");
     }
 
     @Test
-    void always连公网对端也相信转发头() {
+    void alwaysStrategyTrustsForwardedHeaderOnPublicPeer() {
         assertThat(interceptor("always").clientIp(request("203.0.113.7", "198.51.100.1")))
                 .isEqualTo("198.51.100.1");
     }
 
     @Test
-    void 本机回环也算代理在前() {
+    void treatsLoopbackAsProxied() {
         assertThat(interceptor("auto").clientIp(request("127.0.0.1", "203.0.113.9")))
                 .isEqualTo("203.0.113.9");
     }

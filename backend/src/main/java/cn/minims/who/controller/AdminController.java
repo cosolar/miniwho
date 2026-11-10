@@ -75,6 +75,12 @@ public class AdminController {
         return ApiResponse.ok(adminService.users());
     }
 
+    /** 在线状态轮询：只读内存里的在线 id，避免每 60 秒重跑用户列表的磁盘扫描。 */
+    @GetMapping("/users/online")
+    public ApiResponse<List<Long>> onlineUsers() {
+        return ApiResponse.ok(adminService.onlineUserIds());
+    }
+
     @PutMapping("/users/{id}/status")
     public ApiResponse<Void> updateUser(@PathVariable long id,
                                         @Valid @RequestBody AdminUserStatusRequest request) {

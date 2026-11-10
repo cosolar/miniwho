@@ -72,7 +72,7 @@ class AccountDeletionServiceTest {
     }
 
     @Test
-    void 宽限期从申请那一刻算起且不随当前时间漂移() {
+    void gracePeriodStartsAtRequestTimeAndDoesNotDrift() {
         assertThat(AccountDeletionService.deletionDeadline(null)).isNull();
         long requestedAt = 1_700_000_000_000L;
         assertThat(AccountDeletionService.deletionDeadline(requestedAt))
@@ -80,7 +80,7 @@ class AccountDeletionServiceTest {
     }
 
     @Test
-    void 管理员账号不能自助注销() {
+    void adminAccountCannotSelfDelete() {
         when(userMapper.selectById(7L)).thenReturn(user(7L, "admin"));
 
         assertThatThrownBy(() -> service().request(7L, new DeletionRequest("correct-horse", null)))
@@ -90,7 +90,7 @@ class AccountDeletionServiceTest {
     }
 
     @Test
-    void 密码不正确时不写下申请时间() {
+    void wrongPasswordDoesNotRecordRequestTime() {
         when(userMapper.selectById(3L)).thenReturn(user(3L, "user"));
 
         assertThatThrownBy(() -> service().request(3L, new DeletionRequest("wrong-horse", null)))
@@ -100,7 +100,7 @@ class AccountDeletionServiceTest {
     }
 
     @Test
-    void 重复申请不会把宽限期重新拉长() {
+    void repeatedRequestDoesNotExtendGracePeriod() {
         User user = user(4L, "user");
         user.setDeletionRequestedAt(1_600_000_000_000L);
         when(userMapper.selectById(4L)).thenReturn(user);
@@ -112,7 +112,7 @@ class AccountDeletionServiceTest {
     }
 
     @Test
-    void 没有密码也没有已验证邮箱的账号只能找管理员() {
+    void accountWithoutPasswordOrVerifiedEmailRequiresAdmin() {
         User user = user(5L, "user");
         user.setHasPassword(0);
         when(userMapper.selectById(5L)).thenReturn(user);
@@ -123,7 +123,7 @@ class AccountDeletionServiceTest {
     }
 
     @Test
-    void 清除范围只圈本账号的简历目录与附件行() throws IOException {
+    void purgeScopeCoversOnlyOwnResumeDirsAndAttachmentRows() throws IOException {
         Files.createDirectories(uploadDir.resolve("attachments/11"));
         Files.createDirectories(uploadDir.resolve("attachments/99"));
         Files.createDirectories(uploadDir.resolve("media/12"));

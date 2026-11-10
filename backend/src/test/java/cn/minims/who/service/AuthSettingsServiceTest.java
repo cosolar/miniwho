@@ -49,7 +49,7 @@ class AuthSettingsServiceTest {
     private final AuthSettingsService service = new AuthSettingsService(settings, mail, github);
 
     @Test
-    void 填完凭据的同一次保存就能打开对应开关() {
+    void credentialsAndToggleApplyInSameSave() {
         service.apply(githubChannel("Iv1.client", "secret", "https://who.example.com", true));
 
         assertThat(github.configured()).isTrue();
@@ -57,7 +57,7 @@ class AuthSettingsServiceTest {
     }
 
     @Test
-    void 通道没就绪时开关被拒且不落库() {
+    void toggleRejectedWhenChannelNotReady() {
         assertThatThrownBy(() -> service.apply(githubChannel(null, null, null, true)))
                 .isInstanceOf(BizException.class);
 
@@ -65,7 +65,7 @@ class AuthSettingsServiceTest {
     }
 
     @Test
-    void 端口不合法时整条请求不写任何字段() {
+    void invalidPortWritesNoFields() {
         assertThatThrownBy(() -> service.apply(new AdminAuthSettingsRequest(null, null, null,
                 "smtp.bad.test", "70000", null, null, null, null, null, null, null, null, null)))
                 .isInstanceOf(BizException.class)
@@ -75,7 +75,7 @@ class AuthSettingsServiceTest {
     }
 
     @Test
-    void 对外地址缺协议头时整条请求不写任何字段() {
+    void publicBaseUrlWithoutSchemeWritesNoFields() {
         assertThatThrownBy(() -> service.apply(githubChannel("Iv1.client", "secret", "who.example.com", null)))
                 .isInstanceOf(BizException.class);
 
@@ -83,7 +83,7 @@ class AuthSettingsServiceTest {
     }
 
     @Test
-    void 传空串表示清空该项并回落到环境变量() {
+    void emptyStringClearsFieldAndFallsBackToEnv() {
         service.apply(new AdminAuthSettingsRequest(null, null, null,
                 "smtp.qq.com", null, null, null, "me@qq.com", null, null, null, null, null, null));
         assertThat(mail.available()).isTrue();
@@ -99,7 +99,7 @@ class AuthSettingsServiceTest {
      * 关掉注册是为了挡新用户，不该顺带把老用户「忘了密码还能自己改回来」这条路也堵死。
      */
     @Test
-    void 关掉邮箱注册也不影响自助找回密码() {
+    void disablingEmailRegisterKeepsPasswordRecovery() {
         service.apply(new AdminAuthSettingsRequest(null, false, null,
                 "smtp.qq.com", null, null, null, "me@qq.com", null, null, null, null, null, null));
 
@@ -110,7 +110,7 @@ class AuthSettingsServiceTest {
     }
 
     @Test
-    void 邮件通道没配好时登录页不出现找回密码() {
+    void loginPageHidesRecoveryWhenMailNotConfigured() {
         assertThat(service.passwordResetEnabled()).isFalse();
         assertThat(service.publicConfig().passwordReset()).isFalse();
     }

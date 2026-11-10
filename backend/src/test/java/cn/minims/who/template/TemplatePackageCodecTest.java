@@ -17,7 +17,7 @@ class TemplatePackageCodecTest {
     private final TemplatePackageCodec codec = new TemplatePackageCodec(json);
 
     @Test
-    void 内置包都能解出并且展开成与历史一致的七个键() {
+    void builtinPackagesDecodeToLegacySevenKeys() {
         List<TemplatePackage> packages = new BuiltinTemplatePackages(codec).load();
         assertThat(packages).hasSizeGreaterThanOrEqualTo(12);
         for (TemplatePackage pkg : packages) {
@@ -40,7 +40,7 @@ class TemplatePackageCodecTest {
     }
 
     @Test
-    void 包可以携带模板预制示例数据并挡住非法形状() {
+    void packageCarriesSampleDataAndRejectsInvalidShapes() {
         String withSample = """
                 {
                   "api": 1,
@@ -61,7 +61,7 @@ class TemplatePackageCodecTest {
     }
 
     @Test
-    void 非法包一次给出全部问题而不是只报第一条() {
+    void invalidPackageReportsAllProblemsAtOnce() {
         String broken = """
                 {
                   "api": 2,

@@ -25,7 +25,7 @@ class TemplateCssSanitizerTest {
     }
 
     @Test
-    void 合规规则被重新生成并保留作用域内声明() {
+    void validRulesAreRebuiltWithScopedDeclarations() {
         String css = """
                 .tw-jinshi .paper-section__title {
                   color: #fff;
@@ -47,7 +47,7 @@ class TemplateCssSanitizerTest {
     }
 
     @Test
-    void 越出作用域的选择器全部被拒() {
+    void selectorsEscapingScopeAreRejected() {
         assertThat(problems("body { color: red }")).isNotEmpty();
         assertThat(problems("html .tw-jinshi { color: red }")).isNotEmpty();
         assertThat(problems(":is(.tw-jinshi) { color: red }")).isNotEmpty();
@@ -58,14 +58,14 @@ class TemplateCssSanitizerTest {
     }
 
     @Test
-    void 注释不能用来夹带被禁内容() {
+    void commentsCannotSmuggleForbiddenContent() {
         // 注释剥离后 url(/*x*/http://evil) 变成 url(http://evil)，必须被发现。
         assertThat(problems(".tw-jinshi { background: url(/*x*/http://evil.example/track.png) }")).isNotEmpty();
         assertThat(problems("/* 未闭合 .tw-jinshi { color: red }")).isNotEmpty();
     }
 
     @Test
-    void 破坏注入标签与脚本语义的写法被拒() {
+    void injectionProneTagsAndScriptsAreRejected() {
         assertThat(problems(".tw-jinshi { color: red }</style><script>alert(1)</script>")).isNotEmpty();
         assertThat(problems(".tw-jinshi { color: red !important }")).isNotEmpty();
         assertThat(problems("@import url(data:text/css,x);")).isNotEmpty();
@@ -75,7 +75,7 @@ class TemplateCssSanitizerTest {
     }
 
     @Test
-    void 外链资源被拒但data内联与十六进制色值可用() {
+    void externalResourcesRejectedButDataUriAndHexAllowed() {
         assertThat(problems(".tw-jinshi .logo { background-image: url(https://cdn.example/a.png) }")).isNotEmpty();
         assertThat(problems(".tw-jinshi .logo { background-image: url(//cdn.example/a.png) }")).isNotEmpty();
         assertThat(problems(".tw-jinshi .logo { background-image: url(\"data:image/svg+xml,<svg/>\") }")).isNotEmpty();
@@ -83,7 +83,7 @@ class TemplateCssSanitizerTest {
     }
 
     @Test
-    void 一层之外的atRule被拒() {
+    void nestedAtRulesBeyondOneLevelAreRejected() {
         assertThat(problems("@media print { @media screen { .tw-jinshi .a { color: red } } }")).isNotEmpty();
         assertThat(problems("@keyframes spin { .tw-jinshi .a { color: red } }")).isNotEmpty();
     }

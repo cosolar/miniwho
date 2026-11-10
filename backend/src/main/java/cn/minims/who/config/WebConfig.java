@@ -4,6 +4,7 @@ import cn.dev33.satoken.interceptor.SaInterceptor;
 import cn.dev33.satoken.router.SaRouter;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.minims.who.common.AdminInterceptor;
+import cn.minims.who.common.OnlineUserInterceptor;
 import cn.minims.who.common.PayloadLimitFilter;
 import cn.minims.who.common.RateLimitInterceptor;
 import cn.minims.who.common.SecurityHeadersFilter;
@@ -28,10 +29,13 @@ public class WebConfig implements WebMvcConfigurer {
 
     private final AdminInterceptor adminInterceptor;
     private final RateLimitInterceptor rateLimitInterceptor;
+    private final OnlineUserInterceptor onlineUserInterceptor;
 
-    public WebConfig(AdminInterceptor adminInterceptor, RateLimitInterceptor rateLimitInterceptor) {
+    public WebConfig(AdminInterceptor adminInterceptor, RateLimitInterceptor rateLimitInterceptor,
+                     OnlineUserInterceptor onlineUserInterceptor) {
         this.adminInterceptor = adminInterceptor;
         this.rateLimitInterceptor = rateLimitInterceptor;
+        this.onlineUserInterceptor = onlineUserInterceptor;
     }
 
     @Bean
@@ -77,6 +81,9 @@ public class WebConfig implements WebMvcConfigurer {
                 return super.preHandle(request, response, handler);
             }
         }).addPathPatterns("/api/**");
+
+        // 登录校验通过后刷新活跃时间；公开白名单接口里带令牌的请求也会走到这里。
+        registry.addInterceptor(onlineUserInterceptor).addPathPatterns("/api/**");
 
         // 排在登录拦截器之后：先保证已登录（401），再按注解判断角色（403）。
         registry.addInterceptor(adminInterceptor).addPathPatterns("/api/**");

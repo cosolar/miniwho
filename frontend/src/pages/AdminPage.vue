@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ChatDotSquare, Check, Close, DataBoard, Document, Download, Grid, Odometer, Refresh, Search, Setting, Share,
@@ -11,6 +11,7 @@ import { adminApi, templateApi } from '../api'
 import { notifyError } from '../api/client'
 import { applyContentWidth } from '../utils/appearance'
 import { formatDate, formatDateTime, formatFileSize, saveBlob } from '../utils/format'
+import { USER_MAX_RENDERED, USER_PAGE_SIZE, queryUsers, userColumnWidths } from '../utils/userTable'
 
 const auth = useAuthStore()
 
@@ -60,13 +61,18 @@ const DEMO_VIEWPORT = 1600
 const widthDemoStyle = computed(() => ({ width: `${Math.min(100, (siteWidth.value / DEMO_VIEWPORT) * 100)}%` }))
 const widthGutter = computed(() => Math.max(0, Math.round((DEMO_VIEWPORT - siteWidth.value) / 2)))
 
-const filteredUsers = computed(() => {
-  const query = keyword.value.trim().toLowerCase()
-  if (!query) return users.value
-  return users.value.filter((item) =>
-    [item.username, item.nickname, item.email].filter(Boolean).some((value) =>
-      String(value).toLowerCase().includes(query)))
-})
+const sortState = ref({ prop: 'createdAt', order: 'descending' })
+const visibleCount = ref(USER_PAGE_SIZE)
+const userScrollRef = ref(null)
+
+/** 搜索与排序基于全量数据，滚动只决定渲染多少行，结果不会因分批而失真。 */
+const filteredUsers = computed(() => queryUsers(users.value, keyword.value, sortState.value))
+const visibleUsers = computed(() => filteredUsers.value.slice(0, visibleCount.value))
+const hasMoreUsers = computed(() => visibleCount.value < Math.min(filteredUsers.value.length, USER_MAX_RENDERED))
+const renderCapped = computed(() => filteredUsers.value.length > USER_MAX_RENDERED && !hasMoreUsers.value)
+const columnWidths = computed(() => userColumnWidths(filteredUsers.value))
+
+const onlineCount = computed(() => users.value.filter((item) => item.online).length)
 
 const pendingFeedback = computed(() => feedback.value.filter((item) => item.status === 0))
 const visibleFeedback = computed(() => {
@@ -141,12 +147,50 @@ async function loadUsers() {
   usersLoading.value = true
   try {
     users.value = await adminApi.users()
+    resetVisibleCount()
   } catch (error) {
     notifyError(error, '加载用户列表失败')
   } finally {
     usersLoading.value = false
   }
 }
+
+/** 排序、搜索或重新拉数据后回到第一批，避免停留在旧位置。 */
+function resetVisibleCount() {
+  visibleCount.value = Math.min(USER_PAGE_SIZE, USER_MAX_RENDERED)
+  if (userScrollRef.value) userScrollRef.value.scrollTop = 0
+}
+
+/** 表格容器滚到底再追加一批；渲染上限兜住，不会一路堆到几千行 DOM。 */
+function onUserScroll() {
+  const el = userScrollRef.value
+  if (!el || !hasMoreUsers.value) return
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 140) {
+    visibleCount.value = Math.min(visibleCount.value + USER_PAGE_SIZE, USER_MAX_RENDERED, filteredUsers.value.length)
+  }
+}
+
+function onUserSortChange({ prop, order }) {
+  sortState.value = { prop: prop || 'createdAt', order: order || 'descending' }
+  resetVisibleCount()
+}
+
+watch(keyword, resetVisibleCount)
+
+/** 在线状态单独轮询：用户列表接口会扫磁盘，不适合每 60 秒跑一次。 */
+async function refreshOnlineUsers() {
+  if (activeTab.value !== 'users') return
+  try {
+    const online = new Set((await adminApi.onlineUsers()) || [])
+    for (const user of users.value) {
+      user.online = online.has(user.id)
+    }
+  } catch {
+    // 在线状态只是辅助信息，失败时保留上一次结果。
+  }
+}
+
+let onlineTimer = 0
 
 async function loadTemplates() {
   templatesLoading.value = true
@@ -415,6 +459,8 @@ async function toggleUser(row) {
     row.status = freezing ? 2 : 1
     ElMessage.success(freezing ? '账号已冻结' : '账号已恢复')
     loadStats()
+    // 冻结会踢掉会话，后端已判定离线；同步一次避免出现「在线 · 已冻结」。
+    refreshOnlineUsers()
   } catch (error) {
     notifyError(error, '更新账号状态失败')
   }
@@ -519,6 +565,7 @@ async function submitReply() {
 function switchTab(key) {
   activeTab.value = key
   if (key === 'overview') loadStats()
+  if (key === 'users') refreshOnlineUsers()
 }
 
 function templateTags(row) {
@@ -530,7 +577,12 @@ function feedbackPreview(item) {
   return item.content?.length > 120 ? `${item.content.slice(0, 120)}…` : item.content
 }
 
-onMounted(() => loadAll())
+onMounted(() => {
+  loadAll()
+  onlineTimer = window.setInterval(refreshOnlineUsers, 60_000)
+})
+
+onBeforeUnmount(() => window.clearInterval(onlineTimer))
 </script>
 
 <template>
@@ -722,16 +774,26 @@ onMounted(() => loadAll())
             <div class="table-toolbar">
               <div>
                 <span class="card-kicker">Users</span>
-                <h2>用户管理 <small>{{ users.length }} 位</small></h2>
+                <h2>用户管理 <small>{{ users.length }} 位 · {{ onlineCount }} 人在线</small></h2>
               </div>
               <el-input v-model="keyword" class="user-search" placeholder="搜索用户名、昵称或邮箱" clearable>
                 <template #prefix><el-icon><Search /></el-icon></template>
               </el-input>
             </div>
 
-            <div class="surface table-card" v-loading="usersLoading">
-              <el-table :data="filteredUsers" style="width: 100%">
-                <el-table-column label="用户" min-width="158">
+            <div
+              ref="userScrollRef"
+              class="surface table-card user-table-card"
+              v-loading="usersLoading"
+              @scroll.passive="onUserScroll"
+            >
+              <el-table
+                :data="visibleUsers"
+                style="width: 100%"
+                :default-sort="{ prop: 'createdAt', order: 'descending' }"
+                @sort-change="onUserSortChange"
+              >
+                <el-table-column prop="username" label="用户" :min-width="columnWidths.user" sortable="custom" show-overflow-tooltip>
                   <template #default="{ row }">
                     <div class="table-user">
                       <span class="table-avatar">{{ (row.nickname || row.username || '?').slice(0, 1) }}</span>
@@ -742,7 +804,7 @@ onMounted(() => loadAll())
                     </div>
                   </template>
                 </el-table-column>
-                <el-table-column prop="email" label="邮箱" min-width="176">
+                <el-table-column prop="email" label="邮箱" :min-width="columnWidths.email" sortable="custom" show-overflow-tooltip>
                   <template #default="{ row }">
                     <div v-if="row.email" class="cell-email">
                       <span class="cell-muted">{{ row.email }}</span>
@@ -753,32 +815,39 @@ onMounted(() => loadAll())
                     <span v-else class="cell-muted">—</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="角色" width="84">
+                <el-table-column prop="role" label="角色" :min-width="columnWidths.role" sortable="custom">
                   <template #default="{ row }">
                     <span class="role-tag" :class="{ 'is-admin': row.role === 'admin' }">
                       {{ row.role === 'admin' ? '管理员' : '普通用户' }}
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column prop="resumeCount" label="简历" width="60" align="center" />
-                <el-table-column label="存储" width="88" align="right">
+                <el-table-column prop="resumeCount" label="简历" :min-width="columnWidths.resumeCount" align="center" sortable="custom" />
+                <el-table-column prop="storageBytes" label="存储" :min-width="columnWidths.storage" align="right" sortable="custom">
                   <template #default="{ row }">
                     <span class="cell-muted cell-mono">{{ formatFileSize(row.storageBytes || 0) }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="注册时间" width="100">
+                <el-table-column prop="createdAt" label="注册时间" :min-width="columnWidths.createdAt" sortable="custom">
                   <template #default="{ row }">
                     <span class="cell-muted">{{ formatDate(row.createdAt) }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="状态" width="86">
+                <el-table-column prop="online" label="状态" :min-width="columnWidths.status" sortable="custom">
                   <template #default="{ row }">
-                    <span class="status-tag" :class="row.status === 1 ? 'is-on' : 'is-off'">
-                      <i></i>{{ row.status === 1 ? '正常' : '已冻结' }}
-                    </span>
+                    <div class="user-state">
+                      <span
+                        class="status-tag"
+                        :class="row.online ? 'is-on' : 'is-off'"
+                        :title="row.online ? '最近 5 分钟内有活动' : '最近 5 分钟内没有活动'"
+                      >
+                        <i></i>{{ row.online ? '在线' : '离线' }}
+                      </span>
+                      <span v-if="row.status !== 1" class="frozen-tag">已冻结</span>
+                    </div>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="150" align="right">
+                <el-table-column label="操作" :min-width="columnWidths.actions" align="right">
                   <template #default="{ row }">
                     <el-button size="small" link :loading="resettingPasswordId === row.id" :disabled="row.id === auth.user?.id" @click="resetUserPassword(row)">
                       重置密码
@@ -796,6 +865,11 @@ onMounted(() => loadAll())
                 </el-table-column>
               </el-table>
               <div v-if="!filteredUsers.length" class="table-empty">没有匹配的用户</div>
+              <div v-else class="table-more">
+                <template v-if="renderCapped">已显示 {{ visibleUsers.length }} / {{ filteredUsers.length }} 位，请用搜索缩小范围</template>
+                <template v-else-if="hasMoreUsers">向下滚动加载更多（已显示 {{ visibleUsers.length }} / {{ filteredUsers.length }}）</template>
+                <template v-else>已加载全部 {{ filteredUsers.length }} 位用户</template>
+              </div>
             </div>
           </section>
 
@@ -1793,6 +1867,31 @@ onMounted(() => loadAll())
 
 .status-tag.is-warn {
   color: #a17c3d;
+}
+
+.user-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.frozen-tag {
+  color: #a17c3d;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* 表格自己滚动，滚到底再追加下一批；高度固定才不会让整页越拉越长。 */
+.table-card.user-table-card {
+  max-height: min(62vh, 620px);
+  overflow: auto;
+}
+
+.table-more {
+  padding: 10px 4px 4px;
+  color: var(--faint);
+  font-size: 11px;
+  text-align: center;
 }
 
 .template-admin-grid {

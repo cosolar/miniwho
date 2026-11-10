@@ -37,8 +37,10 @@ public final class AdminDtos {
     public record AdminRecentUserVo(Long id, String username, String nickname, String role, Long createdAt) {
     }
 
+    /** online 表示最近 5 分钟是否有带登录态的请求，和 status（1 正常 / 2 冻结）不是一回事。 */
     public record AdminUserVo(Long id, String username, String nickname, String email, Boolean emailVerified,
-                              String role, Integer status, Long createdAt, Long resumeCount, Long storageBytes) {
+                              String role, Integer status, Long createdAt, Long resumeCount, Long storageBytes,
+                              boolean online) {
     }
 
     public record AdminTemplateVo(Long id, String code, String name, String description, String category,

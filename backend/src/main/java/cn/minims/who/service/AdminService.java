@@ -34,8 +34,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class AdminService {
@@ -51,12 +53,14 @@ public class AdminService {
     private final SettingsService settingsService;
     private final StorageUsageService storageUsage;
     private final MailService mailService;
+    private final OnlineUserService onlineUserService;
 
     public AdminService(UserMapper userMapper, ResumeMapper resumeMapper, TemplateMapper templateMapper,
                         FeedbackMapper feedbackMapper, ResumeShareMapper shareMapper,
                         ResumeReportMapper reportMapper, TemplateService templateService,
                         AuthSettingsService authSettingsService, SettingsService settingsService,
-                        StorageUsageService storageUsage, MailService mailService) {
+                        StorageUsageService storageUsage, MailService mailService,
+                        OnlineUserService onlineUserService) {
         this.userMapper = userMapper;
         this.resumeMapper = resumeMapper;
         this.templateMapper = templateMapper;
@@ -68,6 +72,7 @@ public class AdminService {
         this.settingsService = settingsService;
         this.storageUsage = storageUsage;
         this.mailService = mailService;
+        this.onlineUserService = onlineUserService;
     }
 
     /** 注册 / 登录方式面板：管理员要看的不是三个孤立开关，而是「开没开 + 还差什么」。 */
@@ -121,8 +126,10 @@ public class AdminService {
     }
 
     public List<AdminUserVo> users() {
+        // 简历数、存储用量和在线状态本来就是全量算出来的，一次返回给前端由它分批渲染；
+        // 按页反复请求只会让每页都重扫一次盘。排序与搜索同样在前端对全量数据做，不会因分批失真。
         List<User> users = userMapper.selectList(new LambdaQueryWrapper<User>()
-                .orderByDesc(User::getCreatedAt).last("limit 200"));
+                .orderByDesc(User::getCreatedAt));
         // 一条 group by 拿全量简历数，替代逐个 selectCount 的 N+1。
         Map<Long, Long> resumeCounts = new HashMap<>();
         for (Map<String, Object> row : resumeMapper.selectMaps(new QueryWrapper<Resume>()
@@ -135,13 +142,20 @@ public class AdminService {
         List<AdminUserVo> result = new ArrayList<>(users.size());
         // 盘上的用量整个后台共用一次扫描，别按用户各扫一遍。
         StorageUsageService.SiteUsage scan = storageUsage.scanSite();
+        Set<Long> onlineIds = new HashSet<>(onlineUserService.onlineUserIds());
         for (User user : users) {
             result.add(new AdminUserVo(user.getId(), user.getUsername(), user.getNickname(), user.getEmail(),
                     Integer.valueOf(1).equals(user.getEmailVerified()),
                     user.getRole(), user.getStatus(), user.getCreatedAt(),
-                    resumeCounts.getOrDefault(user.getId(), 0L), scan.userBytes(user.getId())));
+                    resumeCounts.getOrDefault(user.getId(), 0L), scan.userBytes(user.getId()),
+                    onlineIds.contains(user.getId())));
         }
         return result;
+    }
+
+    /** 在线状态轮询：只读内存，不碰用户列表那条会扫磁盘的路径。 */
+    public List<Long> onlineUserIds() {
+        return onlineUserService.onlineUserIds();
     }
 
     public void updateUserStatus(long adminId, long userId, int status) {

@@ -20,12 +20,12 @@ class ArchitectureTest {
     private static final Path SOURCES = Path.of("src/main/java/cn/minims/who");
 
     @Test
-    void 控制器不得直接依赖实体层与持久层() throws IOException {
+    void controllersMustNotDependOnEntitiesOrMappers() throws IOException {
         assertNoImports("controller", List.of("cn.minims.who.entity.", "cn.minims.who.mapper."));
     }
 
     @Test
-    void 服务层不得反向依赖控制器与Web配置() throws IOException {
+    void servicesMustNotDependOnControllersOrWebConfig() throws IOException {
         assertNoImports("service", List.of("cn.minims.who.controller.", "cn.minims.who.config."));
     }
 

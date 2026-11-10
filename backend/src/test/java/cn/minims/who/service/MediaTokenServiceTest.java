@@ -11,20 +11,20 @@ class MediaTokenServiceTest {
     private final MediaTokenService service = new MediaTokenService("test-media-secret");
 
     @Test
-    void 自己签发的链接能通过校验() {
+    void ownSignedLinkPassesValidation() {
         String token = service.issue("avatar", 42L);
         assertThatCode(() -> service.verify(token, "avatar", 42L)).doesNotThrowAnyException();
     }
 
     @Test
-    void 作用域或简历对不上都不认() {
+    void mismatchedScopeOrResumeIsRejected() {
         String token = service.issue("avatar", 42L);
         assertThatThrownBy(() -> service.verify(token, "pdf", 42L)).isInstanceOf(BizException.class);
         assertThatThrownBy(() -> service.verify(token, "avatar", 43L)).isInstanceOf(BizException.class);
     }
 
     @Test
-    void 篡改正文无法通过签名校验() {
+    void tamperedPayloadFailsSignatureCheck() {
         String token = service.issue("avatar", 42L);
         int dot = token.lastIndexOf('.');
         char head = token.charAt(dot + 1);
@@ -33,7 +33,7 @@ class MediaTokenServiceTest {
     }
 
     @Test
-    void 过期链接被拒绝() {
+    void expiredLinkIsRejected() {
         MediaTokenService expired = new MediaTokenService("test-media-secret", -1L);
         String token = expired.issue("avatar", 42L);
         assertThatThrownBy(() -> service.verify(token, "avatar", 42L))
@@ -42,13 +42,13 @@ class MediaTokenServiceTest {
     }
 
     @Test
-    void 换密钥签发的链接不认() {
+    void linkSignedWithDifferentKeyIsRejected() {
         String token = new MediaTokenService("another-secret").issue("avatar", 42L);
         assertThatThrownBy(() -> service.verify(token, "avatar", 42L)).isInstanceOf(BizException.class);
     }
 
     @Test
-    void 结构残缺的链接直接判无效() {
+    void malformedLinkIsRejected() {
         for (String token : new String[]{null, "", "abc", ".", "abc.", ".abc", "!!!.???"}) {
             assertThatThrownBy(() -> service.verify(token, "avatar", 1L))
                     .as("token=%s", token)

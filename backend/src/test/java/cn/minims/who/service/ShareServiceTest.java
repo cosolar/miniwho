@@ -67,7 +67,7 @@ class ShareServiceTest {
     }
 
     @Test
-    void 留空时使用随机令牌() {
+    void blankSlugUsesRandomToken() {
         ShareVo vo = service().create(1L, 7L, request("  "));
 
         assertThat(vo.token()).matches("[A-Za-z0-9_-]{40,}");
@@ -75,7 +75,7 @@ class ShareServiceTest {
     }
 
     @Test
-    void 自定义链接名原样落库() {
+    void customSlugIsStoredAsIs() {
         ShareVo vo = service().create(1L, 7L, request("haojianli"));
 
         assertThat(vo.token()).isEqualTo("haojianli");
@@ -85,7 +85,7 @@ class ShareServiceTest {
     }
 
     @Test
-    void 链接名字符集不合法时拒绝() {
+    void invalidSlugCharsAreRejected() {
         for (String bad : List.of("abc", "a".repeat(41), "hao 简历", "hao-jianli!", "share/../../")) {
             assertThatThrownBy(() -> service().create(1L, 7L, request(bad)))
                     .isInstanceOf(BizException.class)
@@ -95,7 +95,7 @@ class ShareServiceTest {
     }
 
     @Test
-    void 名字已被别人的链接占用时报冲突() {
+    void slugTakenByAnotherUserIsConflict() {
         when(shareMapper.selectOne(any())).thenReturn(row(99L, 2L, 33L, "haojianli"));
 
         assertThatThrownBy(() -> service().create(1L, 7L, request("haojianli")))
@@ -107,7 +107,7 @@ class ShareServiceTest {
     }
 
     @Test
-    void 名字用在自己的另一份简历上时也报冲突() {
+    void slugReusedOnOwnOtherResumeIsConflict() {
         when(shareMapper.selectOne(any())).thenReturn(row(99L, 1L, 88L, "haojianli"));
 
         assertThatThrownBy(() -> service().create(1L, 7L, request("haojianli")))
@@ -116,7 +116,7 @@ class ShareServiceTest {
     }
 
     @Test
-    void 重发同名链接时复用原记录而不是新插一条() {
+    void reissuingSameSlugReusesExistingRecord() {
         when(shareMapper.selectOne(any())).thenReturn(row(5L, 1L, 7L, "haojianli"));
 
         ShareVo vo = service().create(1L, 7L, request("haojianli"));
