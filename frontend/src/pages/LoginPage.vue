@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock, ArrowRight, Check, Message } from '@element-plus/icons-vue'
 import BrandLogo from '../components/BrandLogo.vue'
+import SliderCaptcha from '../components/SliderCaptcha.vue'
 import { useAuthStore } from '../stores/auth'
 import { apiUrl, notifyError } from '../api/client'
 import { authApi } from '../api'
@@ -23,6 +24,21 @@ const registerKind = ref('username')
 const codeSending = ref(false)
 const countdown = ref(0)
 let countdownTimer = null
+/**
+ * 滑块验证：滑完拿一张一次性票据，登录时带上；票据用过就作废，所以每次提交失败都要重滑。
+ * 题目本身不缓存，弹层每次打开都现取一张。
+ */
+const captchaOpen = ref(false)
+const captchaTicket = ref('')
+/** 只在「滑完了但还没登录成功」时显示已通过，避免用户以为可以一直复用。 */
+const captchaSolved = computed(() => Boolean(captchaTicket.value))
+/** 密码连错 3 次后，密码入口关闭，整张表单切换成邮箱验证码登录。 */
+const loginByCodeMode = ref(false)
+const loginCodeSending = ref(false)
+const loginCodeSent = ref(false)
+const loginCodeTarget = ref('')
+const loginCodeCountdown = ref(0)
+let loginCodeTimer = null
 
 const form = reactive({
   username: '',
@@ -38,6 +54,7 @@ const isReset = computed(() => mode.value === 'reset')
 const isEmailRegister = computed(() => isRegister.value && registerKind.value === 'email')
 /** 邮箱 + 验证码这套控件被「邮箱注册」和「找回密码」共用，规则也共用一份。 */
 const needsEmailCode = computed(() => isEmailRegister.value || isReset.value)
+const isLoginByCode = computed(() => !isRegister.value && !isReset.value && loginByCodeMode.value)
 const needsConfirm = computed(() => isRegister.value || isReset.value)
 const canRegister = computed(() => config.usernameRegister || config.emailRegister)
 const heading = computed(() => {
@@ -65,13 +82,16 @@ const rules = computed(() => ({
         { type: 'email', message: '邮箱格式不正确', trigger: 'blur' }
       ]
     : [],
-  code: needsEmailCode.value
+  code: needsEmailCode.value || isLoginByCode.value
     ? [{ required: true, pattern: /^\d{6}$/, message: '验证码为 6 位数字', trigger: 'blur' }]
     : [],
-  password: [
-    { required: true, message: isReset.value ? '请输入新密码' : '请输入密码', trigger: 'blur' },
-    ...(needsConfirm.value ? [{ min: 6, max: 32, message: '密码长度为 6-32 位', trigger: 'blur' }] : [])
-  ],
+  // 验证码登录时密码框整个不出现，规则也必须跟着撤掉，否则空密码会卡住提交。
+  password: isLoginByCode.value
+    ? []
+    : [
+        { required: true, message: isReset.value ? '请输入新密码' : '请输入密码', trigger: 'blur' },
+        ...(needsConfirm.value ? [{ min: 6, max: 32, message: '密码长度为 6-32 位', trigger: 'blur' }] : [])
+      ],
   confirm: needsConfirm.value
     ? [
         { required: true, message: '请再次输入密码', trigger: 'blur' },
@@ -93,10 +113,11 @@ function switchMode(next) {
   // 三种模式收的是同一批字段，切过去以后旧内容全对不上，所以一律清空。
   // 密码也清：找回密码那一栏接下来收的是「新密码」，来回切一次就把刚设的密码
   // 留在登录框里显示着，既容易被误提交，也不该让它多待在不必要的输入框里。
-  form.code = ''
+  resetLoginByCode()
   form.confirm = ''
   form.password = ''
   formRef.value?.clearValidate()
+  resetCaptcha()
   const query = { ...route.query }
   if (next === 'login') delete query.mode
   else query.mode = next
@@ -115,6 +136,65 @@ function startCountdown(seconds) {
     countdown.value -= 1
     if (countdown.value <= 0) clearInterval(countdownTimer)
   }, 1000)
+}
+
+/** 票据是一次性的：换模式、换账号、提交失败都要作废重滑，不能留着上次的结果。 */
+function resetCaptcha() {
+  captchaTicket.value = ''
+  captchaOpen.value = false
+}
+
+function openCaptcha() {
+  if (isRegister.value || isReset.value || isLoginByCode.value) return
+  captchaOpen.value = true
+}
+
+function onCaptchaSolved(ticket) {
+  captchaTicket.value = ticket || ''
+}
+
+function resetLoginByCode() {
+  loginByCodeMode.value = false
+  loginCodeSent.value = false
+  loginCodeTarget.value = ''
+  loginCodeCountdown.value = 0
+  clearInterval(loginCodeTimer)
+  form.code = ''
+  formRef.value?.clearValidate('code')
+}
+
+/** 第三次输错密码时后端直接回 428，这里把表单整张换成验证码登录并自动发一封。 */
+function switchToCodeLogin(email) {
+  loginByCodeMode.value = true
+  loginCodeTarget.value = email || ''
+  loginCodeSent.value = false
+  form.password = ''
+  form.code = ''
+  formRef.value?.clearValidate()
+  ElMessage.warning(`密码已连续输错 3 次，已切换为邮箱验证码登录${email ? `，验证码发送至 ${email}` : ''}`)
+  sendLoginCode()
+}
+
+/** 登录验证码的发码口：账号已因连错密码进入验证码登录状态，这里把码发到已验证邮箱。 */
+async function sendLoginCode() {
+  loginCodeSending.value = true
+  try {
+    await authApi.loginCode(form.username.trim())
+    loginCodeSent.value = true
+    ElMessage.success(loginCodeTarget.value
+      ? `验证码已发送至 ${loginCodeTarget.value}，10 分钟内有效`
+      : '登录验证码已发送，10 分钟内有效')
+    loginCodeCountdown.value = 60
+    clearInterval(loginCodeTimer)
+    loginCodeTimer = setInterval(() => {
+      loginCodeCountdown.value -= 1
+      if (loginCodeCountdown.value <= 0) clearInterval(loginCodeTimer)
+    }, 1000)
+  } catch (error) {
+    notifyError(error, '验证码发送失败')
+  } finally {
+    loginCodeSending.value = false
+  }
 }
 
 async function sendCode() {
@@ -156,6 +236,12 @@ async function submit() {
     ElMessage.warning('请先阅读并同意用户协议与隐私说明')
     return
   }
+  // 滑块票据不在表单校验里（它不是输入框），提交前单独确认一次。
+  if (!isRegister.value && !isReset.value && !isLoginByCode.value && !captchaTicket.value) {
+    ElMessage.warning('请先拖动滑块完成安全验证')
+    openCaptcha()
+    return
+  }
   loading.value = true
   try {
     if (isReset.value) {
@@ -188,8 +274,30 @@ async function submit() {
         })
       }
       ElMessage.success('账号已创建，你的第一份简历准备好了')
+    } else if (isLoginByCode.value) {
+      const data = await auth.loginByCode({
+        username: form.username.trim(),
+        code: form.code.trim()
+      })
+      if (data?.passwordChangeSuggested) auth.suggestPasswordChange()
+      ElMessage.success('已通过邮箱验证码登录')
     } else {
-      await auth.login({ username: form.username.trim(), password: form.password })
+      try {
+        await auth.login({
+          username: form.username.trim(),
+          password: form.password,
+          captchaTicket: captchaTicket.value
+        })
+      } catch (error) {
+        // 第三次输错时后端直接回 428：当场换表单，不用再让用户白试一次密码。
+        if (error?.code === 'LOGIN_CODE_REQUIRED') {
+          switchToCodeLogin(error.details?.email)
+          return
+        }
+        // 图形验证码是一次性的，任何一次失败后都要换一张。
+        resetCaptcha()
+        throw error
+      }
       ElMessage.success('欢迎回来')
     }
     router.push(redirect.value)
@@ -202,9 +310,11 @@ async function submit() {
 
 function fillDemo() {
   mode.value = 'login'
+  resetLoginByCode()
   form.username = 'demo'
   form.password = 'demo123'
   agreed.value = true
+  resetCaptcha()
 }
 
 async function loadConfig() {
@@ -258,13 +368,25 @@ function clearHandoffHash() {
   history.replaceState(history.state, '', location.pathname + location.search)
 }
 
-onBeforeUnmount(() => clearInterval(countdownTimer))
+// 换账号就重新开始：上一个账号的验证码登录状态不该延续到下一个账号。
+watch(() => form.username, () => {
+  if (loginByCodeMode.value) {
+    resetLoginByCode()
+    resetCaptcha()
+  }
+})
+
+onBeforeUnmount(() => {
+  clearInterval(countdownTimer)
+  clearInterval(loginCodeTimer)
+})
 
 onMounted(async () => {
   await loadConfig()
   const requested = route.query.mode
   if (requested === 'register' && canRegister.value) mode.value = 'register'
   else if (requested === 'reset' && config.passwordReset) mode.value = 'reset'
+  resetCaptcha()
   await consumeOAuthHandoff()
 })
 </script>
@@ -382,7 +504,7 @@ onMounted(async () => {
             <el-input v-model="form.nickname" size="large" placeholder="希望我们怎么称呼你" maxlength="50" />
           </el-form-item>
 
-          <el-form-item :label="isReset ? '新密码' : '密码'" prop="password">
+          <el-form-item v-if="!isLoginByCode" :label="isReset ? '新密码' : '密码'" prop="password">
             <el-input
               v-model="form.password"
               size="large"
@@ -394,6 +516,45 @@ onMounted(async () => {
             >
               <template #prefix><el-icon><Lock /></el-icon></template>
             </el-input>
+          </el-form-item>
+
+          <el-form-item v-if="!isRegister && !isReset && !isLoginByCode" label="安全验证">
+            <button
+              type="button"
+              class="verify-row"
+              :class="{ 'is-solved': captchaSolved }"
+              @click="openCaptcha"
+            >
+              <span class="verify-row__icon">
+                <el-icon v-if="captchaSolved"><Check /></el-icon>
+                <el-icon v-else><ArrowRight /></el-icon>
+              </span>
+              <span class="verify-row__text">
+                {{ captchaSolved ? '已通过安全验证' : '拖动滑块完成拼图' }}
+              </span>
+              <span class="verify-row__action">{{ captchaSolved ? '重新验证' : '开始验证' }}</span>
+            </button>
+          </el-form-item>
+
+          <el-form-item v-if="isLoginByCode" label="邮箱验证码" prop="code">
+            <el-input
+              v-model="form.code"
+              size="large"
+              maxlength="6"
+              placeholder="6 位数字"
+              autocomplete="one-time-code"
+              @keyup.enter="submit"
+            >
+              <template #prefix><el-icon><Message /></el-icon></template>
+              <template #append>
+                <el-button :disabled="loginCodeSending || loginCodeCountdown > 0" @click="sendLoginCode">
+                  {{ loginCodeCountdown > 0 ? `${loginCodeCountdown} 秒` : loginCodeSending ? '发送中' : '发送验证码' }}
+                </el-button>
+              </template>
+            </el-input>
+            <p class="login-code-hint">
+              密码已连续输错 3 次，本次改用邮箱验证码登录；验证码 10 分钟内有效{{ loginCodeTarget ? `，${loginCodeSent ? '已发送至' : '将发送至'} ${loginCodeTarget}` : '' }}。密码入口会在 30 分钟后恢复。
+            </p>
           </el-form-item>
 
           <el-form-item v-if="needsConfirm" label="确认密码" prop="confirm">
@@ -419,17 +580,17 @@ onMounted(async () => {
             </el-checkbox>
           </div>
 
-          <div v-if="!isRegister && !isReset && config.passwordReset" class="forgot-row">
+          <div v-if="!isRegister && !isReset && !isLoginByCode && config.passwordReset" class="forgot-row">
             <button type="button" class="forgot-link" @click="switchMode('reset')">忘记密码？</button>
           </div>
 
           <el-button type="primary" size="large" class="submit-btn" :loading="loading" @click="submit">
-            {{ isReset ? '重置密码' : isRegister ? '创建账号' : '登录' }}
+            {{ isReset ? '重置密码' : isRegister ? '创建账号' : isLoginByCode ? '验证并登录' : '登录' }}
             <el-icon v-if="!loading"><ArrowRight /></el-icon>
           </el-button>
         </el-form>
 
-        <div v-if="config.githubLogin && !isReset" class="oauth-block">
+        <div v-if="config.githubLogin && !isReset && !isLoginByCode" class="oauth-block">
           <div class="oauth-divider"><span>或</span></div>
           <button type="button" class="oauth-btn" :disabled="loading" @click="githubLogin">
             <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true">
@@ -471,6 +632,8 @@ onMounted(async () => {
         </p>
       </div>
     </main>
+
+    <SliderCaptcha v-model="captchaOpen" @success="onCaptchaSolved" />
   </div>
 </template>
 
@@ -879,6 +1042,72 @@ onMounted(async () => {
   font-size: 10px;
   line-height: 1.7;
   text-align: center;
+}
+
+.login-code-hint {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.verify-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-family: var(--sans);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.verify-row:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.verify-row.is-solved {
+  border-color: #bcd9cd;
+  background: #f0f7f3;
+  color: var(--success);
+}
+
+.verify-row__icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.verify-row.is-solved .verify-row__icon {
+  background: #d8ebe4;
+  color: var(--success);
+}
+
+.verify-row__text {
+  flex: 1;
+}
+
+.verify-row__action {
+  color: var(--accent);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.verify-row.is-solved .verify-row__action {
+  color: var(--muted);
 }
 
 .demo-hint {

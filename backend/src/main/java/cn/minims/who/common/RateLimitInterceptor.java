@@ -24,6 +24,14 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private static final Map<Pattern, Rule> RULES = Map.ofEntries(
             Map.entry(Pattern.compile("^/api/auth/login$"), new Rule("login", 10)),
+            // 验证码登录不是密码入口，但仍要挡住拿 6 位数字硬猜：与登录同档。
+            Map.entry(Pattern.compile("^/api/auth/login-by-code$"), new Rule("login-by-code", 10)),
+            // 登录码只发给「已连错 3 次」的账号，按发码口从严；邮箱维度还另有 60 秒 / 每小时 5 封。
+            Map.entry(Pattern.compile("^/api/auth/login-code$"), new Rule("login-code", 5)),
+            // 生成一张图很便宜，但没上限就变成了免费的 CPU 消耗口；正常用户几分钟才换一张。
+            Map.entry(Pattern.compile("^/api/auth/captcha$"), new Rule("captcha", 60)),
+            // 每提交一次轨迹，服务端就要跑一遍行为判定；滑歪重试是常态，但一分钟 30 次足够。
+            Map.entry(Pattern.compile("^/api/auth/captcha/check$"), new Rule("captcha-check", 30)),
             Map.entry(Pattern.compile("^/api/auth/register$"), new Rule("register", 5)),
             // 验证码按 IP 从严：服务层还按邮箱限，两个维度叠起来才挡得住换邮箱继续刷。
             Map.entry(Pattern.compile("^/api/auth/email-code$"), new Rule("email-code", 5)),
@@ -71,16 +79,17 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     /**
      * 限流按哪个地址计桶。
      *
-     * <p>{@code X-Forwarded-For} 是客户端可以自己编的头，无条件取第一跳等于把限流形同虚设：
-     * 每个请求换一个假 IP 就能永远不被挡。默认只在直连对端本来就是内网/回环地址时相信它，
-     * 也就是「前面确实有一台代理」的形态（Docker 网络里的 nginx、1Panel 的转发都算）。
+     * <p>{@code X-Forwarded-For} 是客户端可以自己编的头，取第一跳等于把限流形同虚设：
+     * 每个请求在前面塞一个假 IP 就能永远不被挡。取最右一跳才是正确的：那一段是最近一台
+     * 代理自己追加的真实来源，客户端伪造的只可能落在它的左边。
      *
-     * <p>站点直接暴露公网时不看这个头，只按真实来源计；
+     * <p>默认只在直连对端本来就是内网/回环地址时相信它，也就是「前面确实有一台代理」的形态
+     * （Docker 网络里的 nginx、1Panel 的转发都算）。站点直接暴露公网时不看这个头，只按真实来源计；
      * 真有代理但来源是公网地址的部署，用 {@code app.rate-limit.trust-forwarded-for=always} 明说。
      */
     String clientIp(HttpServletRequest request) {
         String peer = request.getRemoteAddr();
-        String forwarded = firstForwardedFor(request.getHeader("X-Forwarded-For"));
+        String forwarded = lastForwardedFor(request.getHeader("X-Forwarded-For"));
         boolean trust = switch (trustForwardedFor) {
             case "always" -> forwarded != null;
             case "never" -> false;
@@ -92,13 +101,13 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         return peer == null || peer.isBlank() ? "unknown" : peer;
     }
 
-    private static String firstForwardedFor(String header) {
+    private static String lastForwardedFor(String header) {
         if (header == null || header.isBlank()) {
             return null;
         }
-        int comma = header.indexOf(',');
-        String first = (comma > 0 ? header.substring(0, comma) : header).trim();
-        return first.isEmpty() ? null : first;
+        int comma = header.lastIndexOf(',');
+        String last = (comma >= 0 ? header.substring(comma + 1) : header).trim();
+        return last.isEmpty() ? null : last;
     }
 
     /** 直连对端是不是「本机或内网」，即前面有反向代理的常见形态。 */

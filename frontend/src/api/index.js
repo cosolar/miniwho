@@ -3,7 +3,16 @@ import client from './client'
 export const authApi = {
   /** 登录页据此决定渲染哪些注册 / 登录入口，无需鉴权。 */
   config: () => client.get('/public/auth-config'),
+  /** 滑块验证码出题：只回图片与尺寸，缺口位置不下发。 */
+  captcha: () => client.get('/auth/captcha'),
+  /** 提交一次滑动的完整轨迹，通过后换一张一次性票据（登录时带上）。 */
+  captchaCheck: (payload) => client.post('/auth/captcha/check', payload),
   login: (payload) => client.post('/auth/login', payload),
+  /** 连错 3 次后切换到验证码登录：先按账号发码，再只凭验证码进入。 */
+  loginCode: (username) => client.post('/auth/login-code', { username }),
+  loginByCode: (payload) => client.post('/auth/login-by-code', payload),
+  /** 验证码登录后的免原密码改密，票据由服务端记在本次登录的令牌上。 */
+  passwordAfterCode: (newPassword) => client.put('/auth/password-after-code', { newPassword }),
   register: (payload) => client.post('/auth/register', payload),
   emailCode: (email) => client.post('/auth/email-code', { email }),
   registerEmail: (payload) => client.post('/auth/register-email', payload),
@@ -151,6 +160,8 @@ export const adminApi = {
   stats: () => client.get('/admin/stats'),
   system: () => client.get('/admin/system'),
   users: () => client.get('/admin/users'),
+  userResumes: (id) => client.get(`/admin/users/${id}/resumes`),
+  userResume: (id) => client.get(`/admin/resumes/${id}`),
   onlineUsers: () => client.get('/admin/users/online'),
   updateUserStatus: (id, status) => client.put(`/admin/users/${id}/status`, { status }),
   resetUserPassword: (id) => client.put(`/admin/users/${id}/password`),

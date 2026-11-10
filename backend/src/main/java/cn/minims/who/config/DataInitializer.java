@@ -76,9 +76,11 @@ public class DataInitializer implements ApplicationRunner {
         List<TemplatePackage> packages = builtinTemplatePackages.load();
         migrateLegacyCommunityCodes(packages);
         seedTemplates(packages);
+        // 管理员与演示数据是两件事：关掉 seed-demo 的正式部署同样需要后台入口，
+        // 不能因为不种演示数据就一个管理员都不建。
+        ensureAdmin();
         if (seedDemo) {
             User demo = ensureUser("demo", demoPassword, "郝简历", "demo@miniwho.local", "user");
-            ensureAdmin();
             seedDemoResume(demo);
             seedFeedback(demo);
         }

@@ -2,11 +2,23 @@ import { defineStore } from 'pinia'
 import { accountApi, authApi } from '../api'
 import { TOKEN_KEY, USER_KEY } from '../api/client'
 
+const PASSWORD_PROMPT_KEY = 'miniwho.passwordChangeSuggested'
+
 function readUser() {
   try {
     return JSON.parse(localStorage.getItem(USER_KEY) || 'null')
   } catch {
     return null
+  }
+}
+
+/** 免原密码改密的票据在服务端只活 30 分钟，前端的提示也跟着同一个时限走。 */
+function readPasswordChangeSuggestion() {
+  try {
+    const at = Number(sessionStorage.getItem(PASSWORD_PROMPT_KEY))
+    return at > 0 && Date.now() - at < 30 * 60_000
+  } catch {
+    return false
   }
 }
 
@@ -20,7 +32,9 @@ export const useAuthStore = defineStore('auth', {
      */
     avatar: null,
     avatarLoaded: false,
-    loading: false
+    loading: false,
+    /** 验证码登录成功后置位，由全局提示组件引导用户免原密码设置新密码。 */
+    passwordChangeSuggested: readPasswordChangeSuggestion()
   }),
   getters: {
     isLoggedIn: (state) => Boolean(state.token),
@@ -37,6 +51,24 @@ export const useAuthStore = defineStore('auth', {
     async login(payload) {
       const data = await authApi.login(payload)
       return this.setSession(data)
+    },
+    async loginByCode(payload) {
+      const data = await authApi.loginByCode(payload)
+      this.setSession(data)
+      this.passwordChangeSuggested = Boolean(data.passwordChangeSuggested)
+      return data
+    },
+    suggestPasswordChange() {
+      this.passwordChangeSuggested = true
+      sessionStorage.setItem(PASSWORD_PROMPT_KEY, String(Date.now()))
+    },
+    dismissPasswordChangeSuggestion() {
+      this.passwordChangeSuggested = false
+      sessionStorage.removeItem(PASSWORD_PROMPT_KEY)
+    },
+    async changePasswordAfterCode(payload) {
+      await authApi.passwordAfterCode(payload)
+      this.dismissPasswordChangeSuggestion()
     },
     async register(payload) {
       const data = await authApi.register(payload)
@@ -105,6 +137,7 @@ export const useAuthStore = defineStore('auth', {
       this.user = null
       this.avatar = null
       this.avatarLoaded = false
+      this.dismissPasswordChangeSuggestion()
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(USER_KEY)
     }

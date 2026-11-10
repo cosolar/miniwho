@@ -90,6 +90,17 @@ sa-token:
   is-log: false
   is-print: false
 
+# 滑块验证码（tianai-captcha）。题目和答案都只放在本机内存里，2 分钟没滑完就作废；
+# 图片资源不走它的默认模板，见 CaptchaConfig。
+captcha:
+  expire:
+    default: 120000
+    SLIDER: 120000
+  # 预生成图池适合高并发站点，这里登录量很小，现画一张更省内存
+  local-cache-enabled: false
+  # 背景图与拼图模板全部自带，不再加载包内示例资源
+  init-default-resource: false
+
 app:
   upload-dir: ${MINIWHO_UPLOAD_DIR:./uploads}
   # 单个账号在上传目录里最多占多少 MB，0 表示不设限。
@@ -100,6 +111,9 @@ app:
     # 站点直接暴露公网时保持 auto 即可；代理来源是公网地址的部署改成 always，纯直连改 never。
     trust-forwarded-for: ${MINIWHO_TRUST_FORWARDED_FOR:auto}
   cors-origins: ${MINIWHO_CORS_ORIGINS:*}
+  captcha:
+    # 关掉后登录不再要求滑块票据。只给自动化测试和内网调试用，公网部署别关。
+    enabled: ${MINIWHO_CAPTCHA_ENABLED:true}
   # 到期注销账号的清库扫描：默认每 6 小时一次，进程启动 90 秒后先跑一次。
   # 宽限期本身固定在代码里（7 天），这里只调扫描频率，别让重启窗口里的到期账号一直没人管。
   deletion-purge-delay: ${MINIWHO_DELETION_PURGE_DELAY:21600000}
@@ -132,6 +146,8 @@ app:
     # 同时运行的 Chromium 实例上限与排队等待秒数：宁可让请求排队/快速失败，也不让并发实例把内存吃光。
     max-concurrent: ${MINIWHO_PDF_MAX_CONCURRENT:2}
     queue-timeout-seconds: ${MINIWHO_PDF_QUEUE_TIMEOUT:20}
+  # 只管 demo 与示例数据；admin 是否创建只看库里有没有 admin 与下面的 admin-password。
+  # 直接 java -jar 时默认 true（本地开发方便）；compose 与 .env.example 会显式传 false。
   seed-demo: ${MINIWHO_SEED_DEMO:true}
   demo-password: ${MINIWHO_DEMO_PASSWORD:demo123}
   # 管理员密码没有默认值：首次启动（库里还没有 admin 账号）时未设置会直接拒绝启动

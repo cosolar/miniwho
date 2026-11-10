@@ -42,7 +42,9 @@ services:
       DB_USER: ${DB_USER:-miniwho}
       DB_PASSWORD: ${DB_PASSWORD:-miniwho_pass}
       MINIWHO_UPLOAD_DIR: /app/uploads
-      MINIWHO_SEED_DEMO: ${MINIWHO_SEED_DEMO:-true}
+      # 演示种子默认关闭：正式部署不该附带 demo/demo123 这种已知口令的账号。
+      # 想在部署上体验示例数据时，在 .env 里设 MINIWHO_SEED_DEMO=true。
+      MINIWHO_SEED_DEMO: ${MINIWHO_SEED_DEMO:-false}
       MINIWHO_DEMO_PASSWORD: ${MINIWHO_DEMO_PASSWORD:-demo123}
       # 管理员密码必填：缺失时 compose 直接报错，不给你一个 admin/admin123 的公网后台
       MINIWHO_ADMIN_PASSWORD: ${MINIWHO_ADMIN_PASSWORD:?请在 .env 里设置 MINIWHO_ADMIN_PASSWORD}

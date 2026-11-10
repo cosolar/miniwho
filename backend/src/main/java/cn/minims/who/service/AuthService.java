@@ -5,16 +5,20 @@ import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import cn.minims.who.common.BizException;
+import cn.minims.who.common.CaptchaService;
+import cn.minims.who.common.LoginGuard;
 import cn.minims.who.entity.Resume;
 import cn.minims.who.entity.User;
 import cn.minims.who.entity.UserIdentity;
 import cn.minims.who.mapper.ResumeMapper;
 import cn.minims.who.mapper.UserIdentityMapper;
 import cn.minims.who.mapper.UserMapper;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -23,8 +27,11 @@ import static cn.minims.who.dto.AuthDtos.ChangeEmailCodeRequest;
 import static cn.minims.who.dto.ResumeDtos.CreateResumeRequest;
 import static cn.minims.who.dto.AuthDtos.EmailCodeRequest;
 import static cn.minims.who.dto.AuthDtos.EmailRegisterRequest;
+import static cn.minims.who.dto.AuthDtos.LoginByCodeRequest;
+import static cn.minims.who.dto.AuthDtos.LoginCodeRequest;
 import static cn.minims.who.dto.AuthDtos.LoginRequest;
 import static cn.minims.who.dto.AuthDtos.LoginResponse;
+import static cn.minims.who.dto.AuthDtos.PasswordAfterCodeRequest;
 import static cn.minims.who.dto.AuthDtos.PasswordResetRequest;
 import static cn.minims.who.dto.AuthDtos.RegisterRequest;
 import static cn.minims.who.dto.AuthDtos.UpdateProfileRequest;
@@ -39,16 +46,24 @@ public class AuthService {
     private final ResumeService resumeService;
     private final AuthSettingsService authSettings;
     private final EmailCodeService emailCodeService;
+    private final LoginGuard loginGuard;
+    private final CaptchaService captchaService;
+
+    /** 验证码登录成功后留在这枚令牌上的改密票据：只对本次会话有效，用完即删。 */
+    private static final String PASSWORD_TICKET = "password-change-after-code";
+    private static final long PASSWORD_TICKET_MS = 30 * 60_000L;
 
     public AuthService(UserMapper userMapper, UserIdentityMapper identityMapper, ResumeMapper resumeMapper,
                        ResumeService resumeService, AuthSettingsService authSettings,
-                       EmailCodeService emailCodeService) {
+                       EmailCodeService emailCodeService, LoginGuard loginGuard, CaptchaService captchaService) {
         this.userMapper = userMapper;
         this.identityMapper = identityMapper;
         this.resumeMapper = resumeMapper;
         this.resumeService = resumeService;
         this.authSettings = authSettings;
         this.emailCodeService = emailCodeService;
+        this.loginGuard = loginGuard;
+        this.captchaService = captchaService;
     }
 
     @Transactional
@@ -206,26 +221,102 @@ public class AuthService {
         return StpUtil.getTokenValue();
     }
 
+    /**
+     * 密码登录。每次提交先销一张滑块验证码换来的票据，专门挡「拿一批密码直接撞」的脚本。
+     * <p>同一账号 30 分钟内连错 3 次后不再接受密码：第三次输错当场返回 428，
+     * 前端切到邮箱验证码登录；密码正确也不再放行，否则前三次失败只是延迟了几秒。
+     * <p>账号没有已验证邮箱、或站点没配 SMTP 时没有验证码通道，仍按密码登录（成功即清零），
+     * 否则任何人都能靠输错三次把这类账号永久锁死。
+     */
     public LoginResponse login(LoginRequest request) {
-        String identifier = request.username().trim();
-        User user = identifier.contains("@")
-                ? findByEmail(normalizeEmail(identifier))
-                : findByUsername(identifier);
+        if (!captchaService.consumeTicket(request.captchaTicket())) {
+            throw BizException.badRequest("安全验证已失效，请重新拖动滑块");
+        }
+        User user = findLoginUser(request.username());
+        if (user != null && Integer.valueOf(1).equals(user.getHasPassword()) && requiresLoginCode(user)) {
+            throw loginCodeRequired(user);
+        }
         // 第三方账号的 password_hash 只是一枚随机占位值，不进密码比对。
         if (user == null || !Integer.valueOf(1).equals(user.getHasPassword())
                 || !BCrypt.checkpw(request.password(), user.getPasswordHash())) {
-            throw new BizException("LOGIN_FAILED", "账号或密码不正确", org.springframework.http.HttpStatus.UNAUTHORIZED);
+            if (user != null && Integer.valueOf(1).equals(user.getHasPassword())) {
+                loginGuard.recordFailure(user.getId());
+                if (requiresLoginCode(user)) {
+                    throw loginCodeRequired(user);
+                }
+            }
+            throw new BizException("LOGIN_FAILED", "账号或密码不正确", HttpStatus.UNAUTHORIZED);
         }
         if (!Integer.valueOf(1).equals(user.getStatus())) {
             throw BizException.forbidden("账号已被冻结，请联系管理员");
         }
+        loginGuard.recordSuccess(user.getId());
         StpUtil.login(user.getId());
-        Resume latest = resumeMapper.selectOne(new LambdaQueryWrapper<Resume>()
-                .eq(Resume::getUserId, user.getId())
-                .orderByDesc(Resume::getUpdatedAt)
-                .last("limit 1"));
-        long resumeId = latest == null ? 0L : latest.getId();
-        return new LoginResponse(StpUtil.getTokenValue(), StpUtil.getTokenName(), toVo(user), resumeId);
+        Resume latest = latestResume(user.getId());
+        return new LoginResponse(StpUtil.getTokenValue(), StpUtil.getTokenName(), toVo(user),
+                latest == null ? 0L : latest.getId(), false);
+    }
+
+    /**
+     * 发送登录验证码：账号必须已经因连续输错密码进入验证码登录状态。
+     * 没到门槛的一律不发，免得这个公开接口变成「给任意账号发信」的入口；
+     * 失败原因统一文案，不额外暴露账号是否绑定邮箱。
+     */
+    public void sendLoginCode(LoginCodeRequest request) {
+        User user = findLoginUser(request.username());
+        if (user == null || !Integer.valueOf(1).equals(user.getHasPassword())
+                || !Integer.valueOf(1).equals(user.getStatus())
+                || !requiresLoginCode(user)) {
+            throw BizException.badRequest("当前账号暂时不能使用邮箱验证码登录，请稍后用密码重试");
+        }
+        emailCodeService.issueLoginCode(user.getEmail());
+    }
+
+    /**
+     * 邮箱验证码登录：密码已经不作数，验证码是唯一凭据。
+     * 成功后在这枚令牌上留一张改密票据，允许用户不交原密码直接设置新密码。
+     */
+    public LoginResponse loginByCode(LoginByCodeRequest request) {
+        User user = findLoginUser(request.username());
+        if (user == null || !Integer.valueOf(1).equals(user.getStatus())
+                || !Integer.valueOf(1).equals(user.getEmailVerified())
+                || user.getEmail() == null || user.getEmail().isBlank()) {
+            throw BizException.badRequest("验证码不正确或已过期，请重新获取");
+        }
+        emailCodeService.verifyLoginCode(user.getEmail(), request.code());
+        loginGuard.recordSuccess(user.getId());
+        StpUtil.login(user.getId());
+        StpUtil.getTokenSession().set(PASSWORD_TICKET, System.currentTimeMillis());
+        Resume latest = latestResume(user.getId());
+        return new LoginResponse(StpUtil.getTokenValue(), StpUtil.getTokenName(), toVo(user),
+                latest == null ? 0L : latest.getId(), true);
+    }
+
+    /**
+     * 验证码登录后的免原密码改密：票据只对本次登录的令牌有效，30 分钟内可用一次。
+     * 票据缺失或过期一律拒绝，避免普通登录态也能不交原密码改密。
+     */
+    public void changePasswordAfterLoginCode(long userId, PasswordAfterCodeRequest request) {
+        Object issuedAt = StpUtil.getTokenSession().get(PASSWORD_TICKET);
+        if (!(issuedAt instanceof Number ticket) || System.currentTimeMillis() - ticket.longValue() > PASSWORD_TICKET_MS) {
+            throw BizException.forbidden("这次登录已超过免原密码修改的时限，请重新用邮箱验证码登录，或用原密码修改");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw BizException.notFound("账号不存在");
+        }
+        if (Integer.valueOf(1).equals(user.getHasPassword())
+                && BCrypt.checkpw(request.newPassword(), user.getPasswordHash())) {
+            throw BizException.badRequest("新密码不能与原密码相同");
+        }
+        userMapper.update(null, new LambdaUpdateWrapper<User>()
+                .eq(User::getId, userId)
+                .set(User::getPasswordHash, BCrypt.hashpw(request.newPassword()))
+                .set(User::getHasPassword, 1)
+                .set(User::getUpdatedAt, System.currentTimeMillis()));
+        StpUtil.getTokenSession().delete(PASSWORD_TICKET);
+        // 本次是凭邮箱验证码进来的，不存在「旧密码泄露」的前提，当前会话保留；其他会话不受影响。
+        loginGuard.recordSuccess(userId);
     }
 
     public void logout() {
@@ -334,7 +425,7 @@ public class AuthService {
         var firstResume = resumeService.create(user.getId(),
                 new CreateResumeRequest("我的第一份简历", "zh", "qinghe", false));
         StpUtil.login(user.getId());
-        return new LoginResponse(StpUtil.getTokenValue(), StpUtil.getTokenName(), toVo(user), firstResume.id());
+        return new LoginResponse(StpUtil.getTokenValue(), StpUtil.getTokenName(), toVo(user), firstResume.id(), false);
     }
 
     private User provisionFromProvider(String provider, String providerLogin, String displayName, String email) {
@@ -373,6 +464,43 @@ public class AuthService {
             // 先查后插之间被并发注册抢注，唯一索引兜底。
             throw BizException.badRequest(conflictMessage);
         }
+    }
+
+    /** 登录标识既可以是用户名也可以是邮箱，两种登录页共用同一套判定。 */
+    private User findLoginUser(String identifier) {
+        String value = identifier == null ? "" : identifier.trim();
+        return value.contains("@") ? findByEmail(normalizeEmail(value)) : findByUsername(value);
+    }
+
+    /** 验证码登录的三个前提：确实连错了 3 次、能收到信、站点也能发信。 */
+    private boolean requiresLoginCode(User user) {
+        return loginGuard.requiresCode(user.getId())
+                && Integer.valueOf(1).equals(user.getEmailVerified())
+                && user.getEmail() != null && !user.getEmail().isBlank()
+                && authSettings.loginCodeEnabled();
+    }
+
+    private BizException loginCodeRequired(User user) {
+        return new BizException("LOGIN_CODE_REQUIRED",
+                "密码已连续输错 3 次，请改用邮箱验证码登录",
+                HttpStatus.PRECONDITION_REQUIRED, Map.of("email", maskEmail(user.getEmail())));
+    }
+
+    private Resume latestResume(long userId) {
+        return resumeMapper.selectOne(new LambdaQueryWrapper<Resume>()
+                .eq(Resume::getUserId, userId)
+                .orderByDesc(Resume::getUpdatedAt)
+                .last("limit 1"));
+    }
+
+    /** 只露前两位和域名：足够让用户认出收件地址，又不把完整地址递给可能在旁边看屏幕的人。 */
+    private static String maskEmail(String email) {
+        int at = email == null ? -1 : email.indexOf('@');
+        if (at <= 0) {
+            return "***";
+        }
+        String local = email.substring(0, at);
+        return (local.length() <= 2 ? local.substring(0, 1) : local.substring(0, 2)) + "***" + email.substring(at);
     }
 
     private User findByUsername(String username) {

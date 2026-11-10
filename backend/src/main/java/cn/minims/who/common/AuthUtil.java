@@ -30,6 +30,11 @@ public class AuthUtil {
         StpUtil.checkRole("admin");
     }
 
+    /** 公开接口上需要可空身份时用这个：未登录返回 null，不抛异常。 */
+    public Long userIdOrNull() {
+        return StpUtil.isLogin() ? StpUtil.getLoginIdAsLong() : null;
+    }
+
     /** 公开接口上需要按角色放行时用这个：未登录一律 false，不抛异常。 */
     public boolean isAdmin() {
         return StpUtil.isLogin() && StpUtil.hasRole("admin");

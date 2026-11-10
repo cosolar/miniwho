@@ -22,6 +22,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * HTTP 层冒烟：单元用例覆盖的是各自的服务，这里补上只有整条链跑起来才会暴露的问题——
@@ -33,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.admin-password=smoke-admin",
         "app.media-secret=smoke-media-secret",
         "app.pdf.enabled=false",
+        "app.captcha.enabled=false",
         "app.rate-limit.trust-forwarded-for=never"
 })
 @AutoConfigureMockMvc
@@ -179,7 +181,44 @@ class HttpSmokeTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    @Order(9)
+    void resumeDataCannotBeImportedAsTemplatePackage() throws Exception {
+        String resume = """
+                {
+                  "api": 1,
+                  "id": { "namespace": "qliu1", "code": "resume-agent-v5", "version": "1.1.0" },
+                  "meta": { "name": "刘琦 AI开发工程师", "description": "简历内容的结构化副本", "category": "resume" },
+                  "theme": { "layout": "photoheader", "accent": "#000000", "font": "sans", "sectionStyle": "icon" },
+                  "sectionTitles": { "education": "教育背景" },
+                  "basics": { "name": "刘琦", "phone": "15511775170" },
+                  "education": [],
+                  "skills": [],
+                  "internships": [],
+                  "projects": []
+                }
+                """;
+        mockMvc.perform(post("/api/templates/import")
+                        .header("satoken", login("demo", "smoke-demo"))
+                        .contentType("application/json")
+                        .content(resume))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("TEMPLATE_PACKAGE_INVALID"))
+                .andExpect(jsonPath("$.data.problems[0]").value(containsString("简历数据")));
+    }
+
+    @Test
+    @Order(10)
+    void onlyAdminCanPreviewAnotherUsersResume() throws Exception {
+        mockMvc.perform(get("/api/admin/resumes/999999").header("satoken", login("demo", "smoke-demo")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/admin/resumes/999999").header("satoken", login("admin", "smoke-admin")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
     private String login(String username, String password) throws Exception {
+        // 滑块验证码在冒烟里关掉了：它要真拖一次才出票据，而这里的用例关心的是登录之后的事。
         String body = mockMvc.perform(post("/api/auth/login")
                         .contentType("application/json")
                         .content("{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}"))

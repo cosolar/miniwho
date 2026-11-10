@@ -123,7 +123,9 @@
 - 服务端内容清洗与长度 / 数量限制；单份简历最多 30 个模块、单模块 20 条内容。
 - 导入模板包的 CSS 由服务端逐条规则重新生成后注入：选择器强制限定在该模板的作用域类下，属性名走白名单，`url()` 只接受 `data:`，`<`、`@import`、`expression()`、`behavior`、`-moz-binding`、`!important` 直接拒绝；模板包格式本身不给 HTML / JS 留任何入口。
 - 分享密码 BCrypt 存储，公开接口失败码区分「需要密码 / 密码错误 / 已过期 / 已撤销」。
-- 公开接口按 IP 限流（每窗口一分钟：登录与分享解锁 10 次，注册 / 各类验证码 / 找回密码 / 全量导出 / 注销 5 次，GitHub 跳转与回调合计 20 次，统计心跳 120 次），与邮箱维度的发信限制叠加；`X-Forwarded-For` 默认只在直连对端是回环或内网地址时才采信，防止伪造请求头绕过限流，`MINIWHO_TRUST_FORWARDED_FOR` 可显式覆盖。GitHub 的 `state` 一次性、10 分钟过期。
+- 公开接口按 IP 限流（每窗口一分钟：登录与分享解锁 10 次，注册 / 各类验证码 / 找回密码 / 全量导出 / 注销 5 次，GitHub 跳转与回调合计 20 次，统计心跳 120 次），与邮箱维度的发信限制叠加；`X-Forwarded-For` 默认只在直连对端是回环或内网地址时才采信，并且取最右一跳（代理追加的真实来源），防止伪造左侧条目绕过限流，`MINIWHO_TRUST_FORWARDED_FOR` 可显式覆盖。GitHub 的 `state` 一次性、10 分钟过期。
+- 登录带一次性滑块验证（tianai-captcha 现画底图与拼图，缺口位置不下发；落点与拖动轨迹都由服务端判定，通过后发一张 5 分钟有效、用一次即废的票据），挡脚本批量试密码。
+- 同一账号 30 分钟内连错 3 次密码后关闭密码入口，改用邮箱验证码登录；验证通过直接进入，并可用 30 分钟有效的一次性票据免原密码设置新密码。账号没有已验证邮箱或 SMTP 不可用时按密码直接放行，避免永久锁死。
 - Docker 一键部署：官方镜像 `minimscn/miniwho` 或 Compose 源码构建，MySQL 8 / SQLite 二选一，数据与上传持久化。
 - 所有页面响应式适配，打印样式独立处理。
 
@@ -162,14 +164,15 @@
 
 ```bash
 cd backend
-mvn spring-boot:run
+MINIWHO_ADMIN_PASSWORD='换成你自己的强密码' mvn spring-boot:run
 ```
 
 首次启动会自动：
 
 - 创建 `backend/miniwho.db` 与 `backend/uploads/`；
 - 初始化 30 套模板（从 `backend/src/main/resources/template-packages/` 的模板包读入）；
-- 创建演示账号与一份示例简历（可通过环境变量关闭）。
+- 按 `MINIWHO_ADMIN_PASSWORD` 创建管理员（未设置且库里还没有 admin 时拒绝启动）；
+- 创建 `demo` 演示账号与一份示例简历（可用 `MINIWHO_SEED_DEMO=false` 跳过）。
 
 后端地址：`http://localhost:8080`，健康检查：`GET /api/health`。
 
@@ -190,9 +193,9 @@ npm run dev
 | 账号 | 密码 | 说明 |
 | --- | --- | --- |
 | `demo` | `demo123` | 普通用户，附带完整示例简历 |
-| `admin` | `admin123` | 管理员，可进入 `/admin` |
+| `admin` | 启动时设置的 `MINIWHO_ADMIN_PASSWORD` | 管理员，可进入 `/admin` |
 
-> 以上账号仅用于本地演示。公开部署前请修改密码，或设置 `MINIWHO_SEED_DEMO=false` 并自行创建管理员。
+> 以上账号仅用于本地演示。公开部署前请修改密码；正式部署应设置 `MINIWHO_ADMIN_PASSWORD`（管理员始终会创建）。Compose 与 `.env.example` 的 `MINIWHO_SEED_DEMO` 默认就是 `false`，直接 `java -jar` 部署时请同样显式设为 `false`，跳过 demo 与示例数据。
 
 > 本地开发默认不开邮箱注册和 GitHub 登录（SMTP 与 OAuth 凭据都是空的），注册入口也默认关闭。
 > 想试这两种方式，见 [部署指南 · 注册方式与邮件](docs/部署指南.md)。
@@ -291,7 +294,7 @@ miniwho/
 | `MINIWHO_DB` | `./miniwho.db` | SQLite 文件路径 |
 | `MINIWHO_UPLOAD_DIR` | `./uploads` | 附件存储目录 |
 | `MINIWHO_CORS_ORIGINS` | `*` | 允许的前端来源，逗号分隔；`*` 表示放行任意来源（不使用 Cookie 鉴权） |
-| `MINIWHO_SEED_DEMO` | `true` | 是否创建 demo / admin 与示例数据 |
+| `MINIWHO_SEED_DEMO` | `true`（直接 `java -jar`）/ `false`（compose 与 `.env.example`） | 是否创建 demo 与示例数据；admin 不受此开关影响 |
 | `MINIWHO_DEMO_PASSWORD` | `demo123` | demo 账号密码 |
 | `MINIWHO_ADMIN_PASSWORD` | 空（首次创建 admin 时必填） | admin 账号密码；库里还没有 admin 且未设置时应用拒绝启动 |
 | `MINIWHO_MEDIA_SECRET` | 空（每次启动随机） | 头像等媒体链接的 HMAC 签名密钥，**多实例或重启后仍需有效链接时必须显式设置** |

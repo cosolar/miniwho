@@ -93,8 +93,9 @@ public class PdfExportService {
         String resolved = templateCode == null || templateCode.isBlank()
                 ? resume.getTemplateCode() : templateCode.trim();
         if (!resolved.equals(resume.getTemplateCode())) {
-            // 查询参数里的模板编码同样要过可见性关卡，防止借导出渲染别人的私有模板配置。
-            templateService.requireUsable(resolved, userId);
+            // 查询参数里换成别的模板等于一次新的选用：可见性之外还要过上下架关卡，
+            // 否则停用模板能借导出参数绕开。
+            templateService.requireSelectable(resolved, userId);
         }
         byte[] pdf = export(resume, resolved, styleOverrides);
         return new PdfFile(fileName(resume.getTitle()), pdf);

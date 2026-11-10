@@ -1,9 +1,5 @@
 import { formatFileSize } from './format'
 
-/** 每批追加的行数与渲染上限：DOM 数量可控，用户再多也不会把后台拖垮。 */
-export const USER_PAGE_SIZE = 40
-export const USER_MAX_RENDERED = 300
-
 const CJK = /[\u2e80-\u9fff\uf900-\ufaff]/
 const TEXT_FIELDS = new Set(['username', 'nickname', 'email', 'role'])
 const collator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' })
@@ -27,7 +23,7 @@ export function compareUsers(a, b, prop) {
   return (Number(a[prop]) || 0) - (Number(b[prop]) || 0)
 }
 
-/** 搜索与排序都基于全量数据，滚动只控制渲染多少行，结果才不会因为分批而失真。 */
+/** 搜索与排序都基于全量数据，分页只控制当前展示哪一段，结果不会因为翻页而失真。 */
 export function queryUsers(users, keyword, sortState) {
   const query = String(keyword ?? '').trim().toLowerCase()
   const list = query
@@ -41,7 +37,7 @@ export function queryUsers(users, keyword, sortState) {
   return list.sort((a, b) => (compareUsers(a, b, prop) || (a.id - b.id)) * factor)
 }
 
-/** 列宽按前 200 条样本估算：不随滚动加载变化，表格不会边滚边抖。 */
+/** 列宽按前 200 条样本估算：翻页时列宽保持稳定，表格不会一跳一跳。 */
 export function userColumnWidths(users) {
   const sample = users.slice(0, 200)
   return {

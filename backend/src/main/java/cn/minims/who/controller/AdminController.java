@@ -17,10 +17,13 @@ import cn.minims.who.dto.AdminDtos.AdminSystemVo;
 import cn.minims.who.dto.AdminDtos.AdminTemplateStatusRequest;
 import cn.minims.who.dto.AdminDtos.AdminTemplateVo;
 import cn.minims.who.dto.AdminDtos.AdminPasswordResetVo;
+import cn.minims.who.dto.AdminDtos.AdminUserResumeVo;
 import cn.minims.who.dto.AdminDtos.AdminUserStatusRequest;
 import cn.minims.who.dto.AdminDtos.AdminUserVo;
+import cn.minims.who.dto.ResumeDtos.ResumeDetail;
 import cn.minims.who.service.AdminService;
 import cn.minims.who.service.HealthService;
+import cn.minims.who.service.ResumeService;
 import cn.minims.who.service.TemplateService;
 import cn.minims.who.template.TemplatePackageCodec;
 import jakarta.validation.Valid;
@@ -48,14 +51,17 @@ public class AdminController {
     private final TemplateService templateService;
     private final TemplatePackageCodec codec;
     private final HealthService healthService;
+    private final ResumeService resumeService;
     private final AuthUtil authUtil;
 
     public AdminController(AdminService adminService, TemplateService templateService,
-                           TemplatePackageCodec codec, HealthService healthService, AuthUtil authUtil) {
+                           TemplatePackageCodec codec, HealthService healthService,
+                           ResumeService resumeService, AuthUtil authUtil) {
         this.adminService = adminService;
         this.templateService = templateService;
         this.codec = codec;
         this.healthService = healthService;
+        this.resumeService = resumeService;
         this.authUtil = authUtil;
     }
 
@@ -79,6 +85,18 @@ public class AdminController {
     @GetMapping("/users/online")
     public ApiResponse<List<Long>> onlineUsers() {
         return ApiResponse.ok(adminService.onlineUserIds());
+    }
+
+    /** 查看某位用户名下已制作的简历，仅管理员可用。 */
+    @GetMapping("/users/{id}/resumes")
+    public ApiResponse<List<AdminUserResumeVo>> userResumes(@PathVariable long id) {
+        return ApiResponse.ok(adminService.userResumes(id));
+    }
+
+    /** 只读预览任意一份简历；内容与本人预览一致，但不含附件与分享凭据。 */
+    @GetMapping("/resumes/{id}")
+    public ApiResponse<ResumeDetail> resumeDetail(@PathVariable long id) {
+        return ApiResponse.ok(resumeService.detailForAdmin(id));
     }
 
     @PutMapping("/users/{id}/status")

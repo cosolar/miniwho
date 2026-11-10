@@ -299,6 +299,7 @@ onMounted(loadTemplates)
         <p>
           模板包是一套现成的简历排版方案，通常是一个 <code>.json</code> 文件。
           朋友分享给你的，或你从模板中心下载的，都可以在这里导入；导入后不会改动简历里的任何内容。
+          如果手上是简历正文导出的 JSON，那它不是模板包，导不进来，简历内容请继续在工作台里编辑。
           <a :href="USER_GUIDE_URL" target="_blank" rel="noopener">第一次用？看看图文教程</a>
         </p>
         <button

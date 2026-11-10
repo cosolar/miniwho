@@ -65,7 +65,8 @@ public class WebConfig implements WebMvcConfigurer {
 
         registry.addInterceptor(new SaInterceptor(handle -> SaRouter
                 .match("/api/**")
-                .notMatch("/api/auth/login", "/api/auth/register", "/api/auth/register-email",
+                .notMatch("/api/auth/captcha", "/api/auth/captcha/**", "/api/auth/login", "/api/auth/login-code", "/api/auth/login-by-code",
+                        "/api/auth/register", "/api/auth/register-email",
                         "/api/auth/email-code", "/api/auth/password-code", "/api/auth/password-reset",
                         "/api/auth/oauth/**", "/api/health",
                         "/api/templates/**", "/api/public/**")

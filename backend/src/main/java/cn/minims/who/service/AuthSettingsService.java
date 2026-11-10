@@ -60,6 +60,14 @@ public class AuthSettingsService {
         return mailService.available();
     }
 
+    /**
+     * 登录二次验证也走这条 SMTP 通道。通道不在就退回「密码正确即放行」：
+     * 否则一旦管理员没配邮件，账号输错几次密码就再也进不来了。
+     */
+    public boolean loginCodeEnabled() {
+        return mailService.available();
+    }
+
     /** 登录页读的公开配置：只说结论，不暴露通道配到什么程度。 */
     public AuthConfigVo publicConfig() {
         return new AuthConfigVo(usernameRegisterEnabled(), emailRegisterEnabled(),

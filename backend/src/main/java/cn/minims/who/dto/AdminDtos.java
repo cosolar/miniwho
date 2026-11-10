@@ -43,9 +43,15 @@ public final class AdminDtos {
                               boolean online) {
     }
 
+    /** 后台查看某位用户名下的简历：只给概览，不返回正文、附件和分享凭据。 */
+    public record AdminUserResumeVo(Long id, String title, String templateCode, String templateName,
+                                    Integer completeness, Long updatedAt) {
+    }
+
     public record AdminTemplateVo(Long id, String code, String name, String description, String category,
                                   String tags, String version, String author, String source, Integer status,
-                                  Integer usageCount, Long createdAt, Long updatedAt) {
+                                  Integer usageCount, String visibility, Boolean exportable,
+                                  Long createdAt, Long updatedAt) {
     }
 
     public record AdminFeedbackVo(Long id, Long userId, String content, String contact, Integer status,

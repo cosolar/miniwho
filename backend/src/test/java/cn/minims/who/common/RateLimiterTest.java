@@ -31,12 +31,14 @@ class RateLimiterTest {
     @Test
     void resetsCountAfterWindowExpires() throws InterruptedException {
         RateLimiter limiter = new RateLimiter(100);
+        // 前四步用 2 秒窗口：机器再慢也不会在断言之间自然过期，避免把计时抖动当成限流失效。
         for (int i = 0; i < 3; i++) {
-            assertTrue(limiter.tryAcquire("register:1.2.3.4", 3, 10));
+            assertTrue(limiter.tryAcquire("register:1.2.3.4", 3, 2_000));
         }
-        assertFalse(limiter.tryAcquire("register:1.2.3.4", 3, 10));
-        Thread.sleep(20);
-        assertTrue(limiter.tryAcquire("register:1.2.3.4", 3, 10));
+        assertFalse(limiter.tryAcquire("register:1.2.3.4", 3, 2_000));
+        // 睡过 50ms 后再按 50ms 窗口放行：同一把键、更短的窗口，计数从头开始。
+        Thread.sleep(60);
+        assertTrue(limiter.tryAcquire("register:1.2.3.4", 3, 50));
     }
 
     @Test

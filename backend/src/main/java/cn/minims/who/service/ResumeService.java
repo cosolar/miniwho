@@ -29,7 +29,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import static cn.minims.who.dto.MediaDtos.AttachmentVo;
@@ -124,10 +123,7 @@ public class ResumeService {
         String language = "en".equalsIgnoreCase(request.language()) ? "en" : "zh";
         String templateCode = request.templateCode() == null || request.templateCode().isBlank()
                 ? "qinghe" : request.templateCode().trim();
-        Template template = templateService.requireUsable(templateCode, userId);
-        if (!Objects.equals(template.getStatus(), 1)) {
-            throw BizException.badRequest("所选模板已下架，请选择其他模板");
-        }
+        Template template = templateService.requireSelectable(templateCode, userId);
 
         boolean useSample = Boolean.TRUE.equals(request.useSample()) && "zh".equals(language);
         // 模板包自带预制数据时优先用它，让垂直模板（财务、法务等）配自己的示例文案；否则回退全局示例。
@@ -165,6 +161,15 @@ public class ResumeService {
 
     public ResumeDetail detail(long userId, long id) {
         Resume resume = findOwned(userId, id);
+        return toDetail(resume);
+    }
+
+    /** 后台只读预览：跳过归属校验，访问权限由 AdminController 的 @RequireAdmin 把关。 */
+    public ResumeDetail detailForAdmin(long id) {
+        Resume resume = resumeMapper.selectById(id);
+        if (resume == null) {
+            throw BizException.notFound("简历不存在");
+        }
         return toDetail(resume);
     }
 
@@ -453,7 +458,8 @@ public class ResumeService {
             // 沿用当前模板时不做可见性关卡：作者事后取消分享，不该把别人已在用的简历锁住。
             templateChanged = !newTemplate.equals(oldTemplate);
             if (templateChanged) {
-                templateService.requireUsable(newTemplate, userId);
+                // 换模板等于重新选用：已下架的不能再被选，已经在用的继续放行。
+                templateService.requireSelectable(newTemplate, userId);
             } else {
                 templateService.requireAny(newTemplate);
             }

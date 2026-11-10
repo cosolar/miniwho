@@ -5,15 +5,64 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import java.util.List;
+
 /** 登录、注册与个人中心的请求 / 响应模型。 */
 public final class AuthDtos {
 
     private AuthDtos() {
     }
 
+    /** 滑块验证码由服务层判定：没滑、滑歪、票据过期都回同一句「请重新拖动」，不在 DTO 上做格式约束。 */
     public record LoginRequest(
             @NotBlank(message = "请输入账号") @Size(max = 100) String username,
-            @NotBlank(message = "请输入密码") @Size(max = 100) String password) {
+            @NotBlank(message = "请输入密码") @Size(max = 100) String password,
+            @Size(max = 64) String captchaTicket) {
+    }
+
+    /** 密码连错 3 次后的验证码登录：先按账号发码，再只凭验证码进入，不再校验密码。 */
+    public record LoginCodeRequest(
+            @NotBlank(message = "请输入账号") @Size(max = 100) String username) {
+    }
+
+    public record LoginByCodeRequest(
+            @NotBlank(message = "请输入账号") @Size(max = 100) String username,
+            @NotBlank(message = "请输入验证码")
+            @Pattern(regexp = "^\\d{6}$", message = "验证码为 6 位数字") String code) {
+    }
+
+    /** 验证码登录后的免原密码改密；是否允许由这次登录留下的票据决定，不看请求体。 */
+    public record PasswordAfterCodeRequest(
+            @NotBlank(message = "请输入新密码")
+            @Size(min = 6, max = 32, message = "密码长度需为 6-32 位") String newPassword) {
+    }
+
+    /**
+     * 滑块验证码：底图、拼图两张图 + 各自尺寸，缺口位置不在其中。
+     * <p>拼图是一张「和底图等高」的透明长条，图块画在正确的纵坐标上，
+     * 前端只要横向平移它，纵坐标自己就对齐了，不用再传 y。
+     */
+    public record CaptchaVo(String id, String type, String backgroundImage, String templateImage,
+                            int backgroundImageWidth, int backgroundImageHeight,
+                            int templateImageWidth, int templateImageHeight) {
+    }
+
+    /** 一次滑动的完整轨迹：起点到松手，含时间戳，服务端用它判断这是人还是脚本。 */
+    public record CaptchaTrack(Integer bgImageWidth, Integer bgImageHeight,
+                               Integer templateImageWidth, Integer templateImageHeight,
+                               Long startTime, Long stopTime,
+                               List<Point> trackList) {
+
+        /** 坐标是相对按下点的位移，t 是相对按下时刻的毫秒数。 */
+        public record Point(Float x, Float y, Float t, String type) {
+        }
+    }
+
+    public record CaptchaCheckRequest(@Size(max = 64) String id, CaptchaTrack data) {
+    }
+
+    /** 校验通过后发的一次性票据，登录时原样带回来。 */
+    public record CaptchaTicketVo(String ticket) {
     }
 
     public record RegisterRequest(
@@ -60,7 +109,9 @@ public final class AuthDtos {
     public record UserAvatarVo(boolean present, String url, Long sizeBytes, Long updatedAt) {
     }
 
-    public record LoginResponse(String token, String tokenName, UserVo user, Long resumeId) {
+    /** passwordChangeSuggested：本次是验证码登录、刚绕过原密码，前端据此提示设置新密码。 */
+    public record LoginResponse(String token, String tokenName, UserVo user, Long resumeId,
+                                boolean passwordChangeSuggested) {
     }
 
     /**

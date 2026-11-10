@@ -17,6 +17,7 @@ import cn.minims.who.dto.AdminDtos.AdminSiteConfigRequest;
 import cn.minims.who.dto.AdminDtos.AdminSiteConfigVo;
 import cn.minims.who.dto.AdminDtos.AdminStatsVo;
 import cn.minims.who.dto.AdminDtos.AdminTemplateVo;
+import cn.minims.who.dto.AdminDtos.AdminUserResumeVo;
 import cn.minims.who.dto.AdminDtos.AdminUserVo;
 import cn.minims.who.entity.Feedback;
 import cn.minims.who.entity.Resume;
@@ -158,6 +159,32 @@ public class AdminService {
         return onlineUserService.onlineUserIds();
     }
 
+    /** 后台查看某个账号名下的简历：只回概览，不读取正文与附件。 */
+    public List<AdminUserResumeVo> userResumes(long userId) {
+        if (userMapper.selectById(userId) == null) {
+            throw BizException.notFound("用户不存在");
+        }
+        List<Resume> resumes = resumeMapper.selectList(new LambdaQueryWrapper<Resume>()
+                .eq(Resume::getUserId, userId)
+                .orderByDesc(Resume::getUpdatedAt));
+        Set<String> codes = new HashSet<>();
+        for (Resume resume : resumes) {
+            if (resume.getTemplateCode() != null) codes.add(resume.getTemplateCode());
+        }
+        Map<String, String> templateNames = new HashMap<>();
+        if (!codes.isEmpty()) {
+            for (Template template : templateMapper.selectList(
+                    new LambdaQueryWrapper<Template>().in(Template::getCode, codes))) {
+                templateNames.put(template.getCode(), template.getName());
+            }
+        }
+        return resumes.stream()
+                .map(resume -> new AdminUserResumeVo(resume.getId(), resume.getTitle(),
+                        resume.getTemplateCode(), templateNames.getOrDefault(resume.getTemplateCode(),
+                        resume.getTemplateCode()), resume.getCompleteness(), resume.getUpdatedAt()))
+                .toList();
+    }
+
     public void updateUserStatus(long adminId, long userId, int status) {
         if (adminId == userId) {
             throw BizException.badRequest("不能冻结当前登录账号");
@@ -213,6 +240,7 @@ public class AdminService {
                 .map(template -> new AdminTemplateVo(template.getId(), template.getCode(), template.getName(),
                         template.getDescription(), template.getCategory(), template.getTags(), template.getVersion(),
                         template.getAuthor(), template.getSource(), template.getStatus(), template.getUsageCount(),
+                        template.getVisibility(), Integer.valueOf(1).equals(template.getExportable()),
                         template.getCreatedAt(), template.getUpdatedAt()))
                 .toList();
     }

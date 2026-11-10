@@ -12,9 +12,14 @@ import org.springframework.web.servlet.HandlerInterceptor;
  *
  * <p>注册在 Sa-Token 的登录拦截器之后，所以到这里用户一定已登录；
  * 未登录仍是 401，登录但非管理员由 NotRoleException 映射为 403。
+ *
+ * <p>除了注解，还按 {@code /api/admin/**} 前缀兜底：后台目录下新加的控制器
+ * 即使漏了注解也必须是管理员，不能靠人记得加。
  */
 @Component
 public class AdminInterceptor implements HandlerInterceptor {
+
+    static final String ADMIN_PREFIX = "/api/admin/";
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
@@ -22,10 +27,20 @@ public class AdminInterceptor implements HandlerInterceptor {
         if ("OPTIONS".equalsIgnoreCase(request.getMethod()) || !(handler instanceof HandlerMethod method)) {
             return true;
         }
-        if (method.hasMethodAnnotation(RequireAdmin.class)
-                || method.getBeanType().isAnnotationPresent(RequireAdmin.class)) {
+        boolean annotated = method.hasMethodAnnotation(RequireAdmin.class)
+                || method.getBeanType().isAnnotationPresent(RequireAdmin.class);
+        if (annotated || isAdminPath(request)) {
             StpUtil.checkRole("admin");
         }
         return true;
+    }
+
+    private boolean isAdminPath(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        if (contextPath != null && !contextPath.isEmpty() && path.startsWith(contextPath)) {
+            path = path.substring(contextPath.length());
+        }
+        return path.equals("/api/admin") || path.startsWith(ADMIN_PREFIX);
     }
 }

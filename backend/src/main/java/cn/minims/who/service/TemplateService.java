@@ -64,9 +64,11 @@ public class TemplateService {
                 .stream().map(this::toVo).toList();
     }
 
+    /** 自己导入的模板；已被管理员下架的不再出现在这里，与模板中心的可见性口径一致。 */
     public List<TemplateVo> mine(long userId) {
         return templateMapper.selectList(new LambdaQueryWrapper<Template>()
                         .eq(Template::getSource, "imported")
+                        .eq(Template::getStatus, 1)
                         .eq(Template::getOwnerUserId, userId)
                         .orderByDesc(Template::getUpdatedAt))
                 .stream().map(this::toVo).toList();
@@ -141,15 +143,16 @@ public class TemplateService {
     /**
      * 站内分享：shared 决定进不进模板中心，exportable 决定别人能否把模板包下载走。
      * 只影响本站可见性，不上传到任何中央服务器；取消分享后别人已用的简历照常渲染，只是不再能被新简历选中。
+     * 分享与否是作者的署名决定，管理员只能查看，不能代为分享或下架（强制下架走停用）。
      */
     @CacheEvict(cacheNames = {"template-active", "template-detail"}, allEntries = true)
-    public TemplateVo share(String code, long userId, boolean admin, boolean shared, boolean exportable) {
+    public TemplateVo share(String code, long userId, boolean shared, boolean exportable) {
         Template template = requireAny(code);
         if (!"imported".equals(template.getSource())) {
             throw BizException.badRequest("官方模板随应用发版，不参与站内分享");
         }
-        if (!admin && !Long.valueOf(userId).equals(template.getOwnerUserId())) {
-            throw BizException.forbidden("只能分享自己导入的模板");
+        if (!Long.valueOf(userId).equals(template.getOwnerUserId())) {
+            throw BizException.forbidden("只能由作者设置自己导入模板的分享");
         }
         template.setVisibility(shared ? VISIBILITY_PUBLIC : VISIBILITY_PRIVATE);
         template.setExportable(exportable ? 1 : 0);
@@ -157,13 +160,22 @@ public class TemplateService {
         return toVo(template);
     }
 
-    @Cacheable(cacheNames = "template-detail", key = "#code")
-    public TemplateVo getActive(String code, LongSupplier viewerId, boolean admin) {
-        Template template = templateMapper.selectOne(new LambdaQueryWrapper<Template>()
-                .eq(Template::getCode, code)
-                .eq(Template::getStatus, 1)
-                .last("limit 1"));
+    /**
+     * 读模板配置：缓存键必须带上「谁在看、是不是管理员」，否则第一个请求者的结论
+     * （比如私有包 404、或管理员能看到已下架模板）会被缓存给所有人。
+     */
+    @Cacheable(cacheNames = "template-detail",
+            key = "#code + ':' + (#viewerId == null ? 'anon' : #viewerId) + ':' + #admin")
+    public TemplateVo getActive(String code, Long viewerId, boolean admin) {
+        Template template = findByCode(code);
         if (template == null) {
+            throw BizException.notFound("模板不存在或已下架");
+        }
+        // 已下架只保留两条通道：管理员预览，以及还有简历在用的渲染——否则那些已有的简历
+        // 会因为读不到配置而白屏或导出失败。没有被任何简历使用时不暴露存在性。
+        boolean disabled = !Integer.valueOf(1).equals(template.getStatus());
+        boolean inUse = template.getUsageCount() != null && template.getUsageCount() > 0;
+        if (disabled && !admin && !inUse) {
             throw BizException.notFound("模板不存在或已下架");
         }
         // 私有导入包不能只凭编码就读到配置；但已被任何简历在用的模板除外——
@@ -174,7 +186,7 @@ public class TemplateService {
         return toVo(template);
     }
 
-    private boolean canViewConfig(Template template, LongSupplier viewerId, boolean admin) {
+    private boolean canViewConfig(Template template, Long viewerId, boolean admin) {
         String source = template.getSource() == null || template.getSource().isBlank()
                 ? "builtin" : template.getSource();
         if ("builtin".equals(source) || VISIBILITY_PUBLIC.equals(template.getVisibility())) {
@@ -186,13 +198,8 @@ public class TemplateService {
         if (template.getUsageCount() != null && template.getUsageCount() > 0) {
             return true;
         }
-        try {
-            return template.getOwnerUserId() != null
-                    && viewerId.getAsLong() == template.getOwnerUserId();
-        } catch (Exception e) {
-            // 未登录时取不到身份；私有且无人在用的模板一律 404，不暴露存在性。
-            return false;
-        }
+        // 未登录时 viewerId 为 null：私有且无人在用的模板一律 404，不暴露存在性。
+        return viewerId != null && viewerId.equals(template.getOwnerUserId());
     }
 
     public Template requireAny(String code) {
@@ -217,13 +224,22 @@ public class TemplateService {
         }
     }
 
-    /** 新建或换用模板时的可见性关卡：别人未分享的导入包即使知道编码也不能选用。 */
-    public Template requireUsable(String code, long userId) {
+    /** 已在用的模板仍要能渲染/导出：这里只管可见性，不管上架状态。 */
+    private Template requireUsable(String code, long userId) {
         Template template = requireAny(code);
         if ("imported".equals(template.getSource())
                 && !VISIBILITY_PUBLIC.equals(template.getVisibility())
                 && !Long.valueOf(userId).equals(template.getOwnerUserId())) {
             throw BizException.forbidden("该模板还没有分享到模板中心，只有作者自己能选用");
+        }
+        return template;
+    }
+
+    /** 新选模板时的完整关卡：可见性之外，已下架的模板不再接受新简历选用。 */
+    public Template requireSelectable(String code, long userId) {
+        Template template = requireUsable(code, userId);
+        if (!Integer.valueOf(1).equals(template.getStatus())) {
+            throw BizException.badRequest("所选模板已下架，请选择其他模板");
         }
         return template;
     }

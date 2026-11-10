@@ -9,7 +9,14 @@ const props = defineProps({
   avatar: { type: Object, default: null },
   maxScale: { type: Number, default: 1 },
   padding: { type: Number, default: 0 },
-  paged: { type: Boolean, default: true }
+  paged: { type: Boolean, default: true },
+  /**
+   * width：只按容器宽度缩放，纸面铺满可用宽度（长简历向下滚）。
+   * page：再压一道「一页 A4 的高度」，让整页同时进画面，适合在窄面板里看版式。
+   */
+  fitMode: { type: String, default: 'width' },
+  /** fitMode = page 时容器可用于放一页的高度（px，已扣掉内边距）。 */
+  fitHeight: { type: Number, default: 0 }
 })
 
 const wrap = ref(null)
@@ -23,6 +30,9 @@ let resizeObserver
 let paperObserver
 let raf = 0
 
+/** A4 高宽比：一页的高度折算成「纸面宽度 × 该比例」，多页简历也只按一页算，剩下的靠滚动。 */
+const PAGE_RATIO = 297 / 210
+
 function measure() {
   cancelAnimationFrame(raf)
   raf = requestAnimationFrame(() => {
@@ -31,8 +41,11 @@ function measure() {
     baseWidth.value = el.offsetWidth || 794
     baseHeight.value = el.offsetHeight || 1123
     const available = wrap.value.clientWidth - props.padding
-    const next = Math.min(props.maxScale, available / baseWidth.value)
-    scale.value = Math.max(0.12, next)
+    let next = available / baseWidth.value
+    if (props.fitMode === 'page' && props.fitHeight > 0) {
+      next = Math.min(next, props.fitHeight / (baseWidth.value * PAGE_RATIO))
+    }
+    scale.value = Math.max(0.12, Math.min(props.maxScale, next))
     offsetX.value = Math.max(0, (wrap.value.clientWidth - baseWidth.value * scale.value) / 2)
   })
 }
@@ -58,6 +71,9 @@ watch(() => [props.content, props.template, props.styleData, props.avatar], asyn
   observePaper()
   measure()
 }, { deep: true })
+
+// 切换适宽 / 整页、或面板被放大缩小时，缩放比例要跟着重算。
+watch(() => [props.fitMode, props.fitHeight], () => measure())
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()

@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import { siteApi } from './api'
 import { applyContentWidth, cachedContentWidth } from './utils/appearance'
+import PasswordChangePrompt from './components/PasswordChangePrompt.vue'
 
 // 先用上次记住的宽度，避免默认值闪一下；再向服务端校正。
 // 内容宽度影响按容器测量的组件，所以必须在页面挂载前就写进 CSS 变量。
@@ -25,4 +26,5 @@ onMounted(async () => {
       <component :is="Component" />
     </transition>
   </RouterView>
+  <PasswordChangePrompt />
 </template>

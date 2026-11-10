@@ -2,11 +2,18 @@ package cn.minims.who.controller;
 
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
+import cn.minims.who.common.CaptchaService;
+import cn.minims.who.dto.AuthDtos.CaptchaCheckRequest;
+import cn.minims.who.dto.AuthDtos.CaptchaTicketVo;
+import cn.minims.who.dto.AuthDtos.CaptchaVo;
 import cn.minims.who.dto.AuthDtos.ChangePasswordRequest;
 import cn.minims.who.dto.AuthDtos.EmailCodeRequest;
 import cn.minims.who.dto.AuthDtos.EmailRegisterRequest;
+import cn.minims.who.dto.AuthDtos.LoginByCodeRequest;
+import cn.minims.who.dto.AuthDtos.LoginCodeRequest;
 import cn.minims.who.dto.AuthDtos.LoginRequest;
 import cn.minims.who.dto.AuthDtos.LoginResponse;
+import cn.minims.who.dto.AuthDtos.PasswordAfterCodeRequest;
 import cn.minims.who.dto.AuthDtos.PasswordResetRequest;
 import cn.minims.who.dto.AuthDtos.RegisterRequest;
 import cn.minims.who.dto.AuthDtos.UpdateProfileRequest;
@@ -28,10 +35,12 @@ public class AuthController {
 
     private final AuthService authService;
     private final AuthUtil authUtil;
+    private final CaptchaService captchaService;
 
-    public AuthController(AuthService authService, AuthUtil authUtil) {
+    public AuthController(AuthService authService, AuthUtil authUtil, CaptchaService captchaService) {
         this.authService = authService;
         this.authUtil = authUtil;
+        this.captchaService = captchaService;
     }
 
     @PostMapping("/register")
@@ -65,9 +74,48 @@ public class AuthController {
         return ApiResponse.ok();
     }
 
+    /**
+     * 滑块验证码出题：只给底图、拼图和尺寸，缺口位置留在服务端。
+     * <p>拼图是「与底图等高的透明长条」，图块画在正确纵坐标上，前端横向平移即可对齐。
+     */
+    @GetMapping("/captcha")
+    public ApiResponse<CaptchaVo> captcha() {
+        CaptchaService.Challenge challenge = captchaService.generate();
+        return ApiResponse.ok(new CaptchaVo(challenge.id(), challenge.type(),
+                challenge.backgroundImage(), challenge.templateImage(),
+                challenge.backgroundImageWidth(), challenge.backgroundImageHeight(),
+                challenge.templateImageWidth(), challenge.templateImageHeight()));
+    }
+
+    /** 校验滑动轨迹：通过后发一张一次性票据，登录接口只认这张票。 */
+    @PostMapping("/captcha/check")
+    public ApiResponse<CaptchaTicketVo> checkCaptcha(@Valid @RequestBody CaptchaCheckRequest request) {
+        return ApiResponse.ok(new CaptchaTicketVo(captchaService.verify(request.id(), request.data())));
+    }
+
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         return ApiResponse.ok(authService.login(request));
+    }
+
+    /** 登录验证码：只有账号已因连续输错进入验证码登录状态时才会真的发信。 */
+    @PostMapping("/login-code")
+    public ApiResponse<Void> loginCode(@Valid @RequestBody LoginCodeRequest request) {
+        authService.sendLoginCode(request);
+        return ApiResponse.ok();
+    }
+
+    /** 邮箱验证码登录：不再校验密码，验证通过即进入平台，并允许直接设置新密码。 */
+    @PostMapping("/login-by-code")
+    public ApiResponse<LoginResponse> loginByCode(@Valid @RequestBody LoginByCodeRequest request) {
+        return ApiResponse.ok(authService.loginByCode(request));
+    }
+
+    /** 验证码登录后的免原密码改密：只认本次登录令牌上的票据。 */
+    @PutMapping("/password-after-code")
+    public ApiResponse<Void> passwordAfterCode(@Valid @RequestBody PasswordAfterCodeRequest request) {
+        authService.changePasswordAfterLoginCode(authUtil.userId(), request);
+        return ApiResponse.ok();
     }
 
     @PostMapping("/logout")

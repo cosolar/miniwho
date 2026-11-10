@@ -62,11 +62,11 @@ public class TemplateController {
         return ApiResponse.ok();
     }
 
-    /** 分享到模板中心 / 取消分享，并可同时设置别人能否导出这个包。 */
+    /** 分享到模板中心 / 取消分享，并可同时设置别人能否导出这个包；只有作者本人能改。 */
     @PutMapping("/{code}/share")
     public ApiResponse<TemplateVo> share(@PathVariable String code,
                                          @Valid @RequestBody TemplateShareRequest request) {
-        return ApiResponse.ok(templateService.share(code, authUtil.userId(), authUtil.isAdmin(),
+        return ApiResponse.ok(templateService.share(code, authUtil.userId(),
                 Boolean.TRUE.equals(request.shared()), !Boolean.FALSE.equals(request.exportable())));
     }
 
@@ -86,6 +86,6 @@ public class TemplateController {
 
     @GetMapping("/{code}")
     public ApiResponse<TemplateVo> get(@PathVariable String code) {
-        return ApiResponse.ok(templateService.getActive(code, authUtil::userId, authUtil.isAdmin()));
+        return ApiResponse.ok(templateService.getActive(code, authUtil.userIdOrNull(), authUtil.isAdmin()));
     }
 }

@@ -23,6 +23,7 @@ public class EmailCodeService {
     public static final String PURPOSE_RESET = "reset";
     public static final String PURPOSE_DELETION = "deletion";
     public static final String PURPOSE_CHANGE_EMAIL = "change_email";
+    public static final String PURPOSE_LOGIN = "login";
 
     /** 一种用途一套文案：收件人得能从邮件本身看出这码是拿来干什么的，才谈得上判断自己有没有被骗。 */
     private record Copy(String subject, String heading, String lead, String closing, String preheader) {
@@ -48,7 +49,12 @@ public class EmailCodeService {
             PURPOSE_CHANGE_EMAIL, new Copy("【极简简历】换绑邮箱验证码", "更换邮箱验证",
                     "你正在把「极简简历」账号的邮箱更换为 __EMAIL__。把下面这 6 位数字填回页面，即可完成换绑。",
                     "如果这不是你本人的操作，请忽略本邮件，账号邮箱保持不变。",
-                    "验证码 __MINUTES__ 分钟内有效，且只用于本次更换邮箱。"));
+                    "验证码 __MINUTES__ 分钟内有效，且只用于本次更换邮箱。"),
+            // 登录码只在密码连错 3 次后出现，邮件要把「有人正在猜你的密码」说清楚，收到的人才知道该改密码。
+            PURPOSE_LOGIN, new Copy("【极简简历】登录验证码", "登录验证",
+                    "你正在登录「极简简历」账号（__EMAIL__）。密码已连续输错 3 次，本次登录改用下面这 6 位数字确认身份。",
+                    "如果这不是你本人的操作，说明有人正在尝试登录你的账号，请尽快修改密码。",
+                    "验证码 __MINUTES__ 分钟内有效，且只用于本次登录。"));
 
     /** 十分钟：短到脚本刷不动，长到用户从垃圾箱里翻出来还能用。 */
     private static final long TTL_MS = 10 * 60_000L;
@@ -86,6 +92,10 @@ public class EmailCodeService {
         issue(email, PURPOSE_CHANGE_EMAIL);
     }
 
+    public void issueLoginCode(String email) {
+        issue(email, PURPOSE_LOGIN);
+    }
+
     /**
      * 校验并消费注册验证码：成功即删除，失败累计次数，超过上限直接作废。
      * <p>调用方必须在没有事务的环境下调它。这不是风格问题：错一次码抛的是 RuntimeException，
@@ -121,6 +131,14 @@ public class EmailCodeService {
             throw BizException.badRequest("请输入新邮箱的验证码");
         }
         verify(email, code, PURPOSE_CHANGE_EMAIL);
+    }
+
+    /** 登录验证码：密码已经对了，这枚码只用来确认「确实是本人」，不能拿去换密码或注销。 */
+    public void verifyLoginCode(String email, String code) {
+        if (code == null || code.isBlank()) {
+            throw BizException.badRequest("请输入邮箱验证码");
+        }
+        verify(email, code, PURPOSE_LOGIN);
     }
 
     private void issue(String email, String purpose) {

@@ -12,9 +12,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RateLimitInterceptorTest {
 
     @Test
-    void usesFirstForwardedHopForPrivateProxy() {
-        assertThat(interceptor("auto").clientIp(request("172.18.0.1", "203.0.113.9, 172.18.0.1")))
+    void usesRightmostForwardedHopForPrivateProxy() {
+        assertThat(interceptor("auto").clientIp(request("172.18.0.1", "1.2.3.4, 203.0.113.9")))
                 .isEqualTo("203.0.113.9");
+    }
+
+    @Test
+    void spoofedLeadingHopsCannotChangeTheBucket() {
+        assertThat(interceptor("auto").clientIp(request("172.18.0.1", "192.0.2.1, 198.51.100.9")))
+                .isEqualTo("198.51.100.9");
+        assertThat(interceptor("auto").clientIp(request("172.18.0.1", "192.0.2.200, 198.51.100.9")))
+                .isEqualTo("198.51.100.9");
     }
 
     @Test

@@ -59,6 +59,12 @@ const routes = [
     meta: { title: '管理后台', requiresAuth: true, requiresAdmin: true }
   },
   {
+    path: '/admin/resumes/:id(\\d+)/preview',
+    name: 'admin-resume-preview',
+    component: () => import('../pages/AdminResumePreviewPage.vue'),
+    meta: { title: '简历预览 · 管理后台', requiresAuth: true, requiresAdmin: true }
+  },
+  {
     path: '/share/:token',
     name: 'share',
     component: () => import('../pages/SharePage.vue'),

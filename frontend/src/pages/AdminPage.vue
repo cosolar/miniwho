@@ -1,17 +1,20 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  ChatDotSquare, Check, Close, DataBoard, Document, Download, Grid, Odometer, Refresh, Search, Setting, Share,
-  User, UserFilled, View
+  ArrowRight, ChatDotSquare, Check, Close, DataBoard, Document, Download, FullScreen, Grid, Odometer, Refresh,
+  ScaleToOriginal, Search, Setting, Share, User, UserFilled, View
 } from '@element-plus/icons-vue'
 import AppLayout from '../layouts/AppLayout.vue'
+import PaperFrame from '../components/PaperFrame.vue'
 import { useAuthStore } from '../stores/auth'
 import { adminApi, templateApi } from '../api'
 import { notifyError } from '../api/client'
 import { applyContentWidth } from '../utils/appearance'
 import { formatDate, formatDateTime, formatFileSize, saveBlob } from '../utils/format'
-import { USER_MAX_RENDERED, USER_PAGE_SIZE, queryUsers, userColumnWidths } from '../utils/userTable'
+import { queryUsers, userColumnWidths } from '../utils/userTable'
+import { templateByCode } from '../data/templatePresets'
+import { useTemplates } from '../composables/useTemplates'
 
 const auth = useAuthStore()
 
@@ -24,6 +27,48 @@ const stats = ref(null)
 const system = ref(null)
 const users = ref([])
 const resettingPasswordId = ref(null)
+const userResumesDialog = ref(false)
+const userResumesLoading = ref(false)
+const userResumesTarget = ref(null)
+const userResumes = ref([])
+/** 弹窗右侧预览：选中的那份简历与它的详情（列表只带摘要，纸面要完整内容）。 */
+const userResumeId = ref(null)
+const userResumeDetail = ref(null)
+const userResumeLoading = ref(false)
+const userResumeError = ref('')
+const userResumePages = ref(1)
+/** 弹窗放大 / 还原；放大后预览区跟着长高，「整页」视图才有发挥空间。 */
+const userResumesMaxed = ref(false)
+/** 预览缩放方式：width 铺满宽度（长简历向下滚），page 让一整页进画面。 */
+const previewFit = ref('width')
+const previewStageRef = ref(null)
+/** 预览区可用高度（已扣内边距），交给 PaperFrame 算「整页」比例。 */
+const previewStageHeight = ref(0)
+let previewStageObserver = null
+const { all: previewTemplates, refresh: refreshPreviewTemplates, ensure: ensurePreviewTemplate } = useTemplates()
+/** 连点两份简历时，只有最后一次请求的结果能写回面板。 */
+let userResumeRequest = 0
+
+const previewTemplate = computed(() => templateByCode(userResumeDetail.value?.templateCode, previewTemplates.value))
+/** 简历记录的模板可能已下架或被作者取消分享，纸面仍要照原样渲染，只是给一句提示。 */
+const previewTemplateMissing = computed(() => Boolean(userResumeDetail.value?.templateCode)
+  && !previewTemplates.value.some((tpl) => tpl.code === userResumeDetail.value.templateCode))
+const previewStyle = computed(() => {
+  const style = userResumeDetail.value?.style || {}
+  return {
+    filter: style.filter || 'standard',
+    fontSizeStep: Number(style.fontSizeStep || 0),
+    spacingStep: Number(style.spacingStep || 0),
+    showBrandFooter: style.showBrandFooter !== false,
+    pageMargin: {
+      custom: !!style.pageMargin?.custom,
+      top: Number(style.pageMargin?.top ?? 15),
+      right: Number(style.pageMargin?.right ?? 15),
+      bottom: Number(style.pageMargin?.bottom ?? 12),
+      left: Number(style.pageMargin?.left ?? 15)
+    }
+  }
+})
 const templates = ref([])
 const feedback = ref([])
 const sample = ref(null)
@@ -62,14 +107,21 @@ const widthDemoStyle = computed(() => ({ width: `${Math.min(100, (siteWidth.valu
 const widthGutter = computed(() => Math.max(0, Math.round((DEMO_VIEWPORT - siteWidth.value) / 2)))
 
 const sortState = ref({ prop: 'createdAt', order: 'descending' })
-const visibleCount = ref(USER_PAGE_SIZE)
-const userScrollRef = ref(null)
+const userPage = ref(1)
+const userPageSize = ref(10)
 
-/** 搜索与排序基于全量数据，滚动只决定渲染多少行，结果不会因分批而失真。 */
+/** 搜索与排序基于全量数据，分页只决定当前展示哪一段。 */
 const filteredUsers = computed(() => queryUsers(users.value, keyword.value, sortState.value))
-const visibleUsers = computed(() => filteredUsers.value.slice(0, visibleCount.value))
-const hasMoreUsers = computed(() => visibleCount.value < Math.min(filteredUsers.value.length, USER_MAX_RENDERED))
-const renderCapped = computed(() => filteredUsers.value.length > USER_MAX_RENDERED && !hasMoreUsers.value)
+const pagedUsers = computed(() => {
+  const start = (userPage.value - 1) * userPageSize.value
+  return filteredUsers.value.slice(start, start + userPageSize.value)
+})
+const userRangeText = computed(() => {
+  if (!filteredUsers.value.length) return '暂无用户'
+  const start = (userPage.value - 1) * userPageSize.value + 1
+  const end = Math.min(userPage.value * userPageSize.value, filteredUsers.value.length)
+  return `第 ${start}–${end} 位，共 ${filteredUsers.value.length} 位`
+})
 const columnWidths = computed(() => userColumnWidths(filteredUsers.value))
 
 const onlineCount = computed(() => users.value.filter((item) => item.online).length)
@@ -147,7 +199,7 @@ async function loadUsers() {
   usersLoading.value = true
   try {
     users.value = await adminApi.users()
-    resetVisibleCount()
+    userPage.value = 1
   } catch (error) {
     notifyError(error, '加载用户列表失败')
   } finally {
@@ -155,27 +207,111 @@ async function loadUsers() {
   }
 }
 
-/** 排序、搜索或重新拉数据后回到第一批，避免停留在旧位置。 */
-function resetVisibleCount() {
-  visibleCount.value = Math.min(USER_PAGE_SIZE, USER_MAX_RENDERED)
-  if (userScrollRef.value) userScrollRef.value.scrollTop = 0
+function onUserSortChange({ prop, order }) {
+  sortState.value = { prop: prop || 'createdAt', order: order || 'descending' }
+  userPage.value = 1
 }
 
-/** 表格容器滚到底再追加一批；渲染上限兜住，不会一路堆到几千行 DOM。 */
-function onUserScroll() {
-  const el = userScrollRef.value
-  if (!el || !hasMoreUsers.value) return
-  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 140) {
-    visibleCount.value = Math.min(visibleCount.value + USER_PAGE_SIZE, USER_MAX_RENDERED, filteredUsers.value.length)
+/** 只读查看：后台不提供跨账号编辑，列表里点一份就在右侧看纸面。 */
+async function openUserResumes(row) {
+  if (!row.resumeCount) return
+  userResumesTarget.value = row
+  userResumes.value = []
+  userResumeId.value = null
+  userResumeDetail.value = null
+  userResumeError.value = ''
+  userResumePages.value = 1
+  userResumeLoading.value = false
+  userResumeRequest += 1
+  userResumesDialog.value = true
+  userResumesLoading.value = true
+  observePreviewStage()
+  try {
+    const list = await adminApi.userResumes(row.id)
+    // 列表还没回来就被关掉了，别再接着去拉详情。
+    if (!userResumesDialog.value) return
+    userResumes.value = Array.isArray(list) ? list : []
+    // 弹出来就该看见东西：默认选中第一份，用户再点别的就换。
+    if (userResumes.value.length) await selectUserResume(userResumes.value[0])
+  } catch (error) {
+    notifyError(error, '加载用户简历失败')
+  } finally {
+    userResumesLoading.value = false
   }
 }
 
-function onUserSortChange({ prop, order }) {
-  sortState.value = { prop: prop || 'createdAt', order: order || 'descending' }
-  resetVisibleCount()
+/** 选中左侧某一份，把纸面内容取回来铺到右侧。 */
+async function selectUserResume(resume) {
+  if (!resume) return
+  userResumeId.value = resume.id
+  userResumeLoading.value = true
+  userResumeError.value = ''
+  const request = ++userResumeRequest
+  try {
+    const detail = await adminApi.userResume(resume.id)
+    if (request !== userResumeRequest) return
+    userResumeDetail.value = detail
+    userResumePages.value = 1
+    await refreshPreviewTemplates()
+    // 作者私有导入的模板不在公开目录里，管理员按编码单独取一次配置。
+    await ensurePreviewTemplate(detail.templateCode)
+  } catch (error) {
+    if (request !== userResumeRequest) return
+    userResumeDetail.value = null
+    userResumeError.value = error?.message || '这份简历加载失败'
+  } finally {
+    if (request === userResumeRequest) userResumeLoading.value = false
+  }
 }
 
-watch(keyword, resetVisibleCount)
+/** 预览面板一变高变矮（弹窗放大、窗口缩放），「整页」视图的缩放比例就得重算。 */
+function measurePreviewStage() {
+  const el = previewStageRef.value
+  previewStageHeight.value = el ? Math.max(0, el.clientHeight - 36) : 0
+}
+
+function observePreviewStage() {
+  nextTick(() => {
+    const el = previewStageRef.value
+    if (!el) return
+    previewStageObserver?.disconnect()
+    if (typeof ResizeObserver !== 'undefined') {
+      previewStageObserver = new ResizeObserver(measurePreviewStage)
+      previewStageObserver.observe(el)
+    }
+    measurePreviewStage()
+  })
+}
+
+/** 关闭即清空：下次点开另一个账号不该先闪一下上一个人的简历。 */
+watch(userResumesDialog, (open) => {
+  if (open) return
+  userResumeRequest += 1
+  userResumeId.value = null
+  userResumeDetail.value = null
+  userResumeError.value = ''
+  userResumes.value = []
+  userResumePages.value = 1
+  userResumeLoading.value = false
+})
+
+function previewTargetOf(resume) {
+  const username = userResumesTarget.value?.username
+  return {
+    name: 'admin-resume-preview',
+    params: { id: resume.id },
+    query: username ? { user: username } : {}
+  }
+}
+
+watch([keyword, userPageSize], () => {
+  userPage.value = 1
+})
+
+/** 搜索后结果变少时，别把管理员留在一个已经越界的页码上。 */
+watch(() => filteredUsers.value.length, (total) => {
+  userPage.value = Math.min(userPage.value, Math.max(1, Math.ceil(total / userPageSize.value)))
+})
 
 /** 在线状态单独轮询：用户列表接口会扫磁盘，不适合每 60 秒跑一次。 */
 async function refreshOnlineUsers() {
@@ -582,7 +718,10 @@ onMounted(() => {
   onlineTimer = window.setInterval(refreshOnlineUsers, 60_000)
 })
 
-onBeforeUnmount(() => window.clearInterval(onlineTimer))
+onBeforeUnmount(() => {
+  window.clearInterval(onlineTimer)
+  previewStageObserver?.disconnect()
+})
 </script>
 
 <template>
@@ -781,14 +920,10 @@ onBeforeUnmount(() => window.clearInterval(onlineTimer))
               </el-input>
             </div>
 
-            <div
-              ref="userScrollRef"
-              class="surface table-card user-table-card"
-              v-loading="usersLoading"
-              @scroll.passive="onUserScroll"
-            >
+            <div class="surface table-card user-table-card" v-loading="usersLoading">
               <el-table
-                :data="visibleUsers"
+                :data="pagedUsers"
+                row-key="id"
                 style="width: 100%"
                 :default-sort="{ prop: 'createdAt', order: 'descending' }"
                 @sort-change="onUserSortChange"
@@ -796,10 +931,13 @@ onBeforeUnmount(() => window.clearInterval(onlineTimer))
                 <el-table-column prop="username" label="用户" :min-width="columnWidths.user" sortable="custom" show-overflow-tooltip>
                   <template #default="{ row }">
                     <div class="table-user">
-                      <span class="table-avatar">{{ (row.nickname || row.username || '?').slice(0, 1) }}</span>
+                      <span class="table-avatar">
+                        {{ (row.nickname || row.username || '?').slice(0, 1) }}
+                        <i v-if="row.online" class="table-avatar__online" title="最近 5 分钟内有活动"></i>
+                      </span>
                       <div>
                         <strong>{{ row.nickname || row.username }}</strong>
-                        <span>@{{ row.username }}</span>
+                        <span class="table-user__handle">@{{ row.username }}</span>
                       </div>
                     </div>
                   </template>
@@ -822,7 +960,20 @@ onBeforeUnmount(() => window.clearInterval(onlineTimer))
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column prop="resumeCount" label="简历" :min-width="columnWidths.resumeCount" align="center" sortable="custom" />
+                <el-table-column prop="resumeCount" label="简历" :min-width="columnWidths.resumeCount" align="center" sortable="custom">
+                  <template #default="{ row }">
+                    <button
+                      v-if="row.resumeCount"
+                      type="button"
+                      class="resume-count resume-count--link"
+                      title="查看该用户已制作的简历"
+                      @click="openUserResumes(row)"
+                    >
+                      <b>{{ row.resumeCount }}</b><small>份</small>
+                    </button>
+                    <span v-else class="resume-count is-empty"><b>0</b><small>份</small></span>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="storageBytes" label="存储" :min-width="columnWidths.storage" align="right" sortable="custom">
                   <template #default="{ row }">
                     <span class="cell-muted cell-mono">{{ formatFileSize(row.storageBytes || 0) }}</span>
@@ -849,26 +1000,36 @@ onBeforeUnmount(() => window.clearInterval(onlineTimer))
                 </el-table-column>
                 <el-table-column label="操作" :min-width="columnWidths.actions" align="right">
                   <template #default="{ row }">
-                    <el-button size="small" link :loading="resettingPasswordId === row.id" :disabled="row.id === auth.user?.id" @click="resetUserPassword(row)">
-                      重置密码
-                    </el-button>
-                    <el-button
-                      size="small"
-                      :type="row.status === 1 ? 'danger' : 'primary'"
-                      link
-                      :disabled="row.id === auth.user?.id"
-                      @click="toggleUser(row)"
-                    >
-                      {{ row.id === auth.user?.id ? '当前账号' : (row.status === 1 ? '冻结' : '恢复') }}
-                    </el-button>
+                    <div class="row-actions">
+                      <el-button size="small" link :loading="resettingPasswordId === row.id" :disabled="row.id === auth.user?.id" @click="resetUserPassword(row)">
+                        重置密码
+                      </el-button>
+                      <span class="row-actions__sep" aria-hidden="true"></span>
+                      <el-button
+                        size="small"
+                        :type="row.status === 1 ? 'danger' : 'primary'"
+                        link
+                        :disabled="row.id === auth.user?.id"
+                        @click="toggleUser(row)"
+                      >
+                        {{ row.id === auth.user?.id ? '当前账号' : (row.status === 1 ? '冻结' : '恢复') }}
+                      </el-button>
+                    </div>
                   </template>
                 </el-table-column>
               </el-table>
               <div v-if="!filteredUsers.length" class="table-empty">没有匹配的用户</div>
-              <div v-else class="table-more">
-                <template v-if="renderCapped">已显示 {{ visibleUsers.length }} / {{ filteredUsers.length }} 位，请用搜索缩小范围</template>
-                <template v-else-if="hasMoreUsers">向下滚动加载更多（已显示 {{ visibleUsers.length }} / {{ filteredUsers.length }}）</template>
-                <template v-else>已加载全部 {{ filteredUsers.length }} 位用户</template>
+              <div v-else class="user-pager">
+                <span class="user-pager__summary">{{ userRangeText }}</span>
+                <el-pagination
+                  v-model:current-page="userPage"
+                  v-model:page-size="userPageSize"
+                  :page-sizes="[10, 20, 50]"
+                  :total="filteredUsers.length"
+                  layout="sizes, prev, pager, next, jumper"
+                  background
+                  size="small"
+                />
               </div>
             </div>
           </section>
@@ -880,7 +1041,7 @@ onBeforeUnmount(() => window.clearInterval(onlineTimer))
                 <h2>模板管理 <small>{{ templates.length }} 套</small></h2>
               </div>
               <p class="toolbar-hint">
-                停用模板不会影响已创建的简历。
+                停用模板不会影响已创建的简历。分享与导出权限只能由作者设置，后台仅可查看。
                 <el-button size="small" link type="primary" @click="exportBundle">
                   <el-icon><Download /></el-icon> 导出全部官方模板包
                 </el-button>
@@ -901,6 +1062,11 @@ onBeforeUnmount(() => window.clearInterval(onlineTimer))
                 <p>{{ item.description || '未填写模板描述' }}</p>
                 <div class="template-tags">
                   <span class="tag">{{ item.source === 'imported' ? `${item.author || '未署名'} 导入` : '官方' }}</span>
+                  <span v-if="item.source === 'imported'" class="tag">
+                    {{ item.visibility === 'public'
+                      ? (item.exportable ? '已分享 · 可导出' : '已分享 · 仅选用')
+                      : '仅作者可见' }}
+                  </span>
                   <span v-if="item.version" class="tag">v{{ item.version }}</span>
                   <span v-if="item.category" class="tag">{{ item.category }}</span>
                   <span v-for="tag in templateTags(item)" :key="tag" class="tag">{{ tag }}</span>
@@ -1255,6 +1421,124 @@ onBeforeUnmount(() => window.clearInterval(onlineTimer))
       <template #footer>
         <el-button @click="replyDialog = false">取消</el-button>
         <el-button type="primary" :loading="replySaving" @click="submitReply">保存回复</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="userResumesDialog"
+      width="min(1120px, 94vw)"
+      :fullscreen="userResumesMaxed"
+      align-center
+      append-to-body
+      :class="['user-resumes-dialog', { 'is-max': userResumesMaxed }]"
+    >
+      <template #header>
+        <div class="user-resumes-dialog__head">
+          <span class="table-avatar">
+            {{ (userResumesTarget?.nickname || userResumesTarget?.username || '?').slice(0, 1) }}
+          </span>
+          <div class="user-resumes-dialog__title">
+            <span class="mono">USER RESUMES</span>
+            <h2>{{ userResumesTarget?.nickname || userResumesTarget?.username }}的简历</h2>
+            <p>
+              {{ userResumesTarget?.username }}<template v-if="userResumesTarget?.email"> · {{ userResumesTarget.email }}</template>
+            </p>
+          </div>
+          <span v-if="!userResumesLoading" class="user-resumes-dialog__count">{{ userResumes.length }} 份</span>
+        </div>
+        <!-- 放在右上角、紧挨 Element Plus 自带的关闭按钮：窗口控件该在这一簇里 -->
+        <button
+          type="button"
+          class="user-resumes-dialog__max"
+          :title="userResumesMaxed ? '还原窗口' : '放大查看'"
+          :aria-label="userResumesMaxed ? '还原窗口' : '放大查看'"
+          @click="userResumesMaxed = !userResumesMaxed"
+        >
+          <el-icon><ScaleToOriginal v-if="userResumesMaxed" /><FullScreen v-else /></el-icon>
+        </button>
+      </template>
+
+      <div class="user-resumes">
+        <div v-loading="userResumesLoading" class="user-resumes__list">
+          <ul v-if="userResumes.length">
+            <li v-for="resume in userResumes" :key="resume.id">
+              <button
+                type="button"
+                class="user-resume-card"
+                :class="{ 'is-active': resume.id === userResumeId }"
+                @click="selectUserResume(resume)"
+              >
+                <span class="user-resume-card__icon"><el-icon><Document /></el-icon></span>
+                <span class="user-resume-card__body">
+                  <strong>{{ resume.title || '未命名简历' }}</strong>
+                  <span>{{ resume.templateName || resume.templateCode }}</span>
+                  <span>更新于 {{ formatDateTime(resume.updatedAt) }}</span>
+                </span>
+                <span class="user-resume-card__meta">
+                  <b>{{ resume.completeness ?? 0 }}%</b>
+                  <small>完整度</small>
+                </span>
+              </button>
+            </li>
+          </ul>
+          <div v-else-if="!userResumesLoading" class="table-empty">该用户还没有创建简历</div>
+        </div>
+
+        <div class="user-resumes__preview">
+          <div class="user-resumes__preview-head">
+            <span class="mono">A4 PREVIEW</span>
+            <div class="user-resumes__preview-tools">
+              <span v-if="userResumeDetail" class="user-resumes__preview-meta">共 {{ userResumePages }} 页</span>
+              <div class="fit-switch" role="group" aria-label="预览缩放方式">
+                <button
+                  type="button"
+                  :class="{ 'is-active': previewFit === 'width' }"
+                  @click="previewFit = 'width'"
+                >适宽</button>
+                <button
+                  type="button"
+                  :class="{ 'is-active': previewFit === 'page' }"
+                  @click="previewFit = 'page'"
+                >整页</button>
+              </div>
+            </div>
+          </div>
+          <div ref="previewStageRef" v-loading="userResumeLoading" class="user-resume-stage">
+            <div v-if="userResumeError" class="user-resume-stage__state user-resume-stage__state--error">
+              <p>{{ userResumeError }}</p>
+              <el-button plain size="small" @click="selectUserResume({ id: userResumeId })">重新加载</el-button>
+            </div>
+            <div v-else-if="!userResumeDetail" class="user-resume-stage__state">
+              <el-icon><Document /></el-icon>
+              <p>{{ userResumesLoading ? '正在加载简历…' : userResumes.length ? '正在载入预览…' : '该用户还没有创建简历' }}</p>
+            </div>
+            <template v-else>
+              <p v-if="previewTemplateMissing" class="user-resume-stage__notice">
+                模板「{{ userResumeDetail.templateCode }}」已下架或不存在，纸面按默认版式渲染。
+              </p>
+              <PaperFrame
+                :content="userResumeDetail.content"
+                :template="previewTemplate"
+                :style-data="previewStyle"
+                :avatar="userResumeDetail.avatar"
+                :padding="0"
+                :fit-mode="previewFit"
+                :fit-height="previewStageHeight"
+                @pages="(count) => (userResumePages = count)"
+              />
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="user-resumes-dialog__foot">
+          <router-link v-if="userResumeDetail" class="user-resumes-dialog__full" :to="previewTargetOf(userResumeDetail)">
+            在新页面打开
+            <el-icon><ArrowRight /></el-icon>
+          </router-link>
+          <el-button @click="userResumesDialog = false">关闭</el-button>
+        </div>
       </template>
     </el-dialog>
   </AppLayout>
@@ -1828,9 +2112,447 @@ onBeforeUnmount(() => window.clearInterval(onlineTimer))
   font-weight: 600;
 }
 
-.table-user span {
+.table-user__handle {
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.table-avatar {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent-dark);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.table-avatar__online {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.resume-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+}
+
+.resume-count b {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.resume-count small {
+  color: var(--faint);
+  font-size: 9.5px;
+}
+
+.resume-count--link {
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.resume-count--link b {
+  color: inherit;
+}
+
+.resume-count--link:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.resume-count--link:hover small {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.resume-count.is-empty {
+  color: var(--faint);
+}
+
+:global(.user-resumes-dialog) {
+  max-width: calc(100vw - 32px);
+  border-radius: 16px;
+}
+
+/* 放大后要真的贴到视口边缘：上一条的 max-width 会留出 32px 白边 */
+:global(.user-resumes-dialog.is-max) {
+  max-width: 100vw;
+  border-radius: 0;
+}
+
+/* 放大后要真的贴到视口边缘：上一条的 max-width 会留出 32px 白边 */
+:global(.user-resumes-dialog.is-max) {
+  max-width: 100vw;
+  border-radius: 0;
+}
+
+/* 右上角并排两个控件（放大 + 关闭），标题与份数要给它们让出位置 */
+:global(.user-resumes-dialog .el-dialog__header) {
+  padding-right: 96px;
+}
+
+/* 右上角并排两个控件（放大 + 关闭），标题与份数要给它们让出位置 */
+:global(.user-resumes-dialog .el-dialog__header) {
+  padding-right: 96px;
+}
+
+.user-resumes-dialog__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-resumes-dialog__title {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-resumes-dialog__title .mono {
+  color: var(--faint);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+}
+
+.user-resumes-dialog__title h2 {
+  margin-top: 4px;
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.user-resumes-dialog__title p {
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+  color: var(--faint);
+  font-size: 10.5px;
+}
+
+.user-resumes-dialog__count {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.user-resumes-dialog__max {
+  position: absolute;
+  top: 6px;
+  right: 42px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--el-color-info, #909399);
+  font-size: 16px;
+  cursor: pointer;
+  transition: color 0.16s ease, background 0.16s ease;
+}
+
+.user-resumes-dialog__max:hover {
+  background: var(--paper-deep);
+  color: var(--accent);
+}
+
+.user-resumes {
+  display: grid;
+  grid-template-columns: 296px minmax(0, 1fr);
+  gap: 16px;
+  height: min(72vh, 700px);
+}
+
+.user-resumes__list {
+  height: 100%;
+  padding-right: 2px;
+  overflow-y: auto;
+}
+
+.user-resumes__list ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.user-resume-card {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.user-resume-card:hover {
+  border-color: rgba(10, 125, 118, 0.4);
+  background: rgba(10, 125, 118, 0.045);
+}
+
+.user-resume-card.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.user-resume-card__icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 16px;
+}
+
+.user-resume-card.is-active .user-resume-card__icon {
+  background: #fff;
+}
+
+.user-resume-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-resume-card__body strong {
+  display: block;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-resume-card__body span {
+  display: block;
+  margin-top: 1px;
+  overflow: hidden;
   color: var(--faint);
   font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-resume-card__meta {
+  flex: none;
+  text-align: right;
+}
+
+.user-resume-card__meta b {
+  display: block;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.user-resume-card__meta small {
+  color: var(--faint);
+  font-size: 9px;
+}
+
+.user-resumes__preview {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background:
+    radial-gradient(600px 320px at 50% -10%, rgba(10, 125, 118, 0.07), transparent 70%),
+    linear-gradient(180deg, var(--canvas-deep), #e7e1d4);
+}
+
+.user-resumes__preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--faint);
+  font-size: 9.5px;
+}
+
+.user-resumes__preview-head .mono {
+  letter-spacing: 0.16em;
+}
+
+.user-resumes__preview-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-resumes__preview-meta {
+  color: var(--faint);
+  font-size: 9.5px;
+}
+
+.fit-switch {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.fit-switch button {
+  padding: 2px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 10.5px;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.fit-switch button:hover {
+  color: var(--ink);
+}
+
+.fit-switch button.is-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.user-resume-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 18px;
+  overflow-y: auto;
+}
+
+.user-resume-stage :deep(.paper-scaler__paper) {
+  box-shadow: 0 14px 34px -18px rgba(25, 34, 30, 0.42);
+}
+
+.user-resume-stage__state {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  height: 100%;
+  min-height: 160px;
+  padding: 24px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.user-resume-stage__state .el-icon {
+  color: var(--faint);
+  font-size: 22px;
+}
+
+.user-resume-stage__state--error {
+  color: var(--danger);
+}
+
+.user-resume-stage__notice {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(181, 72, 63, 0.2);
+  border-radius: 8px;
+  background: #fbeeec;
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.user-resumes-dialog__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.user-resumes-dialog__full {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.user-resumes-dialog__full:hover {
+  color: var(--accent);
+}
+
+/* 放大到整屏：列表略宽一点，预览区吃掉剩下所有高度，「整页」视图才有意义 */
+.user-resumes-dialog.is-max .user-resumes {
+  grid-template-columns: 320px minmax(0, 1fr);
+  height: calc(100vh - 210px);
+}
+
+@media (max-width: 900px) {
+  .user-resumes,
+  .user-resumes-dialog.is-max .user-resumes {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .user-resumes__list {
+    max-height: 190px;
+  }
+
+  .user-resumes__preview {
+    height: min(56vh, 460px);
+  }
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.row-actions :deep(.el-button) {
+  margin-left: 0;
+  padding: 0 2px;
+}
+
+.row-actions__sep {
+  width: 1px;
+  height: 10px;
+  margin: 0 4px;
+  background: var(--line-strong);
 }
 
 .cell-muted {
@@ -1881,17 +2603,82 @@ onBeforeUnmount(() => window.clearInterval(onlineTimer))
   white-space: nowrap;
 }
 
-/* 表格自己滚动，滚到底再追加下一批；高度固定才不会让整页越拉越长。 */
+/* 用户表：整张卡片就是一块列表，表头、行和分页各占一层。 */
 .table-card.user-table-card {
-  max-height: min(62vh, 620px);
-  overflow: auto;
+  padding: 0;
+  overflow: hidden;
 }
 
-.table-more {
-  padding: 10px 4px 4px;
+.user-table-card :deep(.el-table) {
+  --el-table-border-color: transparent;
+  --el-table-header-bg-color: #f7f3ea;
+  --el-table-row-hover-bg-color: color-mix(in srgb, var(--accent) 5%, var(--paper));
+  --el-table-text-color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.user-table-card :deep(.el-table th.el-table__cell) {
+  height: 44px;
+  padding: 0;
+  border-bottom: 1px solid var(--line);
+  background: #f7f3ea;
+  color: var(--faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.user-table-card :deep(.el-table td.el-table__cell) {
+  height: 62px;
+  padding: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+}
+
+.user-table-card :deep(.el-table__body tr:last-child td.el-table__cell) {
+  border-bottom: none;
+}
+
+.user-table-card :deep(.el-table__inner-wrapper::before) {
+  display: none;
+}
+
+.user-table-card :deep(.el-table .cell) {
+  padding: 0 14px;
+}
+
+.user-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 18px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper-deep) 48%, var(--paper));
+}
+
+.user-pager__summary {
   color: var(--faint);
   font-size: 11px;
-  text-align: center;
+  white-space: nowrap;
+}
+
+.user-pager :deep(.el-pagination) {
+  --el-pagination-bg-color: transparent;
+  --el-pagination-button-color: var(--muted);
+  --el-pagination-hover-color: var(--accent);
+}
+
+.user-pager :deep(.el-pagination.is-background .el-pager li),
+.user-pager :deep(.el-pagination.is-background .btn-prev),
+.user-pager :deep(.el-pagination.is-background .btn-next) {
+  border-radius: 7px;
+  background: var(--paper-deep);
+  color: var(--muted);
+}
+
+.user-pager :deep(.el-pagination.is-background .el-pager li.is-active) {
+  background: var(--accent);
+  color: #fff;
 }
 
 .template-admin-grid {
@@ -2432,6 +3219,30 @@ onBeforeUnmount(() => window.clearInterval(onlineTimer))
 
   .table-card {
     overflow-x: auto;
+  }
+
+  .user-table-card {
+    overflow: hidden;
+  }
+
+  .user-pager {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .user-pager__summary {
+    white-space: normal;
+  }
+
+  .user-pager :deep(.el-pagination) {
+    justify-content: center;
+  }
+
+  .user-pager :deep(.el-pagination__sizes),
+  .user-pager :deep(.el-pagination__jump) {
+    display: none;
   }
 
   .template-admin-grid {

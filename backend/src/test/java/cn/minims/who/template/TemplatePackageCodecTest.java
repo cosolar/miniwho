@@ -61,6 +61,62 @@ class TemplatePackageCodecTest {
     }
 
     @Test
+    void rejectsResumeDataMixedIntoAPackageEnvelope() {
+        String resume = """
+                {
+                  "api": 1,
+                  "id": { "namespace": "qliu1", "code": "resume-agent-v5", "version": "1.1.0" },
+                  "meta": {
+                    "name": "刘琦 AI开发工程师",
+                    "description": "简历内容的结构化副本",
+                    "category": "resume",
+                    "contentOf": "resume_v4_agent.html",
+                    "pdf": "resume_v4_agent.pdf"
+                  },
+                  "theme": { "layout": "photoheader", "accent": "#000000", "font": "sans", "sectionStyle": "icon" },
+                  "sectionTitles": { "education": "教育背景" },
+                  "basics": { "name": "刘琦", "phone": "15511775170" },
+                  "education": [],
+                  "skills": [],
+                  "internships": [],
+                  "projects": []
+                }
+                """;
+        assertThatThrownBy(() -> codec.decode(resume))
+                .isInstanceOf(TemplatePackageException.class)
+                .satisfies(error -> {
+                    List<String> problems = ((TemplatePackageException) error).problems();
+                    assertThat(problems).hasSize(1);
+                    assertThat(problems.get(0))
+                            .contains("简历数据")
+                            .contains("basics")
+                            .contains("sectionTitles");
+                });
+    }
+
+    @Test
+    void rejectsFieldsOutsideThePackageSchema() {
+        String extraFields = """
+                {
+                  "api": 1,
+                  "id": { "namespace": "demo", "code": "alpha", "version": "1.0.0" },
+                  "meta": { "name": "演示", "description": "描述", "category": "通用", "note": "简历备注" },
+                  "theme": { "layout": "classic", "accent": "#123456", "font": "sans", "sectionStyle": "icon" },
+                  "preview": "https://example.com/preview.png"
+                }
+                """;
+        assertThatThrownBy(() -> codec.decode(extraFields))
+                .isInstanceOf(TemplatePackageException.class)
+                .satisfies(error -> {
+                    List<String> problems = ((TemplatePackageException) error).problems();
+                    assertThat(problems).anyMatch(problem -> problem.contains("模板包顶层")
+                            && problem.contains("preview"));
+                    assertThat(problems).anyMatch(problem -> problem.contains("meta 里")
+                            && problem.contains("note"));
+                });
+    }
+
+    @Test
     void invalidPackageReportsAllProblemsAtOnce() {
         String broken = """
                 {

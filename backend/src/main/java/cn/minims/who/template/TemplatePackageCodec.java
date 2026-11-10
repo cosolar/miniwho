@@ -30,6 +30,21 @@ public class TemplatePackageCodec {
     private static final int MAX_TAGS = 8;
     private static final int MAX_SAMPLE_CHARS = 200_000;
 
+    /**
+     * 模板包只认这些顶层字段。简历正文也常以 JSON 导出，且可能自带 api / id / theme 这类同名键，
+     * 所以必须按白名单收口：多出来的键一律拒绝，而不是解析完再忽略。
+     */
+    private static final Set<String> PACKAGE_KEYS = Set.of(
+            "api", "id", "meta", "theme", "capability", "sortWeight", "style", "sample");
+    private static final Set<String> META_KEYS = Set.of(
+            "name", "description", "category", "tags", "author", "license");
+
+    /** 简历正文的典型顶层键：命中一个就明确告诉用户「这是简历，不是模板包」。 */
+    private static final Set<String> RESUME_KEYS = Set.of(
+            "basics", "profile", "personal", "summary", "education", "skills", "internships",
+            "projects", "workExperiences", "work_experience", "sectionTitles",
+            "sections", "schemaVersion", "language", "content");
+
     private final Json json;
 
     public TemplatePackageCodec(Json json) {
@@ -46,7 +61,15 @@ public class TemplatePackageCodec {
         if (!root.isObject()) {
             throw new TemplatePackageException(List.of("模板包必须是一个 JSON 对象"));
         }
+        rejectResumeData(root);
         List<String> problems = new ArrayList<>();
+        unknownKeys(root, PACKAGE_KEYS, "api / id / meta / theme / capability / sortWeight / style / sample",
+                "模板包顶层", problems);
+        JsonNode meta = root.at("/meta");
+        if (meta.isObject()) {
+            unknownKeys(meta, META_KEYS, "name / description / category / tags / author / license",
+                    "meta 里", problems);
+        }
 
         int api = integer(root, "/api", 0, problems);
         if (api != RendererCapabilities.API) {
@@ -271,5 +294,40 @@ public class TemplatePackageCodec {
             return;
         }
         problems.add(field + " 的值「" + value + "」不被当前渲染器支持，可选值：" + String.join("/", new TreeSet<>(allowed)));
+    }
+
+    /**
+     * 简历正文可能带着 api / id / theme 等同名键混进导入链路，先按简历特征键拦下，
+     * 给一条能看懂的错误，而不是让用户对着一串「缺少字段」猜。
+     */
+    private void rejectResumeData(JsonNode root) {
+        List<String> hits = new ArrayList<>();
+        root.fieldNames().forEachRemaining(key -> {
+            if (RESUME_KEYS.contains(key)) {
+                hits.add(key);
+            }
+        });
+        if (hits.isEmpty()) {
+            return;
+        }
+        hits.sort(String::compareTo);
+        throw new TemplatePackageException(List.of(
+                "这个文件看起来是一份简历数据，不是模板包（里面出现了 " + String.join("、", hits) + " 字段）。"
+                        + "模板包只描述版式，请导入别人发给你的模板包 .json，简历内容请留在工作台里编辑"));
+    }
+
+    private void unknownKeys(JsonNode node, Set<String> allowed, String allowedText, String where,
+                             List<String> problems) {
+        List<String> unknown = new ArrayList<>();
+        node.fieldNames().forEachRemaining(key -> {
+            if (!allowed.contains(key)) {
+                unknown.add(key);
+            }
+        });
+        if (unknown.isEmpty()) {
+            return;
+        }
+        unknown.sort(String::compareTo);
+        problems.add(where + "只能包含 " + allowedText + "，请去掉这些字段：" + String.join("、", unknown));
     }
 }
