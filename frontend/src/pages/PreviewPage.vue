@@ -4,7 +4,7 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowLeft, Check, CircleCheck, CopyDocument, Delete, Document, Download, InfoFilled, Link,
-  Lock, Printer, Setting, Share, View, Warning
+  Lock, Printer, Search, Setting, Share, View, Warning
 } from '@element-plus/icons-vue'
 import AppLayout from '../layouts/AppLayout.vue'
 import PaperFrame from '../components/PaperFrame.vue'
@@ -75,6 +75,74 @@ const shareTokenHint = computed(() => {
 // 别人导入的模板不在官方区，也不在你的 /mine 里；这时纸面会退回默认版式，必须说清楚。
 const templateMissing = computed(() => Boolean(resume.value?.templateCode)
   && !templates.value.some((tpl) => tpl.code === resume.value.templateCode))
+
+// ── 模板选择器：搜索过滤，把几十上百套收敛成一小屏 ──
+const templateKeyword = ref('')
+
+function matchTemplate(tpl) {
+  const keyword = templateKeyword.value.trim().toLowerCase()
+  if (!keyword) return true
+  return `${tpl.name} ${tpl.code} ${tpl.category || ''} ${(tpl.tags || []).join(' ')} ${tpl.description || ''}`
+    .toLowerCase()
+    .includes(keyword)
+}
+
+/** 正在使用的模板不参与过滤：哪怕筛选结果里没有它，也要置顶显示，方便随时切回来。 */
+function pinCurrent(list, currentCode) {
+  const current = list.find((tpl) => tpl.code === currentCode)
+  return current ? [current, ...list.filter((tpl) => tpl.code !== currentCode)] : list
+}
+
+const filteredOfficial = computed(() => official.value.filter(matchTemplate))
+const filteredCommunity = computed(() => community.value.filter(matchTemplate))
+const visibleOfficial = computed(() => pinCurrent(filteredOfficial.value, resume.value?.templateCode))
+const visibleCommunity = computed(() => pinCurrent(filteredCommunity.value, resume.value?.templateCode))
+
+// ── 侧栏宽度：默认加宽一档，也可以抓住分隔条随意拉宽/收窄（记进 localStorage，下次还认） ──
+const PANEL_WIDTH_KEY = 'miniwho.preview-panel-width'
+const PANEL_WIDTH_DEFAULT = 360
+const PANEL_WIDTH_MIN = 288
+const PANEL_WIDTH_MAX = 560
+
+function clampPanelWidth(value) {
+  return Math.round(Math.min(PANEL_WIDTH_MAX, Math.max(PANEL_WIDTH_MIN, value)))
+}
+
+const panelWidth = ref(clampPanelWidth(Number(localStorage.getItem(PANEL_WIDTH_KEY)) || PANEL_WIDTH_DEFAULT))
+const panelResizing = ref(false)
+let panelDragStart = null
+
+function onPanelDragStart(event) {
+  event.preventDefault()
+  panelDragStart = { x: event.clientX, width: panelWidth.value }
+  panelResizing.value = true
+  window.addEventListener('mousemove', onPanelDragMove)
+  window.addEventListener('mouseup', onPanelDragEnd)
+}
+
+/** 手柄向左拖 = 面板变宽：直接用横向位移量算，跟页面居中布局的边距无关。 */
+function onPanelDragMove(event) {
+  if (!panelDragStart) return
+  panelWidth.value = clampPanelWidth(panelDragStart.width + (panelDragStart.x - event.clientX))
+}
+
+function onPanelDragEnd() {
+  panelDragStart = null
+  panelResizing.value = false
+  window.removeEventListener('mousemove', onPanelDragMove)
+  window.removeEventListener('mouseup', onPanelDragEnd)
+  localStorage.setItem(PANEL_WIDTH_KEY, String(panelWidth.value))
+}
+
+function resetPanelWidth() {
+  panelWidth.value = PANEL_WIDTH_DEFAULT
+  localStorage.setItem(PANEL_WIDTH_KEY, String(panelWidth.value))
+}
+
+onBeforeUnmount(() => {
+  window.removeEventListener('mousemove', onPanelDragMove)
+  window.removeEventListener('mouseup', onPanelDragEnd)
+})
 const styleStatusText = computed(() => {
   if (styleState.value === 'saving') return '正在保存样式'
   if (styleState.value === 'error') return '样式保存失败'
@@ -93,7 +161,14 @@ const LAYOUT_LABELS = {
   classic: '经典',
   rail: '通栏照片',
   photoheader: '照片页眉',
-  formal: '传统单栏'
+  formal: '传统单栏',
+  framed: '名片框',
+  qieying: '切影两列',
+  biaoge: '账簿表头',
+  kapi: '卡片',
+  editorial: '杂志大字',
+  blueprint: '工程图纸',
+  fold: '折页单栏'
 }
 
 const FILTERS = [
@@ -485,7 +560,7 @@ onBeforeRouteLeave(async () => {
         </div>
       </header>
 
-      <div class="preview-layout">
+      <div class="preview-layout" :class="{ 'is-resizing': panelResizing }" :style="{ '--panel-w': `${panelWidth}px` }">
         <section class="preview-stage-area">
           <div class="stage-meta no-print">
             <span><i class="meta-dot"></i> A4 实际尺寸预览</span>
@@ -521,15 +596,23 @@ onBeforeRouteLeave(async () => {
           <div class="control-group">
             <div class="control-label">
               <span>官方模板</span>
-              <small>全部免费</small>
+              <small>免费 · {{ visibleOfficial.length }}/{{ official.length }} 套</small>
             </div>
+            <el-input
+              v-model="templateKeyword"
+              class="template-search"
+              size="small"
+              placeholder="搜模板名 / 风格关键词"
+              clearable
+              :prefix-icon="Search"
+            />
             <p v-if="templateMissing" class="template-missing">
               <el-icon><Warning /></el-icon>
               <span>这份简历记录的模板「{{ resume.templateCode }}」已下架或不属于本站，纸面暂按默认版式渲染。选中下方任一模板即可恢复。</span>
             </p>
             <div class="template-grid">
               <button
-                v-for="tpl in official"
+                v-for="tpl in visibleOfficial"
                 :key="tpl.code"
                 type="button"
                 class="template-chip"
@@ -548,15 +631,21 @@ onBeforeRouteLeave(async () => {
                 <el-icon v-if="resume.templateCode === tpl.code" class="chip-check"><Check /></el-icon>
               </button>
             </div>
+            <p v-if="!visibleOfficial.length" class="template-empty">
+              没有匹配的官方模板，换个关键词或品类试试。
+            </p>
+            <router-link class="template-more" to="/templates">
+              带大图去模板中心慢慢挑 →
+            </router-link>
 
             <template v-if="community.length">
               <div class="control-label control-label--sub">
                 <span>社区模板</span>
-                <small>{{ community.length }} 套可选用</small>
+                <small>{{ visibleCommunity.length }}/{{ community.length }} 套可选用</small>
               </div>
               <div class="template-grid">
                 <button
-                  v-for="tpl in community"
+                  v-for="tpl in visibleCommunity"
                   :key="tpl.code"
                   type="button"
                   class="template-chip"
@@ -570,11 +659,14 @@ onBeforeRouteLeave(async () => {
                   </span>
                   <span class="chip-text">
                     <strong>{{ tpl.name }}</strong>
-                    <small>{{ tpl.isMine ? '我的 · ' : '' }}{{ tpl.author || '未署名' }} · v{{ tpl.version || '1.0.0' }}</small>
+                    <small>{{ tpl.isMine ? '我的 · ' : '' }}{{ tpl.author || '未署名' }}</small>
                   </span>
                   <el-icon v-if="resume.templateCode === tpl.code" class="chip-check"><Check /></el-icon>
                 </button>
               </div>
+              <p v-if="!visibleCommunity.length" class="template-empty">
+                没有匹配的社区模板。
+              </p>
             </template>
 
             <p class="package-note">
@@ -677,6 +769,14 @@ onBeforeRouteLeave(async () => {
             <p>样式修改会自动保存。内容超出一页时按 A4 自动分页，纸面上的虚线就是导出 PDF 的换页位置。</p>
           </div>
         </aside>
+
+        <div
+          class="panel-resizer no-print"
+          :class="{ 'is-dragging': panelResizing }"
+          title="拖动调整宽度 · 双击复位"
+          @mousedown="onPanelDragStart"
+          @dblclick="resetPanelWidth"
+        ></div>
       </div>
     </div>
 
@@ -693,7 +793,7 @@ onBeforeRouteLeave(async () => {
 
       <ol class="print-steps">
         <li><span>01</span><p>在打印窗口中，将目标打印机选择为「另存为 PDF」。</p></li>
-        <li><span>02</span><p>纸张选择 <strong>A4</strong>，边距选择 <strong>无</strong>，缩放保持 <strong>100%</strong>。</p></li>
+        <li><span>02</span><p>纸张选择 <strong>A4</strong>，边距选择 <strong>无</strong>，缩放保持 <strong>100%</strong>。纸张大于 A4 或边距不为零时，色带类模板的页眉右侧会留出一条白边。</p></li>
         <li><span>03</span><p>展开「更多设置」，勾选 <strong>背景图形</strong>，关闭 <strong>页眉和页脚</strong>。</p></li>
         <li><span>04</span><p>点击保存，即可得到可投递的 PDF 文件。</p></li>
       </ol>
@@ -995,12 +1095,48 @@ onBeforeRouteLeave(async () => {
 }
 
 .preview-layout {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 312px;
+  grid-template-columns: minmax(0, 1fr) var(--panel-w, 312px);
   gap: 26px;
   align-items: start;
   width: min(calc(var(--content-width) + 80px), calc(100% - 48px));
   margin: 22px auto 0;
+}
+
+/* 拖宽手柄：贴在侧栏左缘的隐形竖条，hover 时亮起 */
+.panel-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(var(--panel-w, 312px) + 6px);
+  width: 14px;
+  transform: translateX(50%);
+  cursor: col-resize;
+  z-index: 6;
+}
+
+.panel-resizer::after {
+  content: "";
+  position: absolute;
+  top: 24px;
+  bottom: 24px;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.panel-resizer:hover::after,
+.panel-resizer.is-dragging::after {
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.preview-layout.is-resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .stage-meta,
@@ -1061,6 +1197,8 @@ onBeforeRouteLeave(async () => {
   background: var(--paper);
   max-height: calc(100vh - 156px);
   overflow-y: auto;
+  /* 以侧栏自身宽度作容器查询：拖宽面板时模板网格自动从两列升到三列 */
+  container-type: inline-size;
 }
 
 .controls-head {
@@ -1115,6 +1253,46 @@ onBeforeRouteLeave(async () => {
   grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
+
+/* 面板拉宽到 430px 以上时升三列（窄栏里两列更耐看）；移动端堆叠布局不受影响 */
+@media (min-width: 981px) {
+  @container (min-width: 430px) {
+    .template-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 5px;
+    }
+
+    .template-chip {
+      gap: 6px;
+      padding: 6px;
+    }
+  }
+}
+
+/* 模板选择器的搜索：把上百套收敛成一小屏，而不是一条道滚到底 */
+.template-search {
+  margin-bottom: 5px;
+}
+
+.template-empty {
+  margin: 4px 0 0;
+  color: var(--faint);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.template-more {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.template-more:hover {
+  text-decoration: underline;
+}
+
 
 .template-chip {
   position: relative;
@@ -1855,8 +2033,12 @@ onBeforeRouteLeave(async () => {
 
 @media (max-width: 1120px) {
   .preview-layout {
-    grid-template-columns: minmax(0, 1fr) 276px;
+    grid-template-columns: minmax(0, 1fr) min(var(--panel-w, 312px), 300px);
     gap: 18px;
+  }
+
+  .panel-resizer {
+    right: calc(min(var(--panel-w, 312px), 300px) + 2px);
   }
 
   .preview-stage {
@@ -1872,6 +2054,10 @@ onBeforeRouteLeave(async () => {
   .preview-layout {
     grid-template-columns: 1fr;
     width: calc(100% - 40px);
+  }
+
+  .panel-resizer {
+    display: none;
   }
 
   .preview-controls {

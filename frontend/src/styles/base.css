@@ -725,4 +725,25 @@ ul, ol {
   .resume-paper .paper-pages {
     display: none !important;
   }
+
+  /* 暖纸滤镜：整条打印画布（画布本身 + 纸面外所有包裹层）一起染成米白。
+     纸面盒是 210mm，页盒可能因打印边距 / 打印机默认纸张（Letter 215.9mm）/ 缩放残留有零点几毫米的差，
+     任何一层保持白色都会在纸面右缘或下缘露出来。
+     注意：这条必须写在全局样式里——组件里的 scoped 版本会被编译成 html[data-v-xxx] 永远匹配不到。
+     :has 的特异度高于上面同元素的刷白规则，写在后面也只是双保险。 */
+  html:has(.resume-paper.filter-soft),
+  body:has(.resume-paper.filter-soft),
+  body:has(.resume-paper.filter-soft) .preview-page,
+  body:has(.resume-paper.filter-soft) .share-page,
+  body:has(.resume-paper.filter-soft) .preview-stage,
+  body:has(.resume-paper.filter-soft) .share-stage,
+  body:has(.resume-paper.filter-soft) .preview-layout,
+  body:has(.resume-paper.filter-soft) .preview-stage-area,
+  body:has(.resume-paper.filter-soft) .preview-stage__inner,
+  body:has(.resume-paper.filter-soft) .share-content,
+  body:has(.resume-paper.filter-soft) .share-paper-wrap,
+  body:has(.resume-paper.filter-soft) .paper-scaler,
+  body:has(.resume-paper.filter-soft) .paper-scaler__inner {
+    background: #fdfaf2 !important;
+  }
 }
