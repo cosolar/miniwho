@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowRight, ChatDotSquare, Check, Close, DataBoard, Delete, Document, Download, FullScreen, Grid, Odometer, Refresh,
-  ScaleToOriginal, Search, Setting, Share, User, UserFilled, View
+  ScaleToOriginal, Search, Setting, Share, Timer, User, UserFilled, View
 } from '@element-plus/icons-vue'
 import AppLayout from '../layouts/AppLayout.vue'
 import PaperFrame from '../components/PaperFrame.vue'
@@ -11,7 +11,7 @@ import { useAuthStore } from '../stores/auth'
 import { adminApi, templateApi } from '../api'
 import { notifyError } from '../api/client'
 import { applyContentWidth } from '../utils/appearance'
-import { formatDate, formatDateTime, formatFileSize, saveBlob } from '../utils/format'
+import { formatDate, formatDateTime, formatFileSize, saveBlob, timeAgo } from '../utils/format'
 import { queryUsers, userColumnWidths } from '../utils/userTable'
 import { templateByCode } from '../data/templatePresets'
 import { useTemplates } from '../composables/useTemplates'
@@ -119,30 +119,80 @@ const auditAction = ref('')
 const auditActor = ref('')
 const auditRetention = ref(90)
 const auditSaving = ref(false)
-const AUDIT_ACTIONS = [
-  { value: '', label: '全部动作' },
-  { value: 'auth.login', label: '登录成功' },
-  { value: 'auth.login_failed', label: '登录失败' },
-  { value: 'auth.register', label: '注册' },
-  { value: 'auth.password_change', label: '修改/重置密码' },
-  { value: 'account.deletion_request', label: '申请注销' },
-  { value: 'account.deletion_cancel', label: '撤销注销' },
-  { value: 'account.deletion_purge', label: '注销清除（系统）' },
-  { value: 'resume.create', label: '新建简历' },
-  { value: 'resume.delete', label: '删除简历' },
-  { value: 'resume.purge', label: '清除简历' },
-  { value: 'share.create', label: '创建分享' },
-  { value: 'share.revoke', label: '撤销分享' },
-  { value: 'resume.pdf_export', label: '导出 PDF' },
-  { value: 'template.import', label: '导入模板' },
-  { value: 'template.share', label: '分享模板' },
-  { value: 'admin.user.status', label: '管理员：冻结/解封' },
-  { value: 'admin.user.password_reset', label: '管理员：重置密码' },
-  { value: 'admin.template.status', label: '管理员：模板上下架' },
-  { value: 'admin.template.meta', label: '管理员：模板元信息' },
-  { value: 'admin.resume.purge', label: '管理员：清除简历' },
-  { value: 'admin.audit.purge', label: '管理员：清理日志' }
+/* 动作清单按场景分组：下拉里一眼能找到「账号相关」还是「后台操作」，
+   同一个数组同时充当列表里中文名的字典。 */
+const AUDIT_GROUPS = [
+  {
+    label: '账号',
+    items: [
+      { value: 'auth.login', label: '登录成功' },
+      { value: 'auth.login_failed', label: '登录失败' },
+      { value: 'auth.register', label: '注册' },
+      { value: 'auth.password_change', label: '修改 / 重置密码' },
+      { value: 'auth.email_change', label: '修改邮箱' },
+      { value: 'account.deletion_request', label: '申请注销' },
+      { value: 'account.deletion_cancel', label: '撤销注销' },
+      { value: 'account.deletion_purge', label: '注销到期清除' }
+    ]
+  },
+  {
+    label: '简历与分享',
+    items: [
+      { value: 'resume.create', label: '新建简历' },
+      { value: 'resume.delete', label: '删除简历' },
+      { value: 'resume.purge', label: '清除简历' },
+      { value: 'resume.pdf_export', label: '导出 PDF' },
+      { value: 'share.create', label: '创建分享' },
+      { value: 'share.revoke', label: '撤销分享' }
+    ]
+  },
+  {
+    label: '模板',
+    items: [
+      { value: 'template.import', label: '导入模板' },
+      { value: 'template.share', label: '分享模板' },
+      { value: 'template.delete', label: '删除模板' },
+      { value: 'template.export', label: '导出模板包' }
+    ]
+  },
+  {
+    label: '后台管理',
+    items: [
+      { value: 'admin.user.status', label: '冻结 / 解封账号' },
+      { value: 'admin.user.password_reset', label: '重置用户密码' },
+      { value: 'admin.user.deletion_cancel', label: '撤销注销申请' },
+      { value: 'admin.user.deletion_purge', label: '立即清除账号' },
+      { value: 'admin.template.status', label: '模板上下架' },
+      { value: 'admin.template.meta', label: '修改模板信息' },
+      { value: 'admin.resume.purge', label: '清除简历' },
+      { value: 'admin.resume.sample', label: '设置示例简历' },
+      { value: 'admin.audit.purge', label: '清理日志' },
+      { value: 'admin.audit.settings', label: '修改清理策略' }
+    ]
+  }
 ]
+
+const AUDIT_ACTION_LABELS = AUDIT_GROUPS.reduce((acc, group) => {
+  group.items.forEach((item) => { acc[item.value] = item.label })
+  return acc
+}, {})
+
+const TARGET_LABELS = { user: '用户', resume: '简历', template: '模板', account: '账号', audit: '日志', share: '分享' }
+
+const ROLE_LABELS = { admin: '管理员', user: '用户', guest: '未登录', system: '系统' }
+
+/** 列表里显示中文动作名；遇到未收录的动作就退回原始编码，不至于空着。 */
+function actionLabel(action) {
+  return AUDIT_ACTION_LABELS[action] || action
+}
+
+function targetLabel(type) {
+  return TARGET_LABELS[type] || type || '—'
+}
+
+function roleLabel(role) {
+  return ROLE_LABELS[role] || role || '—'
+}
 
 function formatTime(value) {
   if (!value) return '—'
@@ -211,6 +261,12 @@ async function loadAuditLogs(page = auditPage.value) {
   } finally {
     auditLoading.value = false
   }
+}
+
+function resetAuditFilters() {
+  auditAction.value = ''
+  auditActor.value = ''
+  loadAuditLogs(1)
 }
 
 async function loadAuditSettings() {
@@ -1218,6 +1274,14 @@ onBeforeUnmount(() => {
                     <span class="cell-muted">{{ formatDate(row.createdAt) }}</span>
                   </template>
                 </el-table-column>
+                <el-table-column prop="lastActiveAt" label="最后活跃" :min-width="columnWidths.lastActiveAt" sortable="custom">
+                  <template #default="{ row }">
+                    <span v-if="row.lastActiveAt" class="cell-muted" :title="formatDateTime(row.lastActiveAt)">
+                      {{ timeAgo(row.lastActiveAt) }}
+                    </span>
+                    <span v-else class="cell-muted">—</span>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="online" label="状态" :min-width="columnWidths.status" sortable="custom">
                   <template #default="{ row }">
                     <div class="user-state">
@@ -1381,18 +1445,19 @@ onBeforeUnmount(() => {
                 <span class="card-kicker">Recycle bin</span>
                 <h2>回收站 <small>{{ deletedResumes.length }} 份已删除简历</small></h2>
               </div>
-              <div class="row-actions">
+              <div class="toolbar-actions">
                 <el-button :loading="deletedLoading" @click="loadDeletedResumes">
                   <el-icon v-if="!deletedLoading"><Refresh /></el-icon>
                   刷新
                 </el-button>
+                <span class="toolbar-actions__sep" aria-hidden="true"></span>
                 <el-button
                   type="danger"
-                  plain
                   :disabled="!deletedResumes.length"
                   :loading="purgeDeleting"
                   @click="purgeDeleted(deletedResumes)"
                 >
+                  <el-icon v-if="!purgeDeleting"><Delete /></el-icon>
                   全部彻底删除
                 </el-button>
               </div>
@@ -1412,8 +1477,10 @@ onBeforeUnmount(() => {
                 </el-table-column>
                 <el-table-column label="属主" min-width="180">
                   <template #default="{ row }">
-                    <strong>{{ row.nickname || row.username || '—' }}</strong>
-                    <span class="table-user__handle">@{{ row.username }}</span>
+                    <div class="cell-stack">
+                      <strong>{{ row.nickname || row.username || '—' }}</strong>
+                      <span>@{{ row.username }} · 用户 #{{ row.userId }}</span>
+                    </div>
                   </template>
                 </el-table-column>
                 <el-table-column label="删除时间" min-width="150">
@@ -1440,9 +1507,16 @@ onBeforeUnmount(() => {
                 <span class="card-kicker">Audit log</span>
                 <h2>操作日志 <small>今天 {{ auditToday }} 条 · 累计 {{ auditTotal }} 条</small></h2>
               </div>
-              <div class="row-actions">
-                <el-button @click="purgeAudit(false)">清理 90 天前</el-button>
-                <el-button type="danger" plain @click="purgeAudit(true)">清空全部</el-button>
+              <div class="toolbar-actions">
+                <el-button @click="purgeAudit(false)">
+                  <el-icon><Timer /></el-icon>
+                  清理 90 天前
+                </el-button>
+                <span class="toolbar-actions__sep" aria-hidden="true"></span>
+                <el-button type="danger" :disabled="!auditTotal" @click="purgeAudit(true)">
+                  <el-icon><Delete /></el-icon>
+                  清空全部
+                </el-button>
               </div>
             </div>
 
@@ -1452,27 +1526,47 @@ onBeforeUnmount(() => {
                 <p>每天凌晨 3 点按保留天数清理日志；填 0 表示不自动清理，只靠手动清。</p>
               </div>
               <div class="audit-policy__control">
-                <span class="cell-muted">保留</span>
-                <el-input-number v-model="auditRetention" :min="0" :max="3650" :step="30" size="small" controls-position="right" />
-                <span class="cell-muted">天</span>
-                <el-button size="small" type="primary" :loading="auditSaving" @click="saveAuditSettings">保存</el-button>
+                <span class="audit-policy__label">保留</span>
+                <el-input-number
+                  v-model="auditRetention"
+                  :min="0"
+                  :max="3650"
+                  :step="30"
+                  :controls="false"
+                />
+                <span class="audit-policy__label">天</span>
+                <span class="audit-policy__sep" aria-hidden="true"></span>
+                <el-button type="primary" :loading="auditSaving" @click="saveAuditSettings">保存</el-button>
               </div>
             </section>
 
             <div class="surface table-card" v-loading="auditLoading">
               <div class="audit-filters">
-                <el-select v-model="auditAction" size="small" @change="loadAuditLogs(1)">
-                  <el-option v-for="item in AUDIT_ACTIONS" :key="item.value" :label="item.label" :value="item.value" />
+                <el-select v-model="auditAction" placeholder="全部动作" @change="loadAuditLogs(1)">
+                  <el-option label="全部动作" value="" />
+                  <el-option-group v-for="group in AUDIT_GROUPS" :key="group.label" :label="group.label">
+                    <el-option v-for="item in group.items" :key="item.value" :label="item.label" :value="item.value" />
+                  </el-option-group>
                 </el-select>
                 <el-input
                   v-model="auditActor"
                   class="user-search"
-                  size="small"
                   placeholder="操作者用户 ID"
                   clearable
                   @keyup.enter="loadAuditLogs(1)"
                 />
-                <el-button size="small" @click="loadAuditLogs(1)">查询</el-button>
+                <el-button class="audit-filters__search" @click="loadAuditLogs(1)">
+                  <el-icon><Search /></el-icon>
+                  查询
+                </el-button>
+                <el-button
+                  v-if="auditAction || auditActor"
+                  link
+                  class="audit-filters__reset"
+                  @click="resetAuditFilters"
+                >
+                  重置筛选
+                </el-button>
               </div>
               <el-table :data="auditRows" row-key="id" style="width: 100%">
                 <el-table-column label="时间" width="150">
@@ -1480,14 +1574,25 @@ onBeforeUnmount(() => {
                 </el-table-column>
                 <el-table-column label="操作者" min-width="150">
                   <template #default="{ row }">
-                    <strong>{{ row.actorName || '—' }}</strong>
-                    <span class="table-user__handle">{{ row.actorRole }}</span>
+                    <div class="cell-stack">
+                      <strong>{{ row.actorName || '—' }}</strong>
+                      <span>{{ roleLabel(row.actorRole) }}{{ row.actorId ? ' · #' + row.actorId : '' }}</span>
+                    </div>
                   </template>
                 </el-table-column>
-                <el-table-column prop="action" label="动作" min-width="180" show-overflow-tooltip />
-                <el-table-column label="对象" min-width="120">
+                <el-table-column label="动作" min-width="170">
                   <template #default="{ row }">
-                    <span class="cell-muted">{{ row.targetType }}{{ row.targetId ? ' #' + row.targetId : '' }}</span>
+                    <div class="cell-stack">
+                      <strong class="cell-stack__action">{{ actionLabel(row.action) }}</strong>
+                      <span>{{ row.action }}</span>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column label="对象" min-width="110">
+                  <template #default="{ row }">
+                    <span class="cell-muted">
+                      {{ targetLabel(row.targetType) }}{{ row.targetId ? ' #' + row.targetId : '' }}
+                    </span>
                   </template>
                 </el-table-column>
                 <el-table-column prop="detail" label="说明" min-width="220" show-overflow-tooltip />
@@ -1991,18 +2096,157 @@ onBeforeUnmount(() => {
 .audit-policy__control {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding: 6px 6px 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper-deep);
+}
+
+.audit-policy__label {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.audit-policy__sep {
+  width: 1px;
+  height: 16px;
+  background: var(--line-strong);
 }
 
 .audit-filters {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .audit-filters .el-select {
   width: 190px;
+}
+
+.audit-filters .user-search {
+  width: 160px;
+}
+
+/* 筛选行里的输入框、下拉与按钮统一 32px，矮一截的按钮在这一行里最显廉价 */
+.audit-filters :deep(.el-input__wrapper),
+.audit-filters :deep(.el-select__wrapper) {
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line-strong) inset;
+}
+
+.audit-filters :deep(.el-input__wrapper.is-focus),
+.audit-filters :deep(.el-select__wrapper.is-focused) {
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.audit-filters :deep(.el-button) {
+  height: 32px;
+  min-width: 64px;
+  margin-left: 0;
+  padding: 0 15px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+}
+
+.audit-filters :deep(.el-button:hover) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.audit-filters :deep(.audit-filters__search) {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.audit-filters :deep(.audit-filters__search .el-icon) {
+  margin-right: 5px;
+  font-size: 14px;
+}
+
+/* 重置放在行尾：既是功能，也把这行的空白压住，不再右半边空荡荡 */
+.audit-filters :deep(.audit-filters__reset) {
+  height: 32px;
+  margin-left: auto;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.audit-filters :deep(.audit-filters__reset:hover) {
+  background: transparent;
+  color: var(--danger);
+}
+
+.audit-policy__control :deep(.el-input-number) {
+  width: 96px;
+}
+
+/* 数字框去掉外框、只留输入区：放在胶囊里再做一层框会变成「框中框」 */
+.audit-policy__control :deep(.el-input__wrapper) {
+  height: 30px;
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line-strong) inset;
+}
+
+.audit-policy__control :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.audit-policy__control :deep(.el-input-number .el-input__inner) {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+
+.audit-policy__control :deep(.el-button) {
+  height: 30px;
+  min-width: 64px;
+  margin-left: 0;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  box-shadow: none;
+}
+
+/* 表格里的两行单元格：主信息一行，编码/角色一行，避免两个词挤在同一行 */
+.cell-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.35;
+}
+
+.cell-stack strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.cell-stack > span {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+  letter-spacing: 0.01em;
+}
+
+.cell-stack__action {
+  font-family: var(--sans);
+  font-weight: 600;
 }
 
 
@@ -3113,6 +3357,67 @@ onBeforeUnmount(() => {
 .row-actions :deep(.el-button) {
   margin-left: 0;
   padding: 0 2px;
+}
+
+/* 工具栏按钮组：行内的 .row-actions 是给文字链接用的（padding 2px、2px 间距），
+   带边框的实体按钮走这套：统一 32px 高、13px 内边距、8px 间距。 */
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-actions :deep(.el-button) {
+  height: 32px;
+  margin-left: 0;
+  padding: 0 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  box-shadow: none;
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.toolbar-actions :deep(.el-button:hover) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.toolbar-actions :deep(.el-button .el-icon) {
+  margin-right: 5px;
+  font-size: 14px;
+}
+
+/* 破坏性动作：砖红描边而不是 Element 默认的粉红，和暖米纸底色同族 */
+.toolbar-actions :deep(.el-button--danger) {
+  border-color: rgba(181, 72, 63, 0.44);
+  background: #fffdfc;
+  color: var(--danger);
+}
+
+.toolbar-actions :deep(.el-button--danger:hover) {
+  border-color: var(--danger);
+  background: rgba(181, 72, 63, 0.07);
+  color: var(--danger);
+}
+
+.toolbar-actions :deep(.el-button.is-disabled),
+.toolbar-actions :deep(.el-button.is-disabled:hover) {
+  border-color: var(--line);
+  background: var(--paper-deep);
+  color: var(--faint);
+}
+
+/* 中性动作与破坏性动作之间的一道极淡竖线，避免两个按钮黏成一坨 */
+.toolbar-actions__sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: var(--line);
 }
 
 .row-actions__sep {
