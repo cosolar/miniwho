@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS templates (
     owner_user_id BIGINT,
     visibility  VARCHAR(20)  NOT NULL DEFAULT 'private',
     exportable  INTEGER NOT NULL DEFAULT 1,
+    meta_edited  INTEGER NOT NULL DEFAULT 0,
     status      INTEGER NOT NULL DEFAULT 1,
     sort_weight INTEGER NOT NULL DEFAULT 0,
     usage_count INTEGER NOT NULL DEFAULT 0,

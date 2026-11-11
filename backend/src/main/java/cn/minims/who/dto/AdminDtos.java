@@ -1,5 +1,6 @@
 package cn.minims.who.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -51,7 +52,18 @@ public final class AdminDtos {
     public record AdminTemplateVo(Long id, String code, String name, String description, String category,
                                   String tags, String version, String author, String source, Integer status,
                                   Integer usageCount, String visibility, Boolean exportable,
-                                  Long createdAt, Long updatedAt) {
+                                  Boolean metaEdited, Long createdAt, Long updatedAt) {
+    }
+
+    /**
+     * 后台修改社区模板基础信息：名称必填；标签与导入包同一套约束（最多 8 个、单个 20 字、不含逗号）。
+     * 官方模板不在可编辑范围内（基础信息随发版下发）。
+     */
+    public record AdminTemplateMetaRequest(
+            @NotBlank(message = "请填写模板名称") @Size(max = 100, message = "模板名称不能超过 100 字") String name,
+            @Size(max = 500, message = "模板描述不能超过 500 字") String description,
+            @Size(max = 30, message = "模板分类不能超过 30 字") String category,
+            List<String> tags) {
     }
 
     public record AdminFeedbackVo(Long id, Long userId, String content, String contact, Integer status,

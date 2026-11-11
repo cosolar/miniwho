@@ -37,6 +37,8 @@ public class Template {
     private Integer status;
     private Integer sortWeight;
     private Integer usageCount;
+    /** 管理员在后台改过基础信息（名称/描述/分类/标签）：种子刷新时人工改动优先于包里的文案。 */
+    private Integer metaEdited;
 
     @TableField(fill = FieldFill.INSERT)
     private Long createdAt;

@@ -672,6 +672,51 @@ async function toggleTemplate(row) {
   }
 }
 
+/** 修改社区模板的基础信息：官方模板随发版下发，不在可编辑范围（按钮只对导入模板出现）。 */
+const metaDialog = reactive({
+  visible: false,
+  saving: false,
+  code: '',
+  name: '',
+  description: '',
+  category: '',
+  tags: ''
+})
+
+function openMetaDialog(item) {
+  metaDialog.code = item.code
+  metaDialog.name = item.name || ''
+  metaDialog.description = item.description || ''
+  metaDialog.category = item.category || ''
+  // 标签编辑框里放库里存的原始标签（含与分类重复的），保存时原样回写。
+  metaDialog.tags = String(item.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean).join(', ')
+  metaDialog.visible = true
+}
+
+async function saveMeta() {
+  const name = metaDialog.name.trim()
+  if (!name) {
+    ElMessage.warning('请填写模板名称')
+    return
+  }
+  metaDialog.saving = true
+  try {
+    await adminApi.updateTemplateMeta(metaDialog.code, {
+      name,
+      description: metaDialog.description.trim(),
+      category: metaDialog.category.trim(),
+      tags: metaDialog.tags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean)
+    })
+    ElMessage.success('模板信息已更新')
+    metaDialog.visible = false
+    await loadTemplates()
+  } catch (error) {
+    notifyError(error, '保存模板信息失败')
+  } finally {
+    metaDialog.saving = false
+  }
+}
+
 function openReply(item) {
   replyTarget.value = item
   replyText.value = item.reply || ''
@@ -1062,6 +1107,7 @@ onBeforeUnmount(() => {
                 <p>{{ item.description || '未填写模板描述' }}</p>
                 <div class="template-tags">
                   <span class="tag">{{ item.source === 'imported' ? `${item.author || '未署名'} 导入` : '官方' }}</span>
+                  <span v-if="item.source === 'imported' && item.metaEdited" class="tag">信息已定制</span>
                   <span v-if="item.source === 'imported'" class="tag">
                     {{ item.visibility === 'public'
                       ? (item.exportable ? '已分享 · 可导出' : '已分享 · 仅选用')
@@ -1074,6 +1120,9 @@ onBeforeUnmount(() => {
                 <footer>
                   <span>{{ item.usageCount ?? 0 }} 份简历在用</span>
                   <span class="footer-actions">
+                    <el-button v-if="item.source === 'imported'" size="small" link @click="openMetaDialog(item)">
+                      编辑信息
+                    </el-button>
                     <el-button size="small" link @click="exportOne(item)">导出包</el-button>
                     <el-button size="small" :type="item.status === 1 ? 'danger' : 'primary'" link @click="toggleTemplate(item)">
                       {{ item.status === 1 ? '停用' : '启用' }}
@@ -1404,6 +1453,30 @@ onBeforeUnmount(() => {
         </template>
       </div>
     </div>
+
+    <el-dialog v-model="metaDialog.visible" title="修改模板基础信息" width="min(560px, 92vw)">
+      <p class="meta-dialog-hint">
+        名称、描述、分类与标签保存后立即在模板中心生效；作者重新导入模板时会整体还原为包里的信息。
+      </p>
+      <el-form label-width="64px" @submit.prevent>
+        <el-form-item label="名称" required>
+          <el-input v-model="metaDialog.name" maxlength="100" show-word-limit />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="metaDialog.description" type="textarea" :rows="3" maxlength="500" show-word-limit />
+        </el-form-item>
+        <el-form-item label="分类">
+          <el-input v-model="metaDialog.category" maxlength="30" placeholder="如：简约 / 双栏 / 国企" />
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-input v-model="metaDialog.tags" placeholder="用逗号分隔，最多 8 个、每个不超过 20 字" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="metaDialog.visible = false">取消</el-button>
+        <el-button type="primary" :loading="metaDialog.saving" @click="saveMeta">保存</el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog v-model="replyDialog" :title="replyTarget?.status === 1 ? '查看 / 修改回复' : '回复反馈'" width="min(520px, 92vw)">
       <div v-if="replyTarget" class="reply-context">
@@ -2716,6 +2789,13 @@ onBeforeUnmount(() => {
 
 .template-admin-card > p {
   flex: 1;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.75;
+}
+
+.meta-dialog-hint {
+  margin: 0 0 12px;
   color: var(--muted);
   font-size: 11.5px;
   line-height: 1.75;

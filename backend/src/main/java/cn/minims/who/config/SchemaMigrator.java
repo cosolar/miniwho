@@ -50,6 +50,8 @@ public class SchemaMigrator implements ApplicationRunner {
         templates.put("owner_user_id", "BIGINT");
         templates.put("visibility", "VARCHAR(20) NOT NULL DEFAULT 'private'");
         templates.put("exportable", "INT NOT NULL DEFAULT 1");
+        // 后台改过模板基础信息的标记：种子刷新时人工改动优先于包里的文案。
+        templates.put("meta_edited", "INT NOT NULL DEFAULT 0");
         TABLE_COLUMNS.put("templates", templates);
 
         // 第三方登录的账号也要占一行 users，password_hash 是非空列，所以用随机哈希 + 标记位区分。

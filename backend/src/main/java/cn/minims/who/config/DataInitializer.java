@@ -188,11 +188,13 @@ public class DataInitializer implements ApplicationRunner {
             String source = existing.getSource() == null ? "builtin" : existing.getSource();
             if (!"builtin".equals(source)) {
                 // 作者把社区模板转正随发版下发：同编码原地升级为官方模板，简历的 template_code 不用动。
+                // 转正时包重新接管基础信息，之前的人工改动标记一并清掉。
                 log.info("编码 {} 原为导入模板，已随发版升级为官方模板", code);
                 existing.setStatus(1);
                 existing.setVisibility("public");
                 existing.setExportable(1);
                 existing.setOwnerUserId(null);
+                existing.setMetaEdited(0);
                 applyPackage(existing, pkg, config);
                 existing.setCode(code);
                 templateMapper.updateById(existing);
@@ -230,22 +232,27 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     private boolean needsRefresh(Template existing, TemplatePackage pkg, String config) {
+        // 管理员改过基础信息的模板：名称/描述/分类/标签的人工改动优先于包，不参与比对。
+        boolean keepMeta = Integer.valueOf(1).equals(existing.getMetaEdited());
         return !config.equals(existing.getConfig())
                 || !pkg.canonical().equals(existing.getPkg())
-                || !pkg.name().equals(existing.getName())
-                || !equalsOrEmpty(pkg.description(), existing.getDescription())
-                || !equalsOrEmpty(pkg.category(), existing.getCategory())
-                || !String.join(",", pkg.tags()).equals(emptyToBlank(existing.getTags()))
+                || (!keepMeta && (!pkg.name().equals(existing.getName())
+                        || !equalsOrEmpty(pkg.description(), existing.getDescription())
+                        || !equalsOrEmpty(pkg.category(), existing.getCategory())
+                        || !String.join(",", pkg.tags()).equals(emptyToBlank(existing.getTags()))))
                 || !pkg.version().equals(existing.getVersion())
                 || !equalsOrEmpty(pkg.author(), existing.getAuthor())
                 || !Integer.valueOf(pkg.sortWeight()).equals(existing.getSortWeight());
     }
 
     private void applyPackage(Template target, TemplatePackage pkg, String config) {
-        target.setName(pkg.name());
-        target.setDescription(pkg.description());
-        target.setCategory(pkg.category());
-        target.setTags(String.join(",", pkg.tags()));
+        // 管理员在后台改过基础信息的模板：人工改动优先于包里的文案，其余字段仍随发版刷新。
+        if (!Integer.valueOf(1).equals(target.getMetaEdited())) {
+            target.setName(pkg.name());
+            target.setDescription(pkg.description());
+            target.setCategory(pkg.category());
+            target.setTags(String.join(",", pkg.tags()));
+        }
         target.setConfig(config);
         target.setPkg(pkg.canonical());
         target.setNamespace(pkg.namespace());

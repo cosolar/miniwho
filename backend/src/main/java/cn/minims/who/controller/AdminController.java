@@ -14,6 +14,7 @@ import cn.minims.who.dto.AdminDtos.AdminSiteConfigRequest;
 import cn.minims.who.dto.AdminDtos.AdminSiteConfigVo;
 import cn.minims.who.dto.AdminDtos.AdminStatsVo;
 import cn.minims.who.dto.AdminDtos.AdminSystemVo;
+import cn.minims.who.dto.AdminDtos.AdminTemplateMetaRequest;
 import cn.minims.who.dto.AdminDtos.AdminTemplateStatusRequest;
 import cn.minims.who.dto.AdminDtos.AdminTemplateVo;
 import cn.minims.who.dto.AdminDtos.AdminPasswordResetVo;
@@ -132,6 +133,13 @@ public class AdminController {
                                             @Valid @RequestBody AdminTemplateStatusRequest request) {
         adminService.updateTemplateStatus(code, request.status());
         return ApiResponse.ok();
+    }
+
+    /** 后台修改社区模板的基础信息；官方模板禁止修改（基础信息随发版下发）。 */
+    @PutMapping("/templates/{code}/meta")
+    public ApiResponse<AdminTemplateVo> updateTemplateMeta(@PathVariable String code,
+                                                           @Valid @RequestBody AdminTemplateMetaRequest request) {
+        return ApiResponse.ok(adminService.updateTemplateMeta(code, request));
     }
 
     @GetMapping("/feedback")

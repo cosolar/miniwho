@@ -16,6 +16,7 @@ import cn.minims.who.dto.AdminDtos.AdminSampleVo;
 import cn.minims.who.dto.AdminDtos.AdminSiteConfigRequest;
 import cn.minims.who.dto.AdminDtos.AdminSiteConfigVo;
 import cn.minims.who.dto.AdminDtos.AdminStatsVo;
+import cn.minims.who.dto.AdminDtos.AdminTemplateMetaRequest;
 import cn.minims.who.dto.AdminDtos.AdminTemplateVo;
 import cn.minims.who.dto.AdminDtos.AdminUserResumeVo;
 import cn.minims.who.dto.AdminDtos.AdminUserVo;
@@ -237,12 +238,65 @@ public class AdminService {
 
     public List<AdminTemplateVo> templates() {
         return templateService.all().stream()
-                .map(template -> new AdminTemplateVo(template.getId(), template.getCode(), template.getName(),
-                        template.getDescription(), template.getCategory(), template.getTags(), template.getVersion(),
-                        template.getAuthor(), template.getSource(), template.getStatus(), template.getUsageCount(),
-                        template.getVisibility(), Integer.valueOf(1).equals(template.getExportable()),
-                        template.getCreatedAt(), template.getUpdatedAt()))
+                .map(this::toAdminTemplateVo)
                 .toList();
+    }
+
+    private AdminTemplateVo toAdminTemplateVo(Template template) {
+        return new AdminTemplateVo(template.getId(), template.getCode(), template.getName(),
+                template.getDescription(), template.getCategory(), template.getTags(), template.getVersion(),
+                template.getAuthor(), template.getSource(), template.getStatus(), template.getUsageCount(),
+                template.getVisibility(), Integer.valueOf(1).equals(template.getExportable()),
+                Integer.valueOf(1).equals(template.getMetaEdited()),
+                template.getCreatedAt(), template.getUpdatedAt());
+    }
+
+    /**
+     * 后台修改社区模板的基础信息（名称/描述/分类/标签）。
+     * 官方模板的基础信息随发版下发，后台禁止修改；社区模板保存时打上人工改动标记，
+     * 作者重新导入时会整体还原为包里的信息。缓存清掉后模板中心立即可见。
+     */
+    @CacheEvict(cacheNames = {"template-active", "template-detail"}, allEntries = true)
+    public AdminTemplateVo updateTemplateMeta(String code, AdminTemplateMetaRequest request) {
+        Template template = templateMapper.selectOne(new LambdaQueryWrapper<Template>()
+                .eq(Template::getCode, code).last("limit 1"));
+        if (template == null) {
+            throw BizException.notFound("模板不存在");
+        }
+        if (!"imported".equals(template.getSource())) {
+            throw BizException.badRequest("官方模板的基础信息随发版下发，不能在后台修改");
+        }
+        String name = request.name() == null ? "" : request.name().trim();
+        if (name.isEmpty()) {
+            throw BizException.badRequest("请填写模板名称");
+        }
+        String description = request.description() == null ? "" : request.description().trim();
+        String category = request.category() == null ? "" : request.category().trim();
+        List<String> tags = request.tags() == null ? List.of() : request.tags().stream()
+                .map(tag -> tag == null ? "" : tag.trim())
+                .filter(tag -> !tag.isEmpty())
+                .toList();
+        if (tags.size() > 8) {
+            throw BizException.badRequest("标签最多 8 个");
+        }
+        for (String tag : tags) {
+            if (tag.length() > 20) {
+                throw BizException.badRequest("单个标签不能超过 20 字");
+            }
+            if (tag.contains(",")) {
+                throw BizException.badRequest("标签不能含逗号");
+            }
+        }
+        templateMapper.update(null, new LambdaUpdateWrapper<Template>()
+                .eq(Template::getCode, code)
+                .set(Template::getName, name)
+                .set(Template::getDescription, description)
+                .set(Template::getCategory, category)
+                .set(Template::getTags, String.join(",", tags))
+                .set(Template::getMetaEdited, 1)
+                .set(Template::getUpdatedAt, System.currentTimeMillis()));
+        return toAdminTemplateVo(templateMapper.selectOne(new LambdaQueryWrapper<Template>()
+                .eq(Template::getCode, code).last("limit 1")));
     }
 
     @CacheEvict(cacheNames = {"template-active", "template-detail"}, allEntries = true)
