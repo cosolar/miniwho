@@ -42,7 +42,8 @@ class AdminServiceResetPasswordTest {
         userMapper = mock(UserMapper.class);
         mailService = mock(MailService.class);
         adminService = new AdminService(userMapper, null, null, null, null, null, null,
-                null, null, null, mailService, null);
+                null, null, null, mailService, null, mock(AuditService.class),
+                mock(cn.minims.who.mapper.AuditLogMapper.class), null, null);
         stp = mockStatic(StpUtil.class);
     }
 

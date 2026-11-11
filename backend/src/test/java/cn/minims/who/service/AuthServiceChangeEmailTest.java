@@ -41,7 +41,8 @@ class AuthServiceChangeEmailTest {
     private AuthService service() {
         return new AuthService(userMapper, mock(UserIdentityMapper.class), mock(ResumeMapper.class),
                 mock(ResumeService.class), authSettings, emailCodeService,
-                new cn.minims.who.common.LoginGuard(), mock(cn.minims.who.common.CaptchaService.class));
+                new cn.minims.who.common.LoginGuard(), mock(cn.minims.who.common.CaptchaService.class),
+                mock(AuditService.class));
     }
 
     private static User user(long id, String email) {

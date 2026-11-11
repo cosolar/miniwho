@@ -47,7 +47,8 @@ class ShareServiceTest {
         resume.setTitle("后端工程师简历");
         when(resumeService.findOwned(1L, 7L)).thenReturn(resume);
         return new ShareService(resumeService, mock(AvatarService.class), mock(ResumeMapper.class),
-                shareMapper, mock(TemplateMapper.class), mock(UserMapper.class), new Json(new ObjectMapper()));
+                shareMapper, mock(TemplateMapper.class), mock(UserMapper.class), new Json(new ObjectMapper()),
+                mock(AuditService.class));
     }
 
     private static ShareCreateRequest request(String token) {

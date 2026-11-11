@@ -175,6 +175,10 @@ public class AdminService {
     }
 
     private int auditRetentionDays() {
+        // 单测里 settingsService 允许为 null（只测具体方法，不拉整条配置链）。
+        if (settingsService == null) {
+            return 90;
+        }
         String raw = settingsService.get(SETTING_AUDIT_RETENTION);
         if (raw == null || raw.isBlank()) {
             return 90;

@@ -200,7 +200,8 @@ class AuthServiceLoginCodeTest {
 
     private AuthService service() {
         return new AuthService(userMapper, mock(UserIdentityMapper.class), mock(ResumeMapper.class),
-                mock(ResumeService.class), authSettings, emailCodeService, guard, captchaService);
+                mock(ResumeService.class), authSettings, emailCodeService, guard, captchaService,
+                mock(AuditService.class));
     }
 
     private static User user(int emailVerified, int hasPassword) {

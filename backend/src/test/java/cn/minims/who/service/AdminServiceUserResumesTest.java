@@ -33,7 +33,8 @@ class AdminServiceUserResumesTest {
         resumeMapper = mock(ResumeMapper.class);
         templateMapper = mock(TemplateMapper.class);
         adminService = new AdminService(userMapper, resumeMapper, templateMapper, null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, mock(AuditService.class),
+                mock(cn.minims.who.mapper.AuditLogMapper.class), null, null);
     }
 
     @Test

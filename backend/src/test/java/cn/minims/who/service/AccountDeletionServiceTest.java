@@ -50,7 +50,7 @@ class AccountDeletionServiceTest {
         return new AccountDeletionService(userMapper, resumeMapper, attachmentMapper,
                 mock(ResumeShareMapper.class), mock(ResumeReportMapper.class), mock(TemplateMapper.class),
                 mock(FeedbackMapper.class), mock(UserIdentityMapper.class), mock(EmailCodeMapper.class),
-                store, emailCodeService, mailService);
+                store, emailCodeService, mailService, mock(AuditService.class));
     }
 
     private static User user(long id, String role) {
