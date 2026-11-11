@@ -177,5 +177,13 @@ export const adminApi = {
   authSettings: () => client.get('/admin/settings'),
   updateAuthSettings: (payload) => client.put('/admin/settings', payload),
   siteConfig: () => client.get('/admin/site-config'),
-  updateSiteConfig: (payload) => client.put('/admin/site-config', payload)
+  updateSiteConfig: (payload) => client.put('/admin/site-config', payload),
+  deletedResumes: (limit = 200) => client.get('/admin/resumes/deleted', { params: { limit } }),
+  purgeResumes: (ids) => client.post('/admin/resumes/purge', { ids }),
+  cancelUserDeletion: (id) => client.post(`/admin/users/${id}/deletion/cancel`),
+  purgeUserDeletion: (id) => client.post(`/admin/users/${id}/deletion/purge`),
+  auditLogs: (params) => client.get('/admin/audit-logs', { params }),
+  purgeAuditLogs: (before) => client.post('/admin/audit-logs/purge', { before }),
+  auditSettings: () => client.get('/admin/audit-settings'),
+  updateAuditSettings: (retentionDays) => client.put('/admin/audit-settings', { retentionDays })
 }

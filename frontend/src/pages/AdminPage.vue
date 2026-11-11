@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  ArrowRight, ChatDotSquare, Check, Close, DataBoard, Document, Download, FullScreen, Grid, Odometer, Refresh,
+  ArrowRight, ChatDotSquare, Check, Close, DataBoard, Delete, Document, Download, FullScreen, Grid, Odometer, Refresh,
   ScaleToOriginal, Search, Setting, Share, User, UserFilled, View
 } from '@element-plus/icons-vue'
 import AppLayout from '../layouts/AppLayout.vue'
@@ -98,8 +98,191 @@ const tabs = computed(() => [
   { key: 'users', label: '用户管理', icon: UserFilled, count: users.value.length },
   { key: 'templates', label: '模板管理', icon: Grid, count: templates.value.length },
   { key: 'feedback', label: '意见反馈', icon: ChatDotSquare, count: pendingFeedback.value.length },
+  { key: 'recycle', label: '回收站', icon: Delete, count: deletedResumes.value.length },
+  { key: 'audit', label: '操作日志', icon: Document },
   { key: 'site', label: '站点设置', icon: Setting }
 ])
+
+// ── 回收站：用户删除的简历，管理员确认后物理清除 ──
+const deletedResumes = ref([])
+const deletedLoading = ref(false)
+const purgeDeleting = ref(false)
+
+// ── 操作日志：账号级与敏感操作的审计流水 ──
+const auditRows = ref([])
+const auditLoading = ref(false)
+const auditPage = ref(1)
+const auditPageSize = ref(30)
+const auditTotal = ref(0)
+const auditToday = ref(0)
+const auditAction = ref('')
+const auditActor = ref('')
+const auditRetention = ref(90)
+const auditSaving = ref(false)
+const AUDIT_ACTIONS = [
+  { value: '', label: '全部动作' },
+  { value: 'auth.login', label: '登录成功' },
+  { value: 'auth.login_failed', label: '登录失败' },
+  { value: 'auth.register', label: '注册' },
+  { value: 'auth.password_change', label: '修改/重置密码' },
+  { value: 'account.deletion_request', label: '申请注销' },
+  { value: 'account.deletion_cancel', label: '撤销注销' },
+  { value: 'account.deletion_purge', label: '注销清除（系统）' },
+  { value: 'resume.create', label: '新建简历' },
+  { value: 'resume.delete', label: '删除简历' },
+  { value: 'resume.purge', label: '清除简历' },
+  { value: 'share.create', label: '创建分享' },
+  { value: 'share.revoke', label: '撤销分享' },
+  { value: 'resume.pdf_export', label: '导出 PDF' },
+  { value: 'template.import', label: '导入模板' },
+  { value: 'template.share', label: '分享模板' },
+  { value: 'admin.user.status', label: '管理员：冻结/解封' },
+  { value: 'admin.user.password_reset', label: '管理员：重置密码' },
+  { value: 'admin.template.status', label: '管理员：模板上下架' },
+  { value: 'admin.template.meta', label: '管理员：模板元信息' },
+  { value: 'admin.resume.purge', label: '管理员：清除简历' },
+  { value: 'admin.audit.purge', label: '管理员：清理日志' }
+]
+
+function formatTime(value) {
+  if (!value) return '—'
+  const date = new Date(Number(value))
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function deletionDaysLeft(requestedAt) {
+  if (!requestedAt) return 0
+  const deadline = Number(requestedAt) + 7 * 86400000
+  return Math.max(0, Math.ceil((deadline - Date.now()) / 86400000))
+}
+
+async function loadDeletedResumes() {
+  deletedLoading.value = true
+  try {
+    deletedResumes.value = await adminApi.deletedResumes()
+  } catch (error) {
+    notifyError(error, '加载回收站失败')
+  } finally {
+    deletedLoading.value = false
+  }
+}
+
+async function purgeDeleted(rows) {
+  const list = Array.isArray(rows) ? rows : [rows]
+  if (!list.length) return
+  try {
+    await ElMessageBox.confirm(
+      `将物理清除 ${list.length} 份简历，附件、头像与分享记录一并删除，且不可恢复。`,
+      '确认清除',
+      { type: 'warning', confirmButtonText: '确认清除', cancelButtonText: '再想想' }
+    )
+  } catch {
+    return
+  }
+  purgeDeleting.value = true
+  try {
+    const result = await adminApi.purgeResumes(list.map((row) => row.id))
+    ElMessage.success(`已清除 ${result?.removed ?? list.length} 份简历`)
+    await loadDeletedResumes()
+    await loadStats()
+  } catch (error) {
+    notifyError(error, '清除失败')
+  } finally {
+    purgeDeleting.value = false
+  }
+}
+
+async function loadAuditLogs(page = auditPage.value) {
+  auditLoading.value = true
+  try {
+    const data = await adminApi.auditLogs({
+      actorId: auditActor.value ? Number(auditActor.value) : undefined,
+      action: auditAction.value || undefined,
+      page,
+      size: auditPageSize.value
+    })
+    auditRows.value = data.items || []
+    auditTotal.value = data.total || 0
+    auditToday.value = data.today || 0
+    auditPage.value = data.page || page
+  } catch (error) {
+    notifyError(error, '加载操作日志失败')
+  } finally {
+    auditLoading.value = false
+  }
+}
+
+async function loadAuditSettings() {
+  try {
+    const data = await adminApi.auditSettings()
+    auditRetention.value = data.retentionDays
+  } catch {
+    auditRetention.value = 90
+  }
+}
+
+async function saveAuditSettings() {
+  auditSaving.value = true
+  try {
+    const data = await adminApi.updateAuditSettings(Number(auditRetention.value))
+    auditRetention.value = data.retentionDays
+    ElMessage.success(data.retentionDays === 0 ? '已关闭自动清理' : `已设为保留 ${data.retentionDays} 天`)
+  } catch (error) {
+    notifyError(error, '保存清理策略失败')
+  } finally {
+    auditSaving.value = false
+  }
+}
+
+async function purgeAudit(all) {
+  try {
+    await ElMessageBox.confirm(
+      all ? '将清空全部操作日志，不可恢复。' : '将清理 90 天以前的日志，近 90 天的记录保留。',
+      all ? '清空全部日志？' : '清理历史日志？',
+      { type: 'warning', confirmButtonText: all ? '清空' : '清理', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  try {
+    const before = all ? undefined : Date.now() - 90 * 86400000
+    const result = await adminApi.purgeAuditLogs(before)
+    ElMessage.success(`已清理 ${result?.removed ?? 0} 条`)
+    await loadAuditLogs(1)
+  } catch (error) {
+    notifyError(error, '清理失败')
+  }
+}
+
+async function cancelDeletion(row) {
+  try {
+    await adminApi.cancelUserDeletion(row.id)
+    ElMessage.success(`已撤销 @${row.username} 的注销申请`)
+    await loadUsers()
+  } catch (error) {
+    notifyError(error, '撤销失败')
+  }
+}
+
+async function purgeDeletion(row) {
+  try {
+    await ElMessageBox.confirm(
+      `将跳过宽限期，立即清除 @${row.username} 的账号与全部数据，不可恢复。`,
+      '立即清除账号？',
+      { type: 'warning', confirmButtonText: '立即清除', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  try {
+    await adminApi.purgeUserDeletion(row.id)
+    ElMessage.success(`已清除 @${row.username}`)
+    await loadUsers()
+  } catch (error) {
+    notifyError(error, '清除失败')
+  }
+}
 
 /** 示意块按 1600px 窗口等比缩放：上限宽度刚好铺满，默认 1200px 占四分之三。 */
 const DEMO_VIEWPORT = 1600
@@ -555,7 +738,8 @@ async function copyText(text) {
 async function loadAll(showLoading = true) {
   if (showLoading) loading.value = true
   await Promise.all([
-    loadStats(), loadSystem(), loadUsers(), loadTemplates(), loadFeedback(), loadSample(), loadSiteSettings()
+    loadStats(), loadSystem(), loadUsers(), loadTemplates(), loadFeedback(), loadSample(), loadSiteSettings(),
+    loadDeletedResumes(), loadAuditSettings()
   ])
   loading.value = false
 }
@@ -747,6 +931,11 @@ function switchTab(key) {
   activeTab.value = key
   if (key === 'overview') loadStats()
   if (key === 'users') refreshOnlineUsers()
+  if (key === 'recycle') loadDeletedResumes()
+  if (key === 'audit') {
+    loadAuditSettings()
+    loadAuditLogs(1)
+  }
 }
 
 function templateTags(row) {
@@ -1040,6 +1229,13 @@ onBeforeUnmount(() => {
                         <i></i>{{ row.online ? '在线' : '离线' }}
                       </span>
                       <span v-if="row.status !== 1" class="frozen-tag">已冻结</span>
+                      <span
+                        v-if="row.deletionRequestedAt"
+                        class="frozen-tag is-deletion"
+                        :title="`${formatTime(row.deletionRequestedAt)} 申请注销`"
+                      >
+                        注销中 · 剩 {{ deletionDaysLeft(row.deletionRequestedAt) }} 天
+                      </span>
                     </div>
                   </template>
                 </el-table-column>
@@ -1059,6 +1255,11 @@ onBeforeUnmount(() => {
                       >
                         {{ row.id === auth.user?.id ? '当前账号' : (row.status === 1 ? '冻结' : '恢复') }}
                       </el-button>
+                      <template v-if="row.deletionRequestedAt">
+                        <span class="row-actions__sep" aria-hidden="true"></span>
+                        <el-button size="small" link @click="cancelDeletion(row)">撤销注销</el-button>
+                        <el-button size="small" link type="danger" @click="purgeDeletion(row)">立即清除</el-button>
+                      </template>
                     </div>
                   </template>
                 </el-table-column>
@@ -1172,6 +1373,140 @@ onBeforeUnmount(() => {
                 </div>
               </li>
             </ul>
+          </section>
+
+          <section v-show="activeTab === 'recycle'" class="admin-section">
+            <div class="table-toolbar">
+              <div>
+                <span class="card-kicker">Recycle bin</span>
+                <h2>回收站 <small>{{ deletedResumes.length }} 份已删除简历</small></h2>
+              </div>
+              <div class="row-actions">
+                <el-button :loading="deletedLoading" @click="loadDeletedResumes">
+                  <el-icon v-if="!deletedLoading"><Refresh /></el-icon>
+                  刷新
+                </el-button>
+                <el-button
+                  type="danger"
+                  plain
+                  :disabled="!deletedResumes.length"
+                  :loading="purgeDeleting"
+                  @click="purgeDeleted(deletedResumes)"
+                >
+                  全部彻底删除
+                </el-button>
+              </div>
+            </div>
+
+            <div class="surface table-card" v-loading="deletedLoading">
+              <el-table :data="deletedResumes" row-key="id" style="width: 100%">
+                <el-table-column label="简历" min-width="240" show-overflow-tooltip>
+                  <template #default="{ row }">
+                    <div class="table-user">
+                      <div>
+                        <strong>{{ row.title || '（未命名简历）' }}</strong>
+                        <span class="table-user__handle">#{{ row.id }} · {{ row.templateCode }}</span>
+                      </div>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column label="属主" min-width="180">
+                  <template #default="{ row }">
+                    <strong>{{ row.nickname || row.username || '—' }}</strong>
+                    <span class="table-user__handle">@{{ row.username }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="删除时间" min-width="150">
+                  <template #default="{ row }">{{ formatTime(row.deletedAt) }}</template>
+                </el-table-column>
+                <el-table-column label="操作" width="120" align="right">
+                  <template #default="{ row }">
+                    <el-button size="small" link type="danger" :loading="purgeDeleting" @click="purgeDeleted(row)">
+                      彻底删除
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <div v-if="!deletedResumes.length" class="table-empty">回收站是空的</div>
+              <p class="recycle-note">
+                用户删除的简历会先进入这里：用户侧已经看不到，但附件与图片还在。确认无误后再彻底删除，删除后不可恢复。
+              </p>
+            </div>
+          </section>
+
+          <section v-show="activeTab === 'audit'" class="admin-section">
+            <div class="table-toolbar">
+              <div>
+                <span class="card-kicker">Audit log</span>
+                <h2>操作日志 <small>今天 {{ auditToday }} 条 · 累计 {{ auditTotal }} 条</small></h2>
+              </div>
+              <div class="row-actions">
+                <el-button @click="purgeAudit(false)">清理 90 天前</el-button>
+                <el-button type="danger" plain @click="purgeAudit(true)">清空全部</el-button>
+              </div>
+            </div>
+
+            <section class="surface audit-policy">
+              <div>
+                <strong>自动清理策略</strong>
+                <p>每天凌晨 3 点按保留天数清理日志；填 0 表示不自动清理，只靠手动清。</p>
+              </div>
+              <div class="audit-policy__control">
+                <span class="cell-muted">保留</span>
+                <el-input-number v-model="auditRetention" :min="0" :max="3650" :step="30" size="small" controls-position="right" />
+                <span class="cell-muted">天</span>
+                <el-button size="small" type="primary" :loading="auditSaving" @click="saveAuditSettings">保存</el-button>
+              </div>
+            </section>
+
+            <div class="surface table-card" v-loading="auditLoading">
+              <div class="audit-filters">
+                <el-select v-model="auditAction" size="small" @change="loadAuditLogs(1)">
+                  <el-option v-for="item in AUDIT_ACTIONS" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+                <el-input
+                  v-model="auditActor"
+                  class="user-search"
+                  size="small"
+                  placeholder="操作者用户 ID"
+                  clearable
+                  @keyup.enter="loadAuditLogs(1)"
+                />
+                <el-button size="small" @click="loadAuditLogs(1)">查询</el-button>
+              </div>
+              <el-table :data="auditRows" row-key="id" style="width: 100%">
+                <el-table-column label="时间" width="150">
+                  <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+                </el-table-column>
+                <el-table-column label="操作者" min-width="150">
+                  <template #default="{ row }">
+                    <strong>{{ row.actorName || '—' }}</strong>
+                    <span class="table-user__handle">{{ row.actorRole }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="action" label="动作" min-width="180" show-overflow-tooltip />
+                <el-table-column label="对象" min-width="120">
+                  <template #default="{ row }">
+                    <span class="cell-muted">{{ row.targetType }}{{ row.targetId ? ' #' + row.targetId : '' }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="detail" label="说明" min-width="220" show-overflow-tooltip />
+                <el-table-column prop="ip" label="IP" width="140" />
+              </el-table>
+              <div v-if="!auditRows.length" class="table-empty">还没有日志</div>
+              <div v-else class="user-pager">
+                <span class="user-pager__summary">共 {{ auditTotal }} 条</span>
+                <el-pagination
+                  v-model:current-page="auditPage"
+                  :page-size="auditPageSize"
+                  :total="auditTotal"
+                  layout="prev, pager, next"
+                  background
+                  size="small"
+                  @current-change="loadAuditLogs"
+                />
+              </div>
+            </div>
           </section>
 
           <section v-show="activeTab === 'site'" class="admin-section">
@@ -1618,6 +1953,165 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* 注销中的账号在用户表里要一眼看出来，和「已冻结」同尺寸但用橙色区分。 */
+.frozen-tag.is-deletion {
+  border-color: rgba(196, 122, 42, 0.35);
+  background: rgba(196, 122, 42, 0.1);
+  color: #a3611c;
+}
+
+.recycle-note {
+  margin: 12px 2px 0;
+  color: #8a94a0;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.audit-policy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 16px 18px;
+}
+
+.audit-policy strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.audit-policy p {
+  margin: 0;
+  color: #7d8794;
+  font-size: 12.5px;
+}
+
+.audit-policy__control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.audit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.audit-filters .el-select {
+  width: 190px;
+}
+
+
+/* 注销中的账号在用户表里要一眼看出来，和「已冻结」同尺寸但用橙色区分。 */
+.frozen-tag.is-deletion {
+  border-color: rgba(196, 122, 42, 0.35);
+  background: rgba(196, 122, 42, 0.1);
+  color: #a3611c;
+}
+
+.recycle-note {
+  margin: 12px 2px 0;
+  color: #8a94a0;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.audit-policy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 16px 18px;
+}
+
+.audit-policy strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.audit-policy p {
+  margin: 0;
+  color: #7d8794;
+  font-size: 12.5px;
+}
+
+.audit-policy__control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.audit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.audit-filters .el-select {
+  width: 190px;
+}
+
+
+/* 注销中的账号在用户表里要一眼看出来，和「已冻结」同尺寸但用橙色区分。 */
+.frozen-tag.is-deletion {
+  border-color: rgba(196, 122, 42, 0.35);
+  background: rgba(196, 122, 42, 0.1);
+  color: #a3611c;
+}
+
+.recycle-note {
+  margin: 12px 2px 0;
+  color: #8a94a0;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.audit-policy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 16px 18px;
+}
+
+.audit-policy strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.audit-policy p {
+  margin: 0;
+  color: #7d8794;
+  font-size: 12.5px;
+}
+
+.audit-policy__control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.audit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.audit-filters .el-select {
+  width: 190px;
+}
+
+
 .admin-page {
   padding: 34px 0 72px;
   background:
