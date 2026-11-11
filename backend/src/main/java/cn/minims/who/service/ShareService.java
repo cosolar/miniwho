@@ -48,10 +48,11 @@ public class ShareService {
     private final TemplateMapper templateMapper;
     private final UserMapper userMapper;
     private final Json json;
+    private final AuditService auditService;
 
     public ShareService(ResumeService resumeService, AvatarService avatarService, ResumeMapper resumeMapper,
                         ResumeShareMapper shareMapper, TemplateMapper templateMapper, UserMapper userMapper,
-                        Json json) {
+                        Json json, AuditService auditService) {
         this.resumeService = resumeService;
         this.avatarService = avatarService;
         this.resumeMapper = resumeMapper;
@@ -59,6 +60,7 @@ public class ShareService {
         this.templateMapper = templateMapper;
         this.userMapper = userMapper;
         this.json = json;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -120,6 +122,8 @@ public class ShareService {
         share.setHiddenFields(hiddenFields);
         share.setViewCount(0L);
         shareMapper.insert(share);
+        auditService.recordUser(userId, null, AuditService.Actions.SHARE_CREATE, "share",
+                String.valueOf(share.getId()), "分享简历《" + resume.getTitle() + "》");
         return toVo(share, resume);
     }
 
@@ -190,6 +194,8 @@ public class ShareService {
                 .eq(ResumeShare::getId, shareId)
                 .isNull(ResumeShare::getRevokedAt)
                 .set(ResumeShare::getRevokedAt, System.currentTimeMillis()));
+        auditService.recordUser(userId, null, AuditService.Actions.SHARE_REVOKE, "share",
+                String.valueOf(shareId), "撤销分享链接");
     }
 
     public PublicShareVo publicShare(String token, String password) {

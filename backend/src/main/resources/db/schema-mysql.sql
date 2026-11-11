@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS resumes (
     lifecycle_status INT          NOT NULL DEFAULT 1,
     is_sample        INT          NOT NULL DEFAULT 0,
     deleted          TINYINT      NOT NULL DEFAULT 0,
+    deleted_at       BIGINT,
     created_at       BIGINT,
     updated_at       BIGINT,
     KEY idx_resumes_user (user_id, deleted, updated_at DESC)
@@ -161,4 +162,23 @@ CREATE TABLE IF NOT EXISTS email_codes (
     attempts   INT          NOT NULL DEFAULT 0,
     created_at BIGINT,
     KEY idx_email_codes_email (email, purpose, created_at DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 账号级与敏感操作的审计流水；简历正文的浏览与逐字段保存不进表。
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id           BIGINT       NOT NULL AUTO_INCREMENT,
+    actor_id     BIGINT       NULL,
+    actor_name   VARCHAR(64)  NULL,
+    actor_role   VARCHAR(16)  NULL,
+    action       VARCHAR(64)  NOT NULL,
+    target_type  VARCHAR(32)  NULL,
+    target_id    VARCHAR(64)  NULL,
+    detail       VARCHAR(500) NULL,
+    ip           VARCHAR(64)  NULL,
+    user_agent   VARCHAR(255) NULL,
+    created_at   BIGINT       NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_audit_created (created_at),
+    KEY idx_audit_action (action),
+    KEY idx_audit_actor (actor_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

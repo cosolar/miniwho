@@ -48,6 +48,7 @@ public class AuthService {
     private final EmailCodeService emailCodeService;
     private final LoginGuard loginGuard;
     private final CaptchaService captchaService;
+    private final AuditService auditService;
 
     /** 验证码登录成功后留在这枚令牌上的改密票据：只对本次会话有效，用完即删。 */
     private static final String PASSWORD_TICKET = "password-change-after-code";
@@ -55,7 +56,8 @@ public class AuthService {
 
     public AuthService(UserMapper userMapper, UserIdentityMapper identityMapper, ResumeMapper resumeMapper,
                        ResumeService resumeService, AuthSettingsService authSettings,
-                       EmailCodeService emailCodeService, LoginGuard loginGuard, CaptchaService captchaService) {
+                       EmailCodeService emailCodeService, LoginGuard loginGuard, CaptchaService captchaService,
+                       AuditService auditService) {
         this.userMapper = userMapper;
         this.identityMapper = identityMapper;
         this.resumeMapper = resumeMapper;
@@ -64,6 +66,7 @@ public class AuthService {
         this.emailCodeService = emailCodeService;
         this.loginGuard = loginGuard;
         this.captchaService = captchaService;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -85,6 +88,8 @@ public class AuthService {
         user.setRole("user");
         user.setStatus(1);
         insertUser(user, "该用户名已被使用");
+        auditService.record(user.getId(), user.getUsername(), "user", AuditService.Actions.REGISTER,
+                "user", String.valueOf(user.getId()), "用户名注册");
 
         return afterSignup(user);
     }
@@ -158,6 +163,7 @@ public class AuthService {
      * <p>同样不加事务：这里只有一条 UPDATE，事务换不来什么，却会把验证码的错误计数一起回滚掉。
      */
     public void resetPassword(PasswordResetRequest request) {
+        // 重置成功后补一条审计（方法末尾统一写，失败分支不会走到这里）。
         if (!authSettings.passwordResetEnabled()) {
             throw BizException.forbidden("管理员尚未配置邮件服务，找回密码请联系管理员");
         }
@@ -179,6 +185,8 @@ public class AuthService {
                 .set(User::getPasswordHash, BCrypt.hashpw(request.newPassword()))
                 .set(User::getHasPassword, 1)
                 .set(User::getUpdatedAt, System.currentTimeMillis()));
+        auditService.record(user.getId(), user.getUsername(), "user", AuditService.Actions.PASSWORD_CHANGE,
+                "user", String.valueOf(user.getId()), "邮箱验证码重置密码");
         // 找回密码本身就说明旧凭据（邮箱或密码）可能已经不在自己手里了：所有端一律踢下线。
         StpUtil.logout(user.getId());
     }
@@ -245,6 +253,9 @@ public class AuthService {
                     throw loginCodeRequired(user);
                 }
             }
+            auditService.record(user == null ? null : user.getId(), request.username(), "guest",
+                    AuditService.Actions.LOGIN_FAILED, "user", null,
+                    user == null ? "账号不存在" : "密码不正确");
             throw new BizException("LOGIN_FAILED", "账号或密码不正确", HttpStatus.UNAUTHORIZED);
         }
         if (!Integer.valueOf(1).equals(user.getStatus())) {
@@ -252,6 +263,8 @@ public class AuthService {
         }
         loginGuard.recordSuccess(user.getId());
         StpUtil.login(user.getId());
+        auditService.record(user.getId(), user.getUsername(), "admin".equals(user.getRole()) ? "admin" : "user",
+                AuditService.Actions.LOGIN, "user", String.valueOf(user.getId()), "密码登录");
         Resume latest = latestResume(user.getId());
         return new LoginResponse(StpUtil.getTokenValue(), StpUtil.getTokenName(), toVo(user),
                 latest == null ? 0L : latest.getId(), false);
@@ -407,6 +420,8 @@ public class AuthService {
                 .eq(User::getId, userId)
                 .set(User::getPasswordHash, BCrypt.hashpw(request.newPassword()))
                 .set(User::getUpdatedAt, System.currentTimeMillis()));
+        auditService.record(user.getId(), user.getUsername(), "user", AuditService.Actions.PASSWORD_CHANGE,
+                "user", String.valueOf(userId), "自助修改密码");
         // 旧密码可能已经泄露：改完立即作废该账号的全部登录态，包括当前这次请求的 token。
         StpUtil.logout(userId);
     }

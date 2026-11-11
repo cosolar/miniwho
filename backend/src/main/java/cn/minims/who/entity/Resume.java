@@ -34,6 +34,9 @@ public class Resume {
     @TableLogic
     private Integer deleted;
 
+    /** 删除时间：逻辑删除后用来在后台「回收站」里显示何时删的，物理清除后不再存在。 */
+    private Long deletedAt;
+
     @TableField(fill = FieldFill.INSERT)
     private Long createdAt;
 

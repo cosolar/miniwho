@@ -54,6 +54,7 @@ public class AccountDeletionService {
 
     private final UserMapper userMapper;
     private final ResumeMapper resumeMapper;
+    private final AuditService auditService;
     private final ResumeAttachmentMapper attachmentMapper;
     private final ResumeShareMapper shareMapper;
     private final ResumeReportMapper reportMapper;
@@ -70,7 +71,7 @@ public class AccountDeletionService {
                                  ResumeReportMapper reportMapper, TemplateMapper templateMapper,
                                  FeedbackMapper feedbackMapper, UserIdentityMapper identityMapper,
                                  EmailCodeMapper codeMapper, AttachmentStore store,
-                                 EmailCodeService emailCodeService, MailService mailService) {
+                                 EmailCodeService emailCodeService, MailService mailService, AuditService auditService) {
         this.userMapper = userMapper;
         this.resumeMapper = resumeMapper;
         this.attachmentMapper = attachmentMapper;
@@ -83,7 +84,9 @@ public class AccountDeletionService {
         this.store = store;
         this.emailCodeService = emailCodeService;
         this.mailService = mailService;
+        this.auditService = auditService;
     }
+
 
     /** 实际清库时间：宽限期只在申请成功那一刻算一次，之后不再随当前时间漂移。 */
     public static Long deletionDeadline(Long requestedAt) {
@@ -120,6 +123,8 @@ public class AccountDeletionService {
                 .eq(User::getId, userId)
                 .set(User::getDeletionRequestedAt, now)
                 .set(User::getUpdatedAt, now));
+        auditService.recordUser(userId, user.getUsername(), AuditService.Actions.DELETION_REQUEST,
+                "account", String.valueOf(userId), GRACE_DAYS + " 天宽限期");
         log.info("账号 {} 已申请注销，{} 天后清除", userId, GRACE_DAYS);
         return new DeletionVo(now, deletionDeadline(now), GRACE_DAYS);
     }
@@ -134,8 +139,41 @@ public class AccountDeletionService {
                 .eq(User::getId, userId)
                 .set(User::getDeletionRequestedAt, null)
                 .set(User::getUpdatedAt, System.currentTimeMillis()));
+        auditService.recordUser(userId, user.getUsername(), AuditService.Actions.DELETION_CANCEL,
+                "account", String.valueOf(userId), "用户自助撤销");
         log.info("账号 {} 已撤销注销申请", userId);
         return new DeletionVo(null, null, GRACE_DAYS);
+    }
+
+    /** 后台「立即清除」：管理员跳过宽限期，直接按注销申请清掉这个账号。 */
+    public void purgeNow(long operatorId, String operatorName, long userId) {
+        User user = requireUser(userId);
+        if ("admin".equalsIgnoreCase(user.getRole())) {
+            throw BizException.forbidden("管理员账号不能通过这里清除");
+        }
+        if (user.getDeletionRequestedAt() == null) {
+            throw BizException.badRequest("该账号没有在申请注销");
+        }
+        PurgePlan plan = plan(userId);
+        execute(plan);
+        auditService.recordAdmin(operatorId, operatorName, AuditService.Actions.ADMIN_USER_DELETION_PURGE,
+                "user", String.valueOf(userId),
+                "手动清除：" + plan.resumeIds().size() + " 份简历");
+        log.info("管理员 {} 立即清除了账号 {}（{}）", operatorId, userId, plan.username());
+    }
+
+    /** 后台「撤销注销」：在宽限期内把账号从注销队列里捞出来。 */
+    public void cancelByAdmin(long operatorId, String operatorName, long userId) {
+        User user = requireUser(userId);
+        if (user.getDeletionRequestedAt() == null) {
+            throw BizException.badRequest("该账号没有在申请注销");
+        }
+        userMapper.update(null, new LambdaUpdateWrapper<User>()
+                .eq(User::getId, userId)
+                .set(User::getDeletionRequestedAt, null)
+                .set(User::getUpdatedAt, System.currentTimeMillis()));
+        auditService.recordAdmin(operatorId, operatorName, AuditService.Actions.ADMIN_USER_DELETION_CANCEL,
+                "user", String.valueOf(userId), "后台撤销注销申请");
     }
 
     /**
@@ -159,6 +197,9 @@ public class AccountDeletionService {
             try {
                 PurgePlan plan = plan(user.getId());
                 execute(plan);
+                auditService.recordSystem(AuditService.Actions.DELETION_PURGE, "user",
+                        String.valueOf(user.getId()),
+                        "到期自动清除：" + plan.resumeIds().size() + " 份简历、" + plan.fileKeys().size() + " 个文件");
                 log.info("账号 {}（{}）已按注销申请清除：{} 份简历、{} 个文件",
                         user.getId(), plan.username(), plan.resumeIds().size(), plan.fileKeys().size());
             } catch (RuntimeException e) {

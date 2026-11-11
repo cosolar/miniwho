@@ -41,7 +41,38 @@ public final class AdminDtos {
     /** online 表示最近 5 分钟是否有带登录态的请求，和 status（1 正常 / 2 冻结）不是一回事。 */
     public record AdminUserVo(Long id, String username, String nickname, String email, Boolean emailVerified,
                               String role, Integer status, Long createdAt, Long resumeCount, Long storageBytes,
-                              boolean online) {
+                              boolean online,
+                              /** 注销申请时间；null 表示没在注销。 */
+                              Long deletionRequestedAt) {
+    }
+
+    /** 后台回收站：用户删掉的简历在这里可见，管理员确认后才做物理清除。 */
+    public record AdminDeletedResumeVo(Long id, Long userId, String username, String nickname, String title,
+                                       String templateCode, Long deletedAt, Long updatedAt) {
+    }
+
+    /** 审计流水条目：只读展示，不做编辑。 */
+    public record AdminAuditLogVo(Long id, Long actorId, String actorName, String actorRole, String action,
+                                  String targetType, String targetId, String detail, String ip, String userAgent,
+                                  Long createdAt) {
+    }
+
+    public record AdminAuditPageVo(List<AdminAuditLogVo> items, long total, int page, int size, boolean hasMore,
+                                   long actors, long today) {
+    }
+
+    /** 审计保留策略：0 表示不自动清理。 */
+    public record AdminAuditSettingsVo(int retentionDays) {
+    }
+
+    public record AdminAuditPurgeRequest(Long before) {
+    }
+
+    public record AdminAuditSettingsRequest(int retentionDays) {
+    }
+
+    /** 批量物理清除：ids 为回收站里的简历。 */
+    public record AdminResumePurgeRequest(List<Long> ids) {
     }
 
     /** 后台查看某位用户名下的简历：只给概览，不返回正文、附件和分享凭据。 */

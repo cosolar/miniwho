@@ -20,6 +20,7 @@ import cn.minims.who.dto.AdminDtos.AdminTemplateMetaRequest;
 import cn.minims.who.dto.AdminDtos.AdminTemplateVo;
 import cn.minims.who.dto.AdminDtos.AdminUserResumeVo;
 import cn.minims.who.dto.AdminDtos.AdminUserVo;
+import cn.minims.who.entity.AuditLog;
 import cn.minims.who.entity.Feedback;
 import cn.minims.who.entity.Resume;
 import cn.minims.who.entity.Template;
@@ -28,6 +29,7 @@ import cn.minims.who.mapper.FeedbackMapper;
 import cn.minims.who.mapper.ResumeMapper;
 import cn.minims.who.mapper.ResumeReportMapper;
 import cn.minims.who.mapper.ResumeShareMapper;
+import cn.minims.who.mapper.AuditLogMapper;
 import cn.minims.who.mapper.TemplateMapper;
 import cn.minims.who.mapper.UserMapper;
 import org.springframework.cache.annotation.CacheEvict;
@@ -56,13 +58,21 @@ public class AdminService {
     private final StorageUsageService storageUsage;
     private final MailService mailService;
     private final OnlineUserService onlineUserService;
+    private final AuditService auditService;
+    private final AuditLogMapper auditLogMapper;
+    private final AccountDeletionService accountDeletionService;
+    private final ResumeService resumeService;
+
+    private static final String SETTING_AUDIT_RETENTION = "audit_retention_days";
 
     public AdminService(UserMapper userMapper, ResumeMapper resumeMapper, TemplateMapper templateMapper,
                         FeedbackMapper feedbackMapper, ResumeShareMapper shareMapper,
                         ResumeReportMapper reportMapper, TemplateService templateService,
                         AuthSettingsService authSettingsService, SettingsService settingsService,
                         StorageUsageService storageUsage, MailService mailService,
-                        OnlineUserService onlineUserService) {
+                        OnlineUserService onlineUserService, AuditService auditService,
+                        AuditLogMapper auditLogMapper, AccountDeletionService accountDeletionService,
+                        ResumeService resumeService) {
         this.userMapper = userMapper;
         this.resumeMapper = resumeMapper;
         this.templateMapper = templateMapper;
@@ -75,6 +85,117 @@ public class AdminService {
         this.storageUsage = storageUsage;
         this.mailService = mailService;
         this.onlineUserService = onlineUserService;
+        this.auditService = auditService;
+        this.auditLogMapper = auditLogMapper;
+        this.accountDeletionService = accountDeletionService;
+        this.resumeService = resumeService;
+        this.auditService.updateRetention(auditRetentionDays());
+    }
+
+    // ───────────────── 回收站：用户删除的简历，管理员确认后物理清除 ─────────────────
+
+    /** 回收站列表：按删除时间倒序，带上属主，方便判断该不该清。 */
+    public List<cn.minims.who.dto.AdminDtos.AdminDeletedResumeVo> deletedResumes(int limit) {
+        int safeLimit = Math.min(Math.max(1, limit), 500);
+        List<cn.minims.who.dto.AdminDtos.AdminDeletedResumeVo> rows = new ArrayList<>();
+        for (Map<String, Object> row : resumeMapper.selectDeleted(safeLimit)) {
+            rows.add(new cn.minims.who.dto.AdminDtos.AdminDeletedResumeVo(
+                    asLong(row.get("id")), asLong(row.get("user_id")),
+                    asString(row.get("username")), asString(row.get("nickname")),
+                    asString(row.get("title")), asString(row.get("template_code")),
+                    asLong(row.get("deleted_at")), asLong(row.get("updated_at"))));
+        }
+        return rows;
+    }
+
+    /** 物理清除回收站里的简历：附件、头像、分享与磁盘文件一并删掉，不可恢复。 */
+    public int purgeResumes(long adminId, List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            throw BizException.badRequest("请选择要清除的简历");
+        }
+        int removed = 0;
+        for (Long id : ids) {
+            if (id == null) continue;
+            Resume resume = resumeMapper.selectDeletedById(id);
+            if (resume == null) continue;
+            resumeService.hardDelete(resume);
+            removed += 1;
+        }
+        auditService.recordAdmin(adminId, null, AuditService.Actions.ADMIN_RESUME_PURGE, "resume",
+                ids.size() == 1 ? String.valueOf(ids.get(0)) : null,
+                "物理清除 " + removed + " 份简历");
+        return removed;
+    }
+
+    // ───────────────── 审计日志：查看、手动清理、自动清理策略 ─────────────────
+
+    public cn.minims.who.dto.AdminDtos.AdminAuditPageVo auditLogs(Long actorId, String action, Long from, Long to,
+                                                                  int page, int size) {
+        int safePage = Math.max(1, page);
+        int safeSize = Math.min(Math.max(1, size), 100);
+        LambdaQueryWrapper<AuditLog> wrapper = new LambdaQueryWrapper<AuditLog>()
+                .eq(actorId != null, AuditLog::getActorId, actorId)
+                .eq(action != null && !action.isBlank(), AuditLog::getAction, action)
+                .ge(from != null, AuditLog::getCreatedAt, from)
+                .le(to != null, AuditLog::getCreatedAt, to)
+                .orderByDesc(AuditLog::getId);
+        long total = auditLogMapper.selectCount(wrapper);
+        List<AuditLog> rows = auditLogMapper.selectList(wrapper.last("limit " + safeSize + " offset " + ((safePage - 1) * safeSize)));
+        List<cn.minims.who.dto.AdminDtos.AdminAuditLogVo> items = new ArrayList<>(rows.size());
+        for (AuditLog row : rows) {
+            items.add(new cn.minims.who.dto.AdminDtos.AdminAuditLogVo(row.getId(), row.getActorId(),
+                    row.getActorName(), row.getActorRole(), row.getAction(), row.getTargetType(),
+                    row.getTargetId(), row.getDetail(), row.getIp(), row.getUserAgent(), row.getCreatedAt()));
+        }
+        long today = auditLogMapper.selectCount(new LambdaQueryWrapper<AuditLog>()
+                .ge(AuditLog::getCreatedAt, startOfToday()));
+        return new cn.minims.who.dto.AdminDtos.AdminAuditPageVo(items, total, safePage, safeSize,
+                (long) safePage * safeSize < total, 0, today);
+    }
+
+    /** 手动清理：before 为 null 表示清空全部。 */
+    public int purgeAudit(long adminId, Long before) {
+        int removed = auditService.purge(before);
+        auditService.recordAdmin(adminId, null, AuditService.Actions.ADMIN_AUDIT_PURGE, "audit", null,
+                before == null ? "清空全部 " + removed + " 条" : "清理 " + removed + " 条");
+        return removed;
+    }
+
+    public cn.minims.who.dto.AdminDtos.AdminAuditSettingsVo auditSettings() {
+        return new cn.minims.who.dto.AdminDtos.AdminAuditSettingsVo(auditRetentionDays());
+    }
+
+    public cn.minims.who.dto.AdminDtos.AdminAuditSettingsVo updateAuditSettings(long adminId, int days) {
+        int safeDays = Math.max(0, Math.min(days, 3650));
+        settingsService.set(SETTING_AUDIT_RETENTION, String.valueOf(safeDays));
+        auditService.updateRetention(safeDays);
+        auditService.recordAdmin(adminId, null, "admin.audit.settings", "audit", null,
+                safeDays == 0 ? "关闭自动清理" : "保留 " + safeDays + " 天");
+        return new cn.minims.who.dto.AdminDtos.AdminAuditSettingsVo(safeDays);
+    }
+
+    private int auditRetentionDays() {
+        String raw = settingsService.get(SETTING_AUDIT_RETENTION);
+        if (raw == null || raw.isBlank()) {
+            return 90;
+        }
+        try {
+            return Math.max(0, Math.min(Integer.parseInt(raw.trim()), 3650));
+        } catch (NumberFormatException e) {
+            return 90;
+        }
+    }
+
+    private long startOfToday() {
+        return java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+    }
+
+    private Long asLong(Object value) {
+        return value instanceof Number number ? number.longValue() : null;
+    }
+
+    private String asString(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     /** 注册 / 登录方式面板：管理员要看的不是三个孤立开关，而是「开没开 + 还差什么」。 */
@@ -150,7 +271,7 @@ public class AdminService {
                     Integer.valueOf(1).equals(user.getEmailVerified()),
                     user.getRole(), user.getStatus(), user.getCreatedAt(),
                     resumeCounts.getOrDefault(user.getId(), 0L), scan.userBytes(user.getId()),
-                    onlineIds.contains(user.getId())));
+                    onlineIds.contains(user.getId()), user.getDeletionRequestedAt()));
         }
         return result;
     }
@@ -187,6 +308,7 @@ public class AdminService {
     }
 
     public void updateUserStatus(long adminId, long userId, int status) {
+        // 埋点放在方法末尾，失败分支不该留下“已封禁”的记录。
         if (adminId == userId) {
             throw BizException.badRequest("不能冻结当前登录账号");
         }
@@ -202,6 +324,8 @@ public class AdminService {
         if (status == 2) {
             StpUtil.logout(userId);
         }
+        auditService.recordAdmin(adminId, null, AuditService.Actions.ADMIN_USER_STATUS, "user",
+                String.valueOf(userId), status == 1 ? "解封账号" : "冻结账号");
     }
 
     /**
@@ -231,6 +355,8 @@ public class AdminService {
                 .set(User::getHasPassword, 1)
                 .set(User::getUpdatedAt, System.currentTimeMillis()));
         StpUtil.logout(userId);
+        auditService.recordAdmin(adminId, null, AuditService.Actions.ADMIN_USER_PASSWORD, "user",
+                String.valueOf(userId), emailDeliverable ? "重置密码并发邮件" : "重置密码并线下转告");
         return emailDeliverable
                 ? new AdminPasswordResetVo("email", null)
                 : new AdminPasswordResetVo("manual", password);
@@ -257,7 +383,7 @@ public class AdminService {
      * 作者重新导入时会整体还原为包里的信息。缓存清掉后模板中心立即可见。
      */
     @CacheEvict(cacheNames = {"template-active", "template-detail"}, allEntries = true)
-    public AdminTemplateVo updateTemplateMeta(String code, AdminTemplateMetaRequest request) {
+    public AdminTemplateVo updateTemplateMeta(long adminId, String code, AdminTemplateMetaRequest request) {
         Template template = templateMapper.selectOne(new LambdaQueryWrapper<Template>()
                 .eq(Template::getCode, code).last("limit 1"));
         if (template == null) {
@@ -295,12 +421,14 @@ public class AdminService {
                 .set(Template::getTags, String.join(",", tags))
                 .set(Template::getMetaEdited, 1)
                 .set(Template::getUpdatedAt, System.currentTimeMillis()));
+        auditService.recordAdmin(adminId, null, AuditService.Actions.ADMIN_TEMPLATE_META, "template",
+                code, "修改名称/描述/分类/标签");
         return toAdminTemplateVo(templateMapper.selectOne(new LambdaQueryWrapper<Template>()
                 .eq(Template::getCode, code).last("limit 1")));
     }
 
     @CacheEvict(cacheNames = {"template-active", "template-detail"}, allEntries = true)
-    public void updateTemplateStatus(String code, int status) {
+    public void updateTemplateStatus(long adminId, String code, int status) {
         if (status != 1 && status != 2) {
             throw BizException.badRequest("模板状态不正确");
         }
@@ -311,6 +439,8 @@ public class AdminService {
                 .eq(Template::getCode, code)
                 .set(Template::getStatus, status)
                 .set(Template::getUpdatedAt, System.currentTimeMillis()));
+        auditService.recordAdmin(adminId, null, AuditService.Actions.ADMIN_TEMPLATE_STATUS, "template",
+                code, status == 1 ? "上架模板" : "下架模板");
     }
 
     /**
@@ -318,7 +448,7 @@ public class AdminService {
      * 刻意不碰 updated_at，否则管理员点个开关就把别人的简历排序搅乱了。
      */
     @Transactional
-    public void updateSample(long resumeId, boolean sample) {
+    public void updateSample(long adminId, long resumeId, boolean sample) {
         Resume resume = resumeMapper.selectById(resumeId);
         if (resume == null) {
             throw BizException.notFound("简历不存在");
@@ -331,6 +461,8 @@ public class AdminService {
         resumeMapper.update(null, new LambdaUpdateWrapper<Resume>()
                 .eq(Resume::getId, resumeId)
                 .set(Resume::getIsSample, sample ? 1 : 0));
+        auditService.recordAdmin(adminId, null, AuditService.Actions.ADMIN_SAMPLE, "resume",
+                String.valueOf(resumeId), sample ? "设为全站示例" : "取消示例");
     }
 
     public AdminSampleVo sampleInfo() {

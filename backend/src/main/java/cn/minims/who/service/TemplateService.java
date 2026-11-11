@@ -41,13 +41,15 @@ public class TemplateService {
     private final ResumeMapper resumeMapper;
     private final TemplatePackageCodec codec;
     private final Json json;
+    private final AuditService auditService;
 
     public TemplateService(TemplateMapper templateMapper, ResumeMapper resumeMapper,
-                           TemplatePackageCodec codec, Json json) {
+                           TemplatePackageCodec codec, Json json, AuditService auditService) {
         this.templateMapper = templateMapper;
         this.resumeMapper = resumeMapper;
         this.codec = codec;
         this.json = json;
+        this.auditService = auditService;
     }
 
     /**
@@ -173,6 +175,8 @@ public class TemplateService {
             // 重新导入只换版式，分享状态与导出权限由作者上一次的选择决定，不在这里重置。
             templateMapper.updateById(target);
         }
+        auditService.recordUser(userId, null, AuditService.Actions.TEMPLATE_IMPORT, "template",
+                code, "导入模板包《" + pkg.name() + "》");
         return toVo(target);
     }
 
@@ -192,6 +196,8 @@ public class TemplateService {
                     HttpStatus.CONFLICT, Map.of("resumeCount", inUse));
         }
         templateMapper.deleteById(template.getId());
+        auditService.recordUser(userId, null, AuditService.Actions.TEMPLATE_DELETE, "template", code,
+                "删除自己导入的模板包");
     }
 
     /**
@@ -211,6 +217,8 @@ public class TemplateService {
         template.setVisibility(shared ? VISIBILITY_PUBLIC : VISIBILITY_PRIVATE);
         template.setExportable(exportable ? 1 : 0);
         templateMapper.updateById(template);
+        auditService.recordUser(userId, null, AuditService.Actions.TEMPLATE_SHARE, "template", code,
+                shared ? (exportable ? "分享到模板中心（允许导出）" : "分享到模板中心（仅可使用）") : "取消分享");
         return toVo(template);
     }
 

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
 import cn.minims.who.dto.ExportDtos.PdfStatusVo;
+import cn.minims.who.service.AuditService;
 import cn.minims.who.service.PdfExportService;
 import cn.minims.who.service.PdfExportService.PdfFile;
 import cn.minims.who.util.Json;
@@ -29,11 +30,14 @@ public class PdfController {
     private final PdfExportService pdfExportService;
     private final AuthUtil authUtil;
     private final Json json;
+    private final AuditService auditService;
 
-    public PdfController(PdfExportService pdfExportService, AuthUtil authUtil, Json json) {
+    public PdfController(PdfExportService pdfExportService, AuthUtil authUtil, Json json,
+                         AuditService auditService) {
         this.pdfExportService = pdfExportService;
         this.authUtil = authUtil;
         this.json = json;
+        this.auditService = auditService;
     }
 
     @GetMapping("/api/pdf/status")
@@ -62,6 +66,8 @@ public class PdfController {
             overrides.put("showBrandFooter", showBrandFooter);
         }
         PdfFile file = pdfExportService.exportFor(authUtil.userId(), id, templateCode, overrides);
+        auditService.recordUser(authUtil.userId(), null, AuditService.Actions.PDF_EXPORT, "resume",
+                String.valueOf(id), file.fileName());
         String encoded = URLEncoder.encode(file.fileName(), StandardCharsets.UTF_8).replace("+", "%20");
         return ResponseEntity.status(HttpStatus.OK)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"resume.pdf\"; filename*=UTF-8''" + encoded)

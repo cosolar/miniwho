@@ -35,6 +35,8 @@ public class SchemaMigrator implements ApplicationRunner {
         resumes.put("avatar_shape", "VARCHAR(20) NOT NULL DEFAULT 'rect'");
         // 全站唯一的示例简历标记：被标上的那份会通过无鉴权接口公开显示，只有管理员能设。
         resumes.put("is_sample", "INT NOT NULL DEFAULT 0");
+        // 逻辑删除的时间戳：用户删除后进回收站，后台据此显示删除时间并决定是否物理清除。
+        resumes.put("deleted_at", "BIGINT");
         TABLE_COLUMNS.put("resumes", resumes);
 
         // 模板包元数据：pkg 存净化后的包原文，source 区分内置与导入，二者都不能被种子互相覆盖。
@@ -85,6 +87,10 @@ public class SchemaMigrator implements ApplicationRunner {
                     migrate(statement, table.getKey(), table.getValue(), existing);
                 }
             }
+            // 审计流水表是新表，存量库没有，这里补建（新库由 schema-*.sql 首建）。
+            try (Statement statement = connection.createStatement()) {
+                ensureAuditTable(statement, sqlite);
+            }
             // 邮箱从「随便填」变成登录凭据，存量库要先清掉脏数据才能上唯一索引。
             try (Statement statement = connection.createStatement()) {
                 ensureEmailUniqueness(statement, sqlite);
@@ -93,6 +99,26 @@ public class SchemaMigrator implements ApplicationRunner {
             }
         } catch (SQLException e) {
             throw new IllegalStateException("数据库结构升级失败，请确认数据库账号具备 ALTER 权限：" + e.getMessage(), e);
+        }
+    }
+
+    private void ensureAuditTable(Statement statement, boolean sqlite) throws SQLException {
+        String ddl = sqlite
+                ? "CREATE TABLE IF NOT EXISTS audit_logs (id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                + " actor_id BIGINT, actor_name VARCHAR(64), actor_role VARCHAR(16),"
+                + " action VARCHAR(64) NOT NULL, target_type VARCHAR(32), target_id VARCHAR(64),"
+                + " detail VARCHAR(500), ip VARCHAR(64), user_agent VARCHAR(255), created_at BIGINT NOT NULL)"
+                : "CREATE TABLE IF NOT EXISTS audit_logs (id BIGINT PRIMARY KEY AUTO_INCREMENT,"
+                + " actor_id BIGINT NULL, actor_name VARCHAR(64) NULL, actor_role VARCHAR(16) NULL,"
+                + " action VARCHAR(64) NOT NULL, target_type VARCHAR(32) NULL, target_id VARCHAR(64) NULL,"
+                + " detail VARCHAR(500) NULL, ip VARCHAR(64) NULL, user_agent VARCHAR(255) NULL,"
+                + " created_at BIGINT NOT NULL,"
+                + " KEY idx_audit_created (created_at), KEY idx_audit_action (action), KEY idx_audit_actor (actor_id))";
+        statement.executeUpdate(ddl);
+        if (sqlite) {
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_logs(actor_id)");
         }
     }
 

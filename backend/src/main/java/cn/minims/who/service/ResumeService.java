@@ -63,6 +63,7 @@ public class ResumeService {
     private final AvatarService avatarService;
     private final ItemMediaService itemMediaService;
     private final ResumeAccessService accessService;
+    private final AuditService audit;
     private final Json json;
 
     public ResumeService(ResumeMapper resumeMapper, TemplateMapper templateMapper,
@@ -70,7 +71,8 @@ public class ResumeService {
                          ResumeReportMapper reportMapper,
                          ContentDefaults defaults, ContentSanitizer sanitizer, ScoreEngine scoreEngine,
                          TemplateService templateService, AttachmentStore store, AvatarService avatarService,
-                         ItemMediaService itemMediaService, ResumeAccessService accessService, Json json) {
+                         ItemMediaService itemMediaService, ResumeAccessService accessService,
+                         AuditService audit, Json json) {
         this.resumeMapper = resumeMapper;
         this.templateMapper = templateMapper;
         this.attachmentMapper = attachmentMapper;
@@ -84,6 +86,7 @@ public class ResumeService {
         this.avatarService = avatarService;
         this.itemMediaService = itemMediaService;
         this.accessService = accessService;
+        this.audit = audit;
         this.json = json;
     }
 
@@ -156,12 +159,20 @@ public class ResumeService {
         resume.setDeleted(0);
         resumeMapper.insert(resume);
         templateService.refreshUsage(templateCode);
+        auditCreate(userId, resume);
         return detail(userId, resume.getId());
     }
 
     public ResumeDetail detail(long userId, long id) {
         Resume resume = findOwned(userId, id);
         return toDetail(resume);
+    }
+
+    /** 只给审计用：创建简历时顺手记一条，避免调用方为了拿标题再查一次。 */
+    private String auditCreate(long userId, Resume resume) {
+        audit.recordUser(userId, null, AuditService.Actions.RESUME_CREATE, "resume",
+                String.valueOf(resume.getId()), resume.getTitle());
+        return null;
     }
 
     /** 后台只读预览：跳过归属校验，访问权限由 AdminController 的 @RequireAdmin 把关。 */
@@ -237,20 +248,35 @@ public class ResumeService {
         return detail(userId, copy.getId());
     }
 
+    /**
+     * 用户删除简历 = 放进回收站：只置逻辑删除标记并让分享链接立刻失效，
+     * 附件、头像、PDF 缓存全部留着，管理员在后台确认后才做物理清除。
+     * 用户侧看不到，也就不会再有误删即永久丢失。
+     */
     @Transactional
     public void delete(long userId, long id) {
         Resume resume = findOwned(userId, id);
-        shareMapper.update(null, new LambdaUpdateWrapper<cn.minims.who.entity.ResumeShare>()
-                .eq(cn.minims.who.entity.ResumeShare::getResumeId, resume.getId())
-                .isNull(cn.minims.who.entity.ResumeShare::getRevokedAt)
-                .set(cn.minims.who.entity.ResumeShare::getRevokedAt, System.currentTimeMillis()));
+        revokeShares(resume.getId());
+        resumeMapper.update(null, new LambdaUpdateWrapper<Resume>()
+                .eq(Resume::getId, resume.getId())
+                .set(Resume::getDeleted, 1)
+                .set(Resume::getDeletedAt, System.currentTimeMillis()));
+        templateService.refreshUsage(resume.getTemplateCode());
+        audit.recordUser(userId, null, AuditService.Actions.RESUME_DELETE, "resume",
+                String.valueOf(resume.getId()), resume.getTitle());
+    }
+
+    /** 物理清除：连附件、头像、报告、分享与磁盘文件一起删，只由后台回收站调用。 */
+    @Transactional
+    public void hardDelete(Resume resume) {
+        revokeShares(resume.getId());
         List<ResumeAttachment> attachments = attachmentMapper.selectList(
                 new LambdaQueryWrapper<ResumeAttachment>().eq(ResumeAttachment::getResumeId, resume.getId()));
         attachmentMapper.delete(new LambdaQueryWrapper<ResumeAttachment>()
                 .eq(ResumeAttachment::getResumeId, resume.getId()));
         reportMapper.delete(new LambdaQueryWrapper<ResumeReport>()
                 .eq(ResumeReport::getResumeId, resume.getId()));
-        resumeMapper.deleteById(resume.getId());
+        resumeMapper.hardDeleteById(resume.getId());
         templateService.refreshUsage(resume.getTemplateCode());
         for (ResumeAttachment attachment : attachments) {
             store.deleteQuietly(attachment.getStorageKey());
@@ -258,6 +284,13 @@ public class ResumeService {
         store.deleteDirectoryQuietly("attachments/" + resume.getId());
         avatarService.purge(resume.getId(), resume.getAvatarKey());
         itemMediaService.purge(resume);
+    }
+
+    private void revokeShares(long resumeId) {
+        shareMapper.update(null, new LambdaUpdateWrapper<cn.minims.who.entity.ResumeShare>()
+                .eq(cn.minims.who.entity.ResumeShare::getResumeId, resumeId)
+                .isNull(cn.minims.who.entity.ResumeShare::getRevokedAt)
+                .set(cn.minims.who.entity.ResumeShare::getRevokedAt, System.currentTimeMillis()));
     }
 
     @Transactional

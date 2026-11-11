@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS resumes (
     lifecycle_status  INTEGER      NOT NULL DEFAULT 1,
     is_sample         INTEGER      NOT NULL DEFAULT 0,
     deleted           INTEGER      NOT NULL DEFAULT 0,
+    deleted_at        BIGINT,
     created_at        BIGINT,
     updated_at        BIGINT
 );
@@ -162,3 +163,22 @@ CREATE TABLE IF NOT EXISTS email_codes (
     created_at BIGINT
 );
 CREATE INDEX IF NOT EXISTS idx_email_codes_email ON email_codes(email, purpose, created_at DESC);
+
+-- 账号级与敏感操作的审计流水。只记「谁在什么时候对什么做了什么」，
+-- 简历正文的浏览与逐字段保存不进表，避免这张表被高频写撑爆。
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor_id     BIGINT,
+    actor_name   VARCHAR(64),
+    actor_role   VARCHAR(16),
+    action       VARCHAR(64)  NOT NULL,
+    target_type  VARCHAR(32),
+    target_id    VARCHAR(64),
+    detail       VARCHAR(500),
+    ip           VARCHAR(64),
+    user_agent   VARCHAR(255),
+    created_at   BIGINT       NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_logs(actor_id);

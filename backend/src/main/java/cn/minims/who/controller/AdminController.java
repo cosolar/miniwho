@@ -4,7 +4,13 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
 import cn.minims.who.common.RequireAdmin;
+import cn.minims.who.dto.AdminDtos.AdminAuditPageVo;
+import cn.minims.who.dto.AdminDtos.AdminAuditPurgeRequest;
+import cn.minims.who.dto.AdminDtos.AdminAuditSettingsRequest;
+import cn.minims.who.dto.AdminDtos.AdminAuditSettingsVo;
 import cn.minims.who.dto.AdminDtos.AdminAuthSettingsRequest;
+import cn.minims.who.dto.AdminDtos.AdminDeletedResumeVo;
+import cn.minims.who.dto.AdminDtos.AdminResumePurgeRequest;
 import cn.minims.who.dto.AdminDtos.AdminAuthSettingsVo;
 import cn.minims.who.dto.AdminDtos.AdminFeedbackRequest;
 import cn.minims.who.dto.AdminDtos.AdminFeedbackVo;
@@ -22,6 +28,7 @@ import cn.minims.who.dto.AdminDtos.AdminUserResumeVo;
 import cn.minims.who.dto.AdminDtos.AdminUserStatusRequest;
 import cn.minims.who.dto.AdminDtos.AdminUserVo;
 import cn.minims.who.dto.ResumeDtos.ResumeDetail;
+import cn.minims.who.service.AccountDeletionService;
 import cn.minims.who.service.AdminService;
 import cn.minims.who.service.HealthService;
 import cn.minims.who.service.ResumeService;
@@ -33,6 +40,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -53,16 +61,19 @@ public class AdminController {
     private final TemplatePackageCodec codec;
     private final HealthService healthService;
     private final ResumeService resumeService;
+    private final AccountDeletionService accountDeletionService;
     private final AuthUtil authUtil;
 
     public AdminController(AdminService adminService, TemplateService templateService,
                            TemplatePackageCodec codec, HealthService healthService,
-                           ResumeService resumeService, AuthUtil authUtil) {
+                           ResumeService resumeService, AccountDeletionService accountDeletionService,
+                           AuthUtil authUtil) {
         this.adminService = adminService;
         this.templateService = templateService;
         this.codec = codec;
         this.healthService = healthService;
         this.resumeService = resumeService;
+        this.accountDeletionService = accountDeletionService;
         this.authUtil = authUtil;
     }
 
@@ -131,7 +142,7 @@ public class AdminController {
     @PutMapping("/templates/{code}/status")
     public ApiResponse<Void> updateTemplate(@PathVariable String code,
                                             @Valid @RequestBody AdminTemplateStatusRequest request) {
-        adminService.updateTemplateStatus(code, request.status());
+        adminService.updateTemplateStatus(authUtil.userId(), code, request.status());
         return ApiResponse.ok();
     }
 
@@ -139,7 +150,64 @@ public class AdminController {
     @PutMapping("/templates/{code}/meta")
     public ApiResponse<AdminTemplateVo> updateTemplateMeta(@PathVariable String code,
                                                            @Valid @RequestBody AdminTemplateMetaRequest request) {
-        return ApiResponse.ok(adminService.updateTemplateMeta(code, request));
+        return ApiResponse.ok(adminService.updateTemplateMeta(authUtil.userId(), code, request));
+    }
+
+    /** 回收站：用户删除的简历，管理员确认后物理清除。 */
+    @GetMapping("/resumes/deleted")
+    public ApiResponse<List<AdminDeletedResumeVo>> deletedResumes(
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "200") int limit) {
+        return ApiResponse.ok(adminService.deletedResumes(limit));
+    }
+
+    @PostMapping("/resumes/purge")
+    public ApiResponse<java.util.Map<String, Integer>> purgeResumes(@RequestBody AdminResumePurgeRequest request) {
+        int removed = adminService.purgeResumes(authUtil.userId(), request.ids());
+        return ApiResponse.ok(java.util.Map.of("removed", removed));
+    }
+
+    /** 注销申请：后台撤销（把账号从注销队列捞回来）。 */
+    @PostMapping("/users/{id}/deletion/cancel")
+    public ApiResponse<Void> cancelUserDeletion(@PathVariable long id) {
+        accountDeletionService.cancelByAdmin(authUtil.userId(), null, id);
+        return ApiResponse.ok(null);
+    }
+
+    /** 注销申请：跳过宽限期立即清除。 */
+    @PostMapping("/users/{id}/deletion/purge")
+    public ApiResponse<Void> purgeUserDeletion(@PathVariable long id) {
+        accountDeletionService.purgeNow(authUtil.userId(), null, id);
+        return ApiResponse.ok(null);
+    }
+
+    /** 操作日志：按操作者 / 动作 / 时间范围筛选，分页返回。 */
+    @GetMapping("/audit-logs")
+    public ApiResponse<AdminAuditPageVo> auditLogs(
+            @org.springframework.web.bind.annotation.RequestParam(required = false) Long actorId,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String action,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) Long from,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) Long to,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "1") int page,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "30") int size) {
+        return ApiResponse.ok(adminService.auditLogs(actorId, action, from, to, page, size));
+    }
+
+    /** 手动清理：不带 before 表示清空全部。 */
+    @PostMapping("/audit-logs/purge")
+    public ApiResponse<java.util.Map<String, Integer>> purgeAuditLogs(
+            @RequestBody(required = false) AdminAuditPurgeRequest request) {
+        int removed = adminService.purgeAudit(authUtil.userId(), request == null ? null : request.before());
+        return ApiResponse.ok(java.util.Map.of("removed", removed));
+    }
+
+    @GetMapping("/audit-settings")
+    public ApiResponse<AdminAuditSettingsVo> auditSettings() {
+        return ApiResponse.ok(adminService.auditSettings());
+    }
+
+    @PutMapping("/audit-settings")
+    public ApiResponse<AdminAuditSettingsVo> updateAuditSettings(@RequestBody AdminAuditSettingsRequest request) {
+        return ApiResponse.ok(adminService.updateAuditSettings(authUtil.userId(), request.retentionDays()));
     }
 
     @GetMapping("/feedback")
@@ -156,7 +224,7 @@ public class AdminController {
     @PutMapping("/resumes/{id}/sample")
     public ApiResponse<Void> updateSample(@PathVariable long id,
                                           @Valid @RequestBody AdminSampleRequest request) {
-        adminService.updateSample(id, Boolean.TRUE.equals(request.sample()));
+        adminService.updateSample(authUtil.userId(), id, Boolean.TRUE.equals(request.sample()));
         return ApiResponse.ok();
     }
 
