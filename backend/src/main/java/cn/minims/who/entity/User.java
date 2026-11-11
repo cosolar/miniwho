@@ -27,6 +27,8 @@ public class User {
     private Long deletionRequestedAt;
     /** 账号头像的存储 key（user-avatars/{id}/avatar.{jpg|png}）；不属于任何一份简历。 */
     private String avatarKey;
+    /** 最后一次带登录态请求的时间（毫秒）；后台展示用，在线状态仍由内存窗口判定。 */
+    private Long lastActiveAt;
 
     @TableField(fill = FieldFill.INSERT)
     private Long createdAt;

@@ -275,7 +275,7 @@ public class AdminService {
                     Integer.valueOf(1).equals(user.getEmailVerified()),
                     user.getRole(), user.getStatus(), user.getCreatedAt(),
                     resumeCounts.getOrDefault(user.getId(), 0L), scan.userBytes(user.getId()),
-                    onlineIds.contains(user.getId()), user.getDeletionRequestedAt()));
+                    onlineIds.contains(user.getId()), user.getLastActiveAt(), user.getDeletionRequestedAt()));
         }
         return result;
     }

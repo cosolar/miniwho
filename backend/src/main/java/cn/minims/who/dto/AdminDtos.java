@@ -42,6 +42,8 @@ public final class AdminDtos {
     public record AdminUserVo(Long id, String username, String nickname, String email, Boolean emailVerified,
                               String role, Integer status, Long createdAt, Long resumeCount, Long storageBytes,
                               boolean online,
+                              /** 最后一次带登录态请求的时间；存量用户可能为 null。 */
+                              Long lastActiveAt,
                               /** 注销申请时间；null 表示没在注销。 */
                               Long deletionRequestedAt) {
     }

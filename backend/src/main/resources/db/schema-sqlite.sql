@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS users (
     deletion_requested_at BIGINT,
     -- 账号头像的存储 key；与简历照片分通道，因为这份文件不属于任何一份简历。
     avatar_key     VARCHAR(500),
+    -- 最后一次带登录态请求的时间（毫秒）：只用于后台展示，不参与在线判定；在线仍看内存窗口。
+    last_active_at BIGINT,
     created_at     BIGINT,
     updated_at     BIGINT
 );

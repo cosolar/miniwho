@@ -65,6 +65,8 @@ public class SchemaMigrator implements ApplicationRunner {
         users.put("deletion_requested_at", "BIGINT");
         // 账号头像：和简历照片分通道，存量库默认 NULL，即继续显示昵称首字母。
         users.put("avatar_key", "VARCHAR(500)");
+        // 最后活跃时间：存量库默认 NULL，用户下一次带登录态的请求就会写入。
+        users.put("last_active_at", "BIGINT");
         TABLE_COLUMNS.put("users", users);
     }
 
