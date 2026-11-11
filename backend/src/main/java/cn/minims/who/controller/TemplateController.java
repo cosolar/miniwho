@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import cn.minims.who.common.ApiResponse;
 import cn.minims.who.common.AuthUtil;
 import cn.minims.who.dto.TemplateDtos.TemplateShareRequest;
+import cn.minims.who.dto.TemplateDtos.TemplatePageVo;
 import cn.minims.who.dto.TemplateDtos.TemplateVo;
 import cn.minims.who.service.TemplateService;
 import cn.minims.who.service.TemplateService.TemplateExport;
@@ -43,6 +44,15 @@ public class TemplateController {
     @GetMapping
     public ApiResponse<List<TemplateVo>> list() {
         return ApiResponse.ok(templateService.listActive());
+    }
+
+    /** 模板中心的滚动分页：分类与关键词在服务端过滤，facets 供筛选 Tab 计数。 */
+    @GetMapping("/page")
+    public ApiResponse<TemplatePageVo> page(@org.springframework.web.bind.annotation.RequestParam(defaultValue = "1") int page,
+                                            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "24") int size,
+                                            @org.springframework.web.bind.annotation.RequestParam(required = false) String category,
+                                            @org.springframework.web.bind.annotation.RequestParam(required = false) String q) {
+        return ApiResponse.ok(templateService.pageActive(page, size, category, q));
     }
 
     /** 我导入的模板包；/api/templates/** 在拦截器里是公开路径，这里靠 userId 强制登录。 */

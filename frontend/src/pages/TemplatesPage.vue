@@ -7,7 +7,6 @@ import TemplateThumb from '../components/TemplateThumb.vue'
 import PaperFrame from '../components/PaperFrame.vue'
 import { TEMPLATE_CATEGORIES } from '../data/templatePresets'
 import { useAuthStore } from '../stores/auth'
-import { useTemplates } from '../composables/useTemplates'
 import { useSampleResume } from '../composables/useSampleResume'
 import { resumeApi, templateApi } from '../api'
 import { notifyError } from '../api/client'
@@ -17,40 +16,99 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 
-const { official, library: templates, refresh: refreshTemplates } = useTemplates()
 const { content: sampleContent, avatar: sampleAvatar } = useSampleResume()
 const category = ref('全部')
 const keyword = ref('')
+
+// 模板中心改为滚动分页：首屏只拉一页，滚到底部再续拉；分类与搜索在服务端过滤。
+const pageSize = 24
+const pageNum = ref(1)
+const pagedItems = ref([])
+const total = ref(0)
+const facets = ref({})
+const officialCount = ref(0)
+const communityCount = ref(0)
+const hasMore = ref(true)
+const loadingPage = ref(false)
+const mineCodes = ref(new Set())
+let requestSeq = 0
 const dialogVisible = ref(false)
 const selectedTemplate = ref(null)
 const language = ref('zh')
 const useSample = ref(true)
 const creating = ref(false)
 
-// 社区模板的 meta.category 是自由文本，筛选栏要跟着实际存在的分类长。
+// 社区模板的 meta.category 是自由文本，筛选栏跟着服务端 facets 长：固定分类在前，新分类按出现顺序追加。
 const categories = computed(() => {
   const set = new Set(TEMPLATE_CATEGORIES)
-  templates.value.forEach((template) => {
-    if (template.category) set.add(template.category)
+  Object.keys(facets.value).forEach((cat) => {
+    if (cat) set.add(cat)
   })
   return [...set]
 })
 
-const officialCount = computed(() => official.value.length)
-const communityCount = computed(() => templates.value.length - official.value.length)
-
 // 别人分享的包只有在作者开放导出时才能下载；自己的包始终能下载。
 function canExport(template) {
   if (template.source !== 'imported') return true
-  return template.isMine || template.exportable !== false
+  return mineCodes.value.has(template.code) || template.exportable !== false
 }
 
-const filtered = computed(() => templates.value.filter((template) => {
-  const inCategory = category.value === '全部' || template.category === category.value
-  const text = `${template.name}${template.category}${template.description}${(template.tags || []).join('')}`.toLowerCase()
-  const inKeyword = !keyword.value.trim() || text.includes(keyword.value.trim().toLowerCase())
-  return inCategory && inKeyword
-}))
+async function loadPage(reset = false) {
+  if (loadingPage.value) return
+  if (!reset && !hasMore.value) return
+  const seq = ++requestSeq
+  const targetPage = reset ? 1 : pageNum.value
+  loadingPage.value = true
+  try {
+    const data = await templateApi.page({
+      page: targetPage,
+      size: pageSize,
+      category: category.value === '全部' ? '' : category.value,
+      q: keyword.value.trim()
+    })
+    if (seq !== requestSeq) return
+    pagedItems.value = reset ? (data.items || []) : pagedItems.value.concat(data.items || [])
+    total.value = data.total || 0
+    facets.value = data.facets || {}
+    officialCount.value = data.officialCount || 0
+    communityCount.value = data.communityCount || 0
+    hasMore.value = Boolean(data.hasMore)
+    pageNum.value = targetPage + 1
+    await nextTick()
+    measurePills()
+  } catch (error) {
+    notifyError(error, '加载模板失败')
+  } finally {
+    loadingPage.value = false
+  }
+}
+
+async function loadMine() {
+  if (!auth.isLoggedIn) {
+    mineCodes.value = new Set()
+    return
+  }
+  try {
+    const list = await templateApi.mine()
+    mineCodes.value = new Set((Array.isArray(list) ? list : []).map((item) => item.code))
+  } catch {
+    mineCodes.value = new Set()
+  }
+}
+
+async function openByCode(code) {
+  const known = pagedItems.value.find((item) => item.code === code)
+  if (known) {
+    openTemplate(known)
+    return
+  }
+  try {
+    const detail = await templateApi.detail(code)
+    if (detail && detail.code) openTemplate(detail)
+  } catch {
+    // 模板已下架或不存在：忽略直达参数。
+  }
+}
 
 // 分类固定一行：放不下的收进「更多」下拉，而不是横向滚动（桌面滚轮不横向、滚动条也藏起来了，等于不可用）。
 const pillsRow = ref(null)
@@ -126,11 +184,18 @@ function useTemplate(template) {
 
 watch(() => route.query.use, (code) => {
   if (!code || !auth.isLoggedIn) return
-  const template = templates.value.find((item) => item.code === code)
-  if (template) openTemplate(template)
+  openByCode(code)
   const query = { ...route.query }
   delete query.use
   router.replace({ path: '/templates', query })
+})
+
+// 切分类立即回到第一页；搜索做 300ms 防抖，避免每敲一个字就打一次接口。
+watch(category, () => loadPage(true))
+let keywordTimer = null
+watch(keyword, () => {
+  clearTimeout(keywordTimer)
+  keywordTimer = setTimeout(() => loadPage(true), 300)
 })
 
 watch(language, (value) => {
@@ -158,8 +223,8 @@ async function createResume() {
 }
 
 function countOf(cat) {
-  if (cat === '全部') return templates.value.length
-  return templates.value.filter((item) => item.category === cat).length
+  if (cat === '全部') return total.value
+  return facets.value[cat] || 0
 }
 
 async function exportPackage(template) {
@@ -172,15 +237,26 @@ async function exportPackage(template) {
   }
 }
 
+const sentinel = ref(null)
+let scrollObserver = null
+
 onMounted(async () => {
-  await refreshTemplates()
+  await loadPage(true)
+  loadMine()
   measurePills()
   const code = route.query.use
-  if (code && auth.isLoggedIn) {
-    const template = templates.value.find((item) => item.code === code)
-    if (template) openTemplate(template)
-  }
+  if (code && auth.isLoggedIn) openByCode(code)
+  scrollObserver = new IntersectionObserver((entries) => {
+    if (entries.some((entry) => entry.isIntersecting)) loadPage()
+  }, { rootMargin: '600px 0px' })
+  if (sentinel.value) scrollObserver.observe(sentinel.value)
 })
+
+watch(sentinel, (el) => {
+  if (el && scrollObserver) scrollObserver.observe(el)
+})
+
+watch(() => auth.isLoggedIn, () => loadMine())
 
 watch(categories, measurePills, { flush: 'post' })
 window.addEventListener('resize', measurePills)
@@ -195,11 +271,11 @@ onBeforeUnmount(() => window.removeEventListener('resize', measurePills))
           <div>
             <div class="eyebrow">TEMPLATE LIBRARY</div>
             <h1 class="display">从一个舒服的版式开始。</h1>
-            <p>{{ templates.length }} 套模板，全部免费。官方版式随应用发版，社区版式由本站用户分享；每一份预览都由真实结构化内容渲染，不是示意图。选好后可以随时切换，内容不会丢；允许导出的版式还能下载成模板包，改一改再分享。</p>
+            <p>{{ total }} 套模板，全部免费。官方版式随应用发版，社区版式由本站用户分享；每一份预览都由真实结构化内容渲染，不是示意图。选好后可以随时切换，内容不会丢；允许导出的版式还能下载成模板包，改一改再分享。</p>
           </div>
           <div class="templates-hero__meta">
             <span class="mono">ALL FREE / OPEN SOURCE</span>
-            <strong>{{ templates.length }}</strong>
+            <strong>{{ total }}</strong>
             <small>套版式 · 官方 {{ officialCount }} / 社区 {{ communityCount }}</small>
           </div>
         </div>
@@ -254,8 +330,8 @@ onBeforeUnmount(() => window.removeEventListener('resize', measurePills))
           </div>
         </div>
 
-        <div v-if="filtered.length" class="template-grid">
-          <article v-for="tpl in filtered" :key="tpl.code" class="template-card">
+        <div v-if="pagedItems.length" class="template-grid">
+          <article v-for="tpl in pagedItems" :key="tpl.code" class="template-card">
             <button class="template-card__preview" type="button" aria-label="预览模板" @click="openTemplate(tpl)">
               <TemplateThumb :content="sampleContent" :template="tpl" :avatar="sampleAvatar" />
               <span class="template-card__view">
@@ -288,7 +364,9 @@ onBeforeUnmount(() => window.removeEventListener('resize', measurePills))
           </article>
         </div>
 
-        <el-empty v-else description="没有找到匹配的模板，换个关键词试试">
+        <div v-if="loadingPage" class="templates-loading">正在加载模板…</div>
+        <div v-else-if="hasMore" ref="sentinel" class="templates-sentinel" aria-hidden="true" />
+        <el-empty v-else-if="!pagedItems.length" description="没有找到匹配的模板，换个关键词试试">
           <el-button @click="keyword = ''; category = '全部'">清除筛选</el-button>
         </el-empty>
 
@@ -350,7 +428,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', measurePills))
               >
                 <span class="option-check"><el-icon v-if="useSample"><Check /></el-icon></span>
                 <strong>使用示例内容</strong>
-                <small>一份完整的虚构简历，便于快速体验，记得替换成你的履历。</small>
+                <small>一份完整的示例简历，便于快速上手，记得替换成你的履历。</small>
               </button>
               <button type="button" :class="{ active: !useSample }" @click="useSample = false">
                 <span class="option-check"><el-icon v-if="!useSample"><Check /></el-icon></span>
@@ -665,6 +743,30 @@ onBeforeUnmount(() => window.removeEventListener('resize', measurePills))
 
 .preview-link.is-disabled:hover {
   color: var(--faint);
+}
+
+.templates-loading {
+  padding: 5mm 0;
+  text-align: center;
+  color: #8a94a0;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.templates-sentinel {
+  height: 1px;
+}
+
+.templates-loading {
+  padding: 5mm 0;
+  text-align: center;
+  color: #8a94a0;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.templates-sentinel {
+  height: 1px;
 }
 
 .template-note {

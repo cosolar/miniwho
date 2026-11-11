@@ -72,6 +72,7 @@ export const resumeApi = {
 
 export const templateApi = {
   list: () => client.get('/templates'),
+  page: (params) => client.get('/templates/page', { params }),
   mine: () => client.get('/templates/mine'),
   detail: (code) => client.get(`/templates/${code}`),
   importPackage: (payload) => client.post('/templates/import', payload),
@@ -167,6 +168,7 @@ export const adminApi = {
   resetUserPassword: (id) => client.put(`/admin/users/${id}/password`),
   templates: () => client.get('/admin/templates'),
   updateTemplateStatus: (code, status) => client.put(`/admin/templates/${code}/status`, { status }),
+  updateTemplateMeta: (code, payload) => client.put(`/admin/templates/${code}/meta`, payload),
   exportTemplates: () => client.get('/admin/templates/export', { responseType: 'blob' }),
   feedback: () => client.get('/admin/feedback'),
   updateFeedback: (id, payload) => client.put(`/admin/feedback/${id}`, payload),

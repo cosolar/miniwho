@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import cn.minims.who.common.BizException;
+import cn.minims.who.dto.TemplateDtos.TemplatePageVo;
 import cn.minims.who.dto.TemplateDtos.TemplateVo;
 import cn.minims.who.entity.Resume;
 import cn.minims.who.entity.Template;
@@ -21,9 +22,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 @Service
 public class TemplateService {
@@ -49,19 +53,69 @@ public class TemplateService {
     /**
      * 模板中心的数据源：官方区 + 别人已分享到站内的包。
      * 自己导入但未分享的模板只走 /mine，不出现在公开列表里。
+     * 排序铁律：官方永远在社区前面，组内才按 sortWeight / id 升序——后台调权重只能在组内生效。
      */
     @Cacheable(cacheNames = "template-active", key = "'list'")
     public List<TemplateVo> listActive() {
-        return templateMapper.selectList(new LambdaQueryWrapper<Template>()
-                        .eq(Template::getStatus, 1)
-                        .and(scope -> scope
-                                .eq(Template::getSource, "builtin").or().isNull(Template::getSource)
-                                .or(community -> community
-                                        .eq(Template::getSource, "imported")
-                                        .eq(Template::getVisibility, VISIBILITY_PUBLIC)))
-                        .orderByAsc(Template::getSortWeight)
-                        .orderByAsc(Template::getId))
-                .stream().map(this::toVo).toList();
+        List<Template> rows = templateMapper.selectList(new LambdaQueryWrapper<Template>()
+                .eq(Template::getStatus, 1)
+                .and(scope -> scope
+                        .eq(Template::getSource, "builtin").or().isNull(Template::getSource)
+                        .or(community -> community
+                                .eq(Template::getSource, "imported")
+                                .eq(Template::getVisibility, VISIBILITY_PUBLIC)))
+                .orderByAsc(Template::getSortWeight)
+                .orderByAsc(Template::getId));
+        rows.sort(Comparator
+                .comparingInt((Template row) -> "imported".equals(row.getSource()) ? 1 : 0)
+                .thenComparingInt(row -> row.getSortWeight() == null ? 0 : row.getSortWeight())
+                .thenComparing(Template::getId));
+        return rows.stream().map(this::toVo).toList();
+    }
+
+    /**
+     * 模板中心的滚动分页：目录量在几百套以内，直接在缓存好的全量目录上做内存过滤与切片，
+     * facets 始终基于「关键词过滤、不限分类」的结果，筛选 Tab 的数字不随分类切换跳动。
+     * styleCss 保留在 items 里：卡片缩略图是真渲染，分页只是控制首屏与滚动节奏。
+     */
+    public TemplatePageVo pageActive(int page, int size, String category, String keyword) {
+        List<TemplateVo> all = listActive();
+        String q = keyword == null ? "" : keyword.trim().toLowerCase();
+        List<TemplateVo> byKeyword = q.isEmpty() ? all : all.stream()
+                .filter(vo -> matchesKeyword(vo, q))
+                .toList();
+        Map<String, Long> facets = byKeyword.stream()
+                .collect(Collectors.groupingBy(
+                        vo -> vo.category() == null || vo.category().isBlank() ? "通用" : vo.category(),
+                        LinkedHashMap::new, Collectors.counting()));
+        List<TemplateVo> scoped = (category == null || category.isBlank() || "全部".equals(category))
+                ? byKeyword
+                : byKeyword.stream()
+                        .filter(vo -> category.equals(vo.category() == null || vo.category().isBlank()
+                                ? "通用" : vo.category()))
+                        .toList();
+        long total = scoped.size();
+        int safePage = Math.max(1, page);
+        int safeSize = Math.min(Math.max(1, size), 60);
+        int from = (safePage - 1) * safeSize;
+        List<TemplateVo> items = from >= total ? List.of()
+                : scoped.subList(from, (int) Math.min((long) from + safeSize, total));
+        long officialCount = all.stream().filter(vo -> !"imported".equals(vo.source())).count();
+        boolean hasMore = (long) from + safeSize < total;
+        // 官方 / 社区的口径是全站数字，不随分类与关键词过滤变化，页眉常显才不会跳。
+        return new TemplatePageVo(items, total, safePage, safeSize, hasMore, facets,
+                officialCount, all.size() - officialCount);
+    }
+
+    private boolean matchesKeyword(TemplateVo vo, String q) {
+        String tags = vo.tags() == null ? "" : String.join("", vo.tags());
+        String text = (blank(vo.name()) + " " + blank(vo.category()) + " " + blank(vo.description())
+                + " " + tags).toLowerCase();
+        return text.contains(q);
+    }
+
+    private String blank(String value) {
+        return value == null ? "" : value;
     }
 
     /** 自己导入的模板；已被管理员下架的不再出现在这里，与模板中心的可见性口径一致。 */
