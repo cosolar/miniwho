@@ -119,7 +119,7 @@ const faqs = computed(() => [
             <span><el-icon><Check /></el-icon> 可自托管</span>
           </div>
           <div class="hero__stats">
-            <div><strong>30</strong><span>原创模板</span></div>
+            <div><strong>{{ templateCount }}</strong><span>原创模板</span></div>
             <div><strong>18</strong><span>内容模块</span></div>
             <div><strong>5</strong><span>诊断维度</span></div>
             <div><strong>0</strong><span>付费墙</span></div>
@@ -157,7 +157,7 @@ const faqs = computed(() => [
               <span class="swatch" style="background:#9a6a3f" />
               <span class="swatch" style="background:#b35c37" />
               <div>
-                <strong>30 套</strong>
+                <strong>{{ templateCount }} 套</strong>
                 <span>原创版式</span>
               </div>
             </div>
