@@ -626,10 +626,6 @@ onMounted(async () => {
             当前部署未开放注册，如需账号请联系管理员开通。
           </template>
         </div>
-
-        <p class="auth-fineprint">
-          本项目为开源演示，示例数据均为虚构。请勿在公开演示环境中填写真实身份证号等敏感信息。
-        </p>
       </div>
     </main>
 
@@ -1177,16 +1173,6 @@ onMounted(async () => {
 
 .auth-switch button:hover {
   text-decoration: underline;
-}
-
-.auth-fineprint {
-  margin-top: 30px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-  color: var(--faint);
-  font-size: 9px;
-  line-height: 1.75;
-  text-align: center;
 }
 
 @media (max-width: 980px) {
