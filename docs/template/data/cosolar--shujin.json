@@ -1,0 +1,34 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "cosolar",
+    "code": "shujin",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "曙金",
+    "description": "冷白纸面配蓝墨正文，强调色是压暗的哑金：分区标题以一段金短线起笔、细线渐隐收尾，日期等宽对齐。夜里最暗的两种颜色放到白天看，对比度全部拉满，适合任何岗位的正式简历。",
+    "category": "商务",
+    "tags": [
+      "冷白",
+      "蓝墨",
+      "哑金",
+      "现代"
+    ],
+    "author": "Cosolar",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "minimal",
+    "accent": "#9c7a35",
+    "font": "sans",
+    "sectionStyle": "caps",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 901,
+  "style": "\n/* 曙金 —— 冷白纸、蓝墨字、哑金点缀：夜里的颜色放到白天，对比度优先 */\n.tw-cosolar--shujin.resume-paper {\n  background: #fafbfd;\n  color: #2e3b48;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-header {\n  position: relative;\n  margin-bottom: 8mm;\n  padding-bottom: 5mm;\n  border-bottom: none;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-header::after {\n  content: \"\";\n  position: absolute;\n  left: 0;\n  right: 0;\n  bottom: 0;\n  height: 1px;\n  background: linear-gradient(90deg, rgba(156, 122, 53, 0.8) 0%, rgba(156, 122, 53, 0.08) 72%, rgba(156, 122, 53, 0) 100%);\n}\n\n.tw-cosolar--shujin.resume-paper .paper-name {\n  color: #1a2531;\n  font-size: calc(var(--paper-base-size) * 2.45);\n  letter-spacing: 0.1em;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-identity {\n  border-color: rgba(156, 122, 53, 0.5);\n  background: rgba(156, 122, 53, 0.06);\n  color: #8a6d2f;\n  print-color-adjust: exact;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-role {\n  color: #8a6d2f;\n  letter-spacing: 0.12em;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-contacts,\n.tw-cosolar--shujin.resume-paper .paper-contact {\n  color: #52616f;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-contact + .paper-contact::before {\n  color: #aeb9c4;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-header__summary {\n  color: #46566a;\n}\n\n/* 分区标题：金短线起笔 + 蓝墨标题 + 渐隐线 */\n.tw-cosolar--shujin.resume-paper .paper-section__title {\n  display: flex;\n  align-items: center;\n  gap: 2.8mm;\n  margin-bottom: 3.2mm;\n  padding-bottom: 1.2mm;\n  border-bottom: 1px solid rgba(156, 122, 53, 0.22);\n  color: #1c2836;\n  font-size: calc(var(--paper-base-size) * 1.1);\n  letter-spacing: 0.22em;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-section__title::before {\n  content: \"\";\n  flex: none;\n  width: 5mm;\n  height: 1px;\n  background: #9c7a35;\n  print-color-adjust: exact;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-item-title {\n  color: #14202c;\n  font-weight: 700;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-item-period {\n  color: #647484;\n  font-variant-numeric: tabular-nums;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-item-sub {\n  color: #55677a;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-section__body {\n  color: #2e3b48;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-rich a,\n.tw-cosolar--shujin.resume-paper .paper-item-sub a {\n  color: #8a6d2f;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-skill__name {\n  color: #2a3744;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-skill__dots i {\n  background: #e4e9ef;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-skill__dots i.filled {\n  background: #b08a3e;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-skill__level {\n  color: #8a6d2f;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-meta-line {\n  color: #5b6d7f;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-note {\n  color: #4d5f72;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-note__tag {\n  color: #8a6d2f;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-footer {\n  border-top: 1px solid rgba(156, 122, 53, 0.25);\n  color: #74838f;\n}\n\n.tw-cosolar--shujin.resume-paper .paper-page-sep {\n  border-color: rgba(156, 122, 53, 0.3);\n}\n\n.tw-cosolar--shujin.resume-paper .paper-page-sep__label {\n  background: #fafbfd;\n  color: #74838f;\n}\n"
+}
