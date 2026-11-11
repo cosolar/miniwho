@@ -87,16 +87,9 @@ function matchTemplate(tpl) {
     .includes(keyword)
 }
 
-/** 正在使用的模板不参与过滤：哪怕筛选结果里没有它，也要置顶显示，方便随时切回来。 */
-function pinCurrent(list, currentCode) {
-  const current = list.find((tpl) => tpl.code === currentCode)
-  return current ? [current, ...list.filter((tpl) => tpl.code !== currentCode)] : list
-}
-
-const filteredOfficial = computed(() => official.value.filter(matchTemplate))
-const filteredCommunity = computed(() => community.value.filter(matchTemplate))
-const visibleOfficial = computed(() => pinCurrent(filteredOfficial.value, resume.value?.templateCode))
-const visibleCommunity = computed(() => pinCurrent(filteredCommunity.value, resume.value?.templateCode))
+/* 选择器保持目录原顺序：正在使用的模板只靠选中态标记，不置顶、不重排。 */
+const visibleOfficial = computed(() => official.value.filter(matchTemplate))
+const visibleCommunity = computed(() => community.value.filter(matchTemplate))
 
 // ── 侧栏宽度：默认加宽一档，也可以抓住分隔条随意拉宽/收窄（记进 localStorage，下次还认） ──
 const PANEL_WIDTH_KEY = 'miniwho.preview-panel-width'
