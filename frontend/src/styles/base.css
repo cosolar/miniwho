@@ -672,11 +672,14 @@ ul, ol {
     min-height: 0 !important;
   }
 
-  /* 断页由 paperPagination.js 计算后打在具体元素上，续页补回被裁掉的顶部留白。 */
+  /* 断页由 paperPagination.js 计算后打在具体元素上，续页补回被裁掉的顶部留白。
+     补偿用 margin 而不是 padding：Chrome 对强制分页后第一个 flex/grid 子项的绘制
+     不认容器的 padding-top（实测：标题文字带了补偿、标题圆徽却贴到页面上边缘被裁掉），
+     margin 在强制分页处按规范保留，图形与文字都能拿到正确偏移。 */
   .resume-paper .paper-page-break {
     break-before: page;
-    margin-top: 0 !important;
-    padding-top: var(--paper-page-pad-top, 0);
+    margin-top: var(--paper-page-pad-top, 0) !important;
+    padding-top: 0 !important;
   }
 
   .resume-paper .paper-header,
@@ -713,6 +716,14 @@ ul, ol {
     break-inside: auto;
     orphans: 2;
     widows: 2;
+  }
+
+  /* 标题圆徽（icon/旗标等版式的图形标志）必须原子化：Chrome 分页时会把跨页行盒里的
+     SVG 图形按「本页相对坐标」重画——实测新页第一个模块的圆徽被画到页面上边缘外被裁剪，
+     只剩一角（用户看到的「顺序标志错位」）。avoid 让图形整体随行盒挪到新页正确位置。 */
+  .resume-paper .paper-section__icon {
+    break-inside: avoid;
+    position: relative;
   }
 
   .resume-paper .paper-rich p,
