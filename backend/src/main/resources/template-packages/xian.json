@@ -1,0 +1,35 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "xian",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "汐岸",
+    "description": "浅蓝通栏页眉，左侧蓝色窄栏排成白卡，主栏点线导轨配右侧小图标。适合供应链、外贸与项目协调岗位。",
+    "category": "互联网",
+    "tags": [
+      "浅蓝",
+      "侧栏白卡",
+      "点线导轨",
+      "供应链",
+      "互联网"
+    ],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "sidebar",
+    "accent": "#3a6b8a",
+    "font": "sans",
+    "sectionStyle": "bar",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 981,
+  "style": "/* 汐岸 —— 浅蓝通栏页眉，左侧蓝色窄栏排成白卡，主栏挂点线导轨 */\n\n.tw-xian.layout-sidebar.resume-paper.layout-sidebar {\n  padding-top: 0;\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-header {\n  margin: 0 -15mm 6mm;\n  padding: 10mm 15mm 6mm;\n  background: #e3ecf2;\n  border: none;\n  color: #23323c;\n  align-items: center;\n  gap: 7mm;\n  print-color-adjust: exact;\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-photo {\n  order: -1;\n  width: 25mm;\n  height: 33mm;\n  border: 1.2mm solid #fff;\n  border-radius: 0;\n  box-shadow: 0 0 0 0.3mm #c9d9e3;\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-photo--monogram {\n  display: grid;\n  place-items: center;\n  background: #fff;\n  color: var(--paper-accent);\n  font-size: calc(var(--paper-base-size) * 2);\n  font-weight: 700;\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-name {\n  color: #1d2c36;\n  font-family: var(--paper-font-family);\n  font-size: calc(var(--paper-base-size) * 2.1);\n  letter-spacing: 0.06em;\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-identity {\n  padding: 0;\n  border: none;\n  color: #5c707c;\n  font-size: calc(var(--paper-base-size) * 0.84);\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-role {\n  margin-top: 1.8mm;\n  color: #3d5461;\n  font-size: calc(var(--paper-base-size) * 0.94);\n  font-weight: 400;\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-contacts {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 1.4mm 7mm;\n  margin-top: 3mm;\n  color: #3a4e5a;\n  font-size: calc(var(--paper-base-size) * 0.85);\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-contact {\n  display: inline-flex;\n  gap: 1.4mm;\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-contact + .paper-contact::before {\n  display: none;\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-contact__label {\n  color: #7b8f9b;\n}\n\n/* 窄栏：浅蓝底、白卡分区 */\n.tw-xian.layout-sidebar.resume-paper .sidebar-layout {\n  grid-template-columns: 54mm minmax(0, 1fr);\n  column-gap: 11mm;\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-aside {\n  grid-column: 1;\n  padding: 4mm 3.4mm;\n  background: #e9f0f5;\n  border-top: none;\n  border-radius: 1.6mm;\n  print-color-adjust: exact;\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-main {\n  grid-column: 2;\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-aside .paper-section {\n  margin-top: 0;\n  margin-bottom: 3mm;\n  padding: 3mm 3mm 2.6mm;\n  background: #fff;\n  border-radius: 1.2mm;\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-aside .paper-section__title {\n  display: flex;\n  align-items: center;\n  gap: 2mm;\n  margin-bottom: 2.4mm;\n  padding-bottom: 1mm;\n  border-bottom: 0.25mm solid #e2ebf1;\n  color: #2b4351;\n  font-size: calc(var(--paper-base-size) * 0.94);\n  letter-spacing: 0.08em;\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-aside .paper-section__icon {\n  display: grid;\n  place-items: center;\n  width: 4mm;\n  height: 4mm;\n  color: var(--paper-accent);\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-aside .paper-section__icon svg {\n  width: 100%;\n  height: 100%;\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-main .paper-section {\n  position: relative;\n  padding-left: 5.5mm;\n  border-left: 0.22mm dotted #c2d5e0;\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-main .paper-section__title {\n  position: relative;\n  display: flex;\n  align-items: center;\n  gap: 2.4mm;\n  margin-bottom: 2.8mm;\n  padding-bottom: 1.2mm;\n  border-bottom: 0.25mm solid #e0eaf0;\n  color: #243842;\n  font-size: calc(var(--paper-base-size) * 1.02);\n  letter-spacing: 0.08em;\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-main .paper-section__title::before {\n  content: \"\";\n  position: absolute;\n  top: 0.4mm;\n  left: -5.6mm;\n  width: 2.4mm;\n  height: 2.4mm;\n  border-radius: 50%;\n  background: var(--paper-accent);\n  print-color-adjust: exact;\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-main .paper-section__icon {\n  display: grid;\n  place-items: center;\n  width: 4.2mm;\n  height: 4.2mm;\n  margin-left: auto;\n  color: color-mix(in srgb, var(--paper-accent) 62%, #fff);\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-main .paper-section__icon svg {\n  width: 100%;\n  height: 100%;\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-section__body {\n  color: #32434d;\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-item-title {\n  color: #1d2c36;\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-item-period {\n  color: #768894;\n  font-size: calc(var(--paper-base-size) * 0.85);\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-item-sub {\n  color: #43555f;\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-rich ul,\n.tw-xian.layout-sidebar.resume-paper .paper-rich ol {\n  margin-top: 0.8mm;\n  padding-left: 0;\n  list-style: none;\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-rich li {\n  position: relative;\n  margin: 0.7mm 0;\n  padding-left: 3.4mm;\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-rich li::before {\n  content: \"\";\n  position: absolute;\n  top: 0.7em;\n  left: 0.4mm;\n  width: 1mm;\n  height: 1mm;\n  border-radius: 50%;\n  background: #9db2bf;\n  print-color-adjust: exact;\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-aside .paper-skills {\n  grid-template-columns: minmax(0, 1fr);\n  gap: 1.6mm;\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-aside .paper-skill {\n  position: relative;\n  display: block;\n  padding-bottom: 0;\n  border-bottom: none;\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-aside .paper-skill__name {\n  display: flex;\n  justify-content: space-between;\n  font-size: calc(var(--paper-base-size) * 0.88);\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-aside .paper-skill__dots {\n  display: flex;\n  gap: 0;\n  margin-top: 0.8mm;\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-aside .paper-skill__dots i {\n  width: 8mm;\n  height: 1.3mm;\n  border-radius: 0;\n  background: #e2ebf1;\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-aside .paper-skill__dots i.filled {\n  background: var(--paper-accent);\n}\n\n.tw-xian.layout-sidebar.resume-paper .sidebar-aside .paper-skill__level {\n  position: absolute;\n  top: 0;\n  right: 0;\n  display: inline;\n  color: #5d7482;\n  font-size: calc(var(--paper-base-size) * 0.78);\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-note__tag {\n  color: #1d2c36;\n  font-weight: 600;\n}\n\n.tw-xian.layout-sidebar.resume-paper .paper-footer {\n  border-top: 0.2mm solid #e3ecf2;\n  color: #9fb0bb;\n}"
+}

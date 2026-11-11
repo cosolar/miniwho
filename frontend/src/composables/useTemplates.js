@@ -14,8 +14,15 @@ export function useTemplates() {
 
   const mineCodes = computed(() => new Set(mine.value.map((item) => item.code)))
   const official = computed(() => catalog.value.filter((item) => item.source !== 'imported'))
-  /** 模板中心的数据源：官方 + 站内已分享的，自己未分享的包不在这里。 */
-  const library = computed(() => catalog.value.map((item) => ({ ...item, isMine: mineCodes.value.has(item.code) })))
+  /**
+   * 模板中心的数据源：官方 + 站内已分享的，自己未分享的包不在这里。
+   * 排序铁律：官方永远在社区前面（sort 稳定，组内保持接口给定的次序），
+   * 后端已按此排序，这里再排一道是防 5 分钟缓存里的旧顺序。
+   */
+  const groupRank = (item) => (item.source === 'imported' ? 1 : 0)
+  const library = computed(() => catalog.value
+    .map((item) => ({ ...item, isMine: mineCodes.value.has(item.code) }))
+    .sort((a, b) => groupRank(a) - groupRank(b)))
   const community = computed(() => {
     const rows = []
     const seen = new Set()

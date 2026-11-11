@@ -1,0 +1,35 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "suding",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "素钉",
+    "description": "「个人简历」大字标头配浅灰图钉标题带，页眉收成一条浅灰信息带。适合通讯、运维与工程类岗位。",
+    "category": "通用",
+    "tags": [
+      "图钉",
+      "浅灰",
+      "双行标头",
+      "工程岗",
+      "通用"
+    ],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "band",
+    "accent": "#45596b",
+    "font": "sans",
+    "sectionStyle": "block",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 986,
+  "style": "/* 素钉 —— 「个人简历」大标头，浅灰图钉标题带 */\n\n.tw-suding.layout-band.resume-paper .paper-flow::before {\n  content: \"个人简历\";\n  display: block;\n  margin-bottom: 6mm;\n  padding-bottom: 3.4mm;\n  border-bottom: 0.4mm solid #d7dde2;\n  color: #1e272e;\n  font-family: var(--serif);\n  font-size: calc(var(--paper-base-size) * 2.6);\n  font-weight: 700;\n  letter-spacing: 0.14em;\n}\n\n.tw-suding.layout-band.resume-paper .paper-header {\n  position: relative;\n  margin: 0 -15mm 7mm;\n  padding: 5mm 15mm 5mm 15mm;\n  background: #f2f4f6;\n  border: none;\n  align-items: flex-start;\n  gap: 7mm;\n  print-color-adjust: exact;\n}\n\n.tw-suding.layout-band.resume-paper .paper-header__main {\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n.tw-suding.layout-band.resume-paper .paper-photo {\n  order: 3;\n  width: 24mm;\n  height: 33mm;\n  border: 0.4mm solid #dbe1e6;\n  border-radius: 0;\n  box-shadow: none;\n}\n\n.tw-suding.layout-band.resume-paper .paper-photo--monogram {\n  display: grid;\n  place-items: center;\n  background: #fff;\n  color: var(--paper-accent);\n  font-size: calc(var(--paper-base-size) * 2);\n  font-weight: 700;\n}\n\n.tw-suding.layout-band.resume-paper .paper-name {\n  color: #1c242b;\n  font-family: var(--paper-font-family);\n  font-size: calc(var(--paper-base-size) * 2.3);\n  letter-spacing: 0.06em;\n}\n\n.tw-suding.layout-band.resume-paper .paper-identity {\n  padding: 0;\n  border: none;\n  color: #6b757e;\n  font-size: calc(var(--paper-base-size) * 0.84);\n}\n\n.tw-suding.layout-band.resume-paper .paper-role {\n  margin-top: 1.6mm;\n  color: #3c464f;\n  font-size: calc(var(--paper-base-size) * 0.94);\n  font-weight: 400;\n}\n\n.tw-suding.layout-band.resume-paper .paper-contacts {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 1.2mm 6mm;\n  margin-top: 3mm;\n  color: #3b454d;\n  font-size: calc(var(--paper-base-size) * 0.86);\n}\n\n.tw-suding.layout-band.resume-paper .paper-contact {\n  display: inline-flex;\n  gap: 1.4mm;\n}\n\n.tw-suding.layout-band.resume-paper .paper-contact + .paper-contact::before {\n  content: \"|\";\n  left: -3.4mm;\n  color: #c3cbd1;\n}\n\n.tw-suding.layout-band.resume-paper .paper-contact__label {\n  color: #79848d;\n}\n\n/* 标题：浅灰整条 + 左侧小图钉 */\n.tw-suding.layout-band.resume-paper .paper-style-block .paper-section__title {\n  display: flex;\n  align-items: center;\n  gap: 2.6mm;\n  margin-bottom: 3.4mm;\n  padding: 1.4mm 3.2mm;\n  background: #e9edf0;\n  border-radius: 0;\n  color: #2a343c;\n  font-size: calc(var(--paper-base-size) * 1.02);\n  font-weight: 600;\n  letter-spacing: 0.1em;\n  print-color-adjust: exact;\n}\n\n.tw-suding.layout-band.resume-paper .paper-style-block .paper-section__title::before {\n  content: \"\";\n  flex: 0 0 auto;\n  width: 1.8mm;\n  height: 1.8mm;\n  border-radius: 50%;\n  background: #8d97a0;\n  print-color-adjust: exact;\n}\n\n.tw-suding.layout-band.resume-paper .paper-section__body {\n  color: #333d45;\n}\n\n.tw-suding.layout-band.resume-paper .paper-item-title {\n  color: #1c242b;\n}\n\n.tw-suding.layout-band.resume-paper .paper-item-period {\n  color: #76818a;\n  font-size: calc(var(--paper-base-size) * 0.86);\n}\n\n.tw-suding.layout-band.resume-paper .paper-item-sub {\n  color: #46515a;\n}\n\n.tw-suding.layout-band.resume-paper .paper-rich ul,\n.tw-suding.layout-band.resume-paper .paper-rich ol {\n  margin-top: 0.8mm;\n  padding-left: 0;\n  list-style: none;\n}\n\n.tw-suding.layout-band.resume-paper .paper-rich li {\n  position: relative;\n  margin: 0.7mm 0;\n  padding-left: 3.6mm;\n}\n\n.tw-suding.layout-band.resume-paper .paper-rich li::before {\n  content: \"\";\n  position: absolute;\n  top: 0.7em;\n  left: 0.4mm;\n  width: 1.1mm;\n  height: 1.1mm;\n  border-radius: 50%;\n  background: #9ca6ae;\n  print-color-adjust: exact;\n}\n\n.tw-suding.layout-band.resume-paper .paper-note__tag {\n  color: #2a343c;\n  font-weight: 600;\n}\n\n.tw-suding.layout-band.resume-paper .paper-footer {\n  border-top: 0.2mm solid #e3e8eb;\n  color: #9ea8b0;\n}"
+}

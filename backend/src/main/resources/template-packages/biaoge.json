@@ -1,0 +1,33 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "biaoge",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "表册",
+    "description": "账簿式的黑白排版：页眉用粗顶线压住，联系方式右对齐成一列；每个分区是一条双线表头，左中文右英文，条目按时间对齐，最正式的一种读法。",
+    "category": "通用",
+    "tags": [
+      "黑白",
+      "表格",
+      "双线",
+      "国企"
+    ],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "biaoge",
+    "accent": "#14161a",
+    "font": "sans",
+    "sectionStyle": "thead",
+    "density": "compact"
+  },
+  "capability": {
+    "photo": false,
+    "free": true
+  },
+  "sortWeight": 57
+}

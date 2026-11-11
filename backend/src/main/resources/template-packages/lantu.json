@@ -1,0 +1,33 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "lantu",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "蓝图",
+    "description": "整页铺 5 毫米淡蓝网格，页眉上下各一道蓝线、左上角一段加粗标注线；分区标题以短线起头、虚线收尾，像一张工程图纸。",
+    "category": "技术",
+    "tags": [
+      "网格",
+      "工程感",
+      "蓝色",
+      "技术"
+    ],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "blueprint",
+    "accent": "#1f4e79",
+    "font": "sans",
+    "sectionStyle": "tick",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": false,
+    "free": true
+  },
+  "sortWeight": 60
+}

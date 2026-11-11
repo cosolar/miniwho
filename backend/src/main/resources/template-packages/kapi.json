@@ -1,0 +1,33 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "kapi",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "卡片",
+    "description": "经历与自评各成一张浅灰卡片，标题做成实心胶囊；页眉是圆形头像配姓名，块与块之间靠留白分开，适合一页装三四段经历。",
+    "category": "互联网",
+    "tags": [
+      "卡片",
+      "圆头像",
+      "胶囊标题",
+      "产品"
+    ],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "kapi",
+    "accent": "#3b5a75",
+    "font": "sans",
+    "sectionStyle": "chip",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 58
+}

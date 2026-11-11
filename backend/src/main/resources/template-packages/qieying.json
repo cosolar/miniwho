@@ -1,0 +1,33 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "qieying",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "切影",
+    "description": "整条深墨绿页眉压住全幅，姓名反白、照片从页眉下沿切出来；正文每个分区自己分两列，标题右对齐压一条竖线，长段落读起来更短。",
+    "category": "创意",
+    "tags": [
+      "暗色页眉",
+      "照片",
+      "两列分区",
+      "社招"
+    ],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "qieying",
+    "accent": "#1f4a42",
+    "font": "sans",
+    "sectionStyle": "side",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 56
+}

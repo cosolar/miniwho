@@ -1,0 +1,35 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "chengyi",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "橙意",
+    "description": "左侧圆形头像配橙色竖条标题，正文收进浅灰细框，技能条分三列排开。适合销售、市场与门店服务岗。",
+    "category": "销售",
+    "tags": [
+      "橙色",
+      "圆头像",
+      "浅框",
+      "销售",
+      "进度条"
+    ],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "profile",
+    "accent": "#ef8a3d",
+    "font": "sans",
+    "sectionStyle": "line",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 1002,
+  "style": "/* 橙意 —— 圆形头像、橙色左条标题，内容收进浅框 */\n\n.tw-chengyi.layout-profile.resume-paper .paper-header {\n  margin-bottom: 6.5mm;\n  padding-bottom: 0;\n  border-bottom: none;\n  align-items: center;\n  gap: 7mm;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-photo {\n  order: -1;\n  width: 26mm;\n  height: 26mm;\n  border: 1.4mm solid #fff;\n  border-radius: 50%;\n  box-shadow: 0 0 0 0.3mm #f3ddcb;\n  object-fit: cover;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-photo--monogram {\n  display: grid;\n  place-items: center;\n  border-radius: 50%;\n  background: #fdf3ec;\n  color: var(--paper-accent);\n  font-size: calc(var(--paper-base-size) * 1.9);\n  font-weight: 700;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-name {\n  color: #242424;\n  font-family: var(--paper-font-family);\n  font-size: calc(var(--paper-base-size) * 2.05);\n  letter-spacing: 0.04em;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-identity {\n  padding: 0;\n  border: none;\n  color: #8a8a8a;\n  font-size: calc(var(--paper-base-size) * 0.84);\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-role {\n  margin-top: 1.4mm;\n  color: #5c5c5c;\n  font-size: calc(var(--paper-base-size) * 0.9);\n  font-weight: 400;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-contacts {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 1.4mm 5mm;\n  margin-top: 3mm;\n  color: #4a4a4a;\n  font-size: calc(var(--paper-base-size) * 0.86);\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-contact {\n  display: inline-flex;\n  gap: 1.4mm;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-contact + .paper-contact::before {\n  content: \"\";\n  left: -2.6mm;\n  width: 0.2mm;\n  height: 3.2mm;\n  background: #e6e6e6;\n  print-color-adjust: exact;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-contact__label {\n  color: #929292;\n}\n\n/* 标题：橙色竖条 + 深色标题 */\n.tw-chengyi.layout-profile.resume-paper .paper-section__title {\n  position: relative;\n  margin-bottom: 2.6mm;\n  padding-left: 4.4mm;\n  border-bottom: none;\n  color: #242424;\n  font-size: calc(var(--paper-base-size) * 1.08);\n  letter-spacing: 0.04em;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-section__title::before {\n  content: \"\";\n  position: absolute;\n  top: 0.5mm;\n  left: 0;\n  width: 1.4mm;\n  height: 4.8mm;\n  background: var(--paper-accent);\n  print-color-adjust: exact;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-style-line .paper-section__title span::before {\n  display: none;\n}\n\n/* 内容收进浅灰细框，框内留一点气口 */\n.tw-chengyi.layout-profile.resume-paper .paper-section__body {\n  padding: 3mm 3.4mm;\n  border: 0.22mm solid #efe7e1;\n  color: #3a3a3a;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-item + .paper-item {\n  margin-top: 2.4mm;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-item-title {\n  color: #242424;\n  font-size: calc(var(--paper-base-size) * 1.02);\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-item-period {\n  color: var(--paper-accent);\n  font-size: calc(var(--paper-base-size) * 0.86);\n  font-weight: 600;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-item-sub {\n  gap: 0;\n  color: #4a4a4a;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-item-sub span + span::before {\n  content: \"\";\n  margin-right: 6mm;\n}\n\n/* 技能：三列进度条，名称在上、熟练度在下 */\n.tw-chengyi.layout-profile.resume-paper .paper-skills {\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  gap: 2mm 7mm;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-skill {\n  display: block;\n  padding-bottom: 0;\n  border-bottom: none;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-skill__name {\n  display: block;\n  font-size: calc(var(--paper-base-size) * 0.9);\n  font-weight: 400;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-skill__dots {\n  display: flex;\n  gap: 0;\n  margin-top: 1.2mm;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-skill__dots i {\n  width: 100%;\n  height: 1.8mm;\n  border-radius: 0;\n  background: #f0e6de;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-skill__dots i.filled {\n  background: var(--paper-accent);\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-skill__level {\n  display: block;\n  margin-top: 1mm;\n  color: #7a7a7a;\n  font-size: calc(var(--paper-base-size) * 0.8);\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-rich ul,\n.tw-chengyi.layout-profile.resume-paper .paper-rich ol {\n  margin-top: 0;\n  padding-left: 1.1em;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-rich li::marker {\n  color: var(--paper-accent);\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-note__tag {\n  display: inline;\n  margin: 0;\n  padding: 0;\n  border: none;\n  border-radius: 0;\n  background: none;\n  color: #242424;\n  font-weight: 600;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-note__tag::after {\n  content: \"：\";\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-note {\n  color: #6a6a6a;\n}\n\n.tw-chengyi.layout-profile.resume-paper .paper-footer {\n  border-top: 0.2mm solid #f0e8e2;\n  color: #a8a8a8;\n}"
+}

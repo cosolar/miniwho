@@ -178,6 +178,186 @@ export const TEMPLATE_FALLBACKS = [
     description: '灰绿卡片式分栏：页眉一整块浅灰信息卡，证件照居左，姓名上方压一行 PERSONAL RESUME；每个模块是一张浅色圆角卡片，左侧圆徽配中文标题与英文副名。适合技术、产品与设计岗位的现代单页简历。',
     tags: ['卡片','浅绿','圆徽','英文副名','现代'],
     config: { layout: 'profile', accent: '#4f7f68', font: 'sans', sectionStyle: 'icon', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'yunjian', name: '云笺', category: '创意',
+    description: '米色页眉带压住带框证件照，姓名居中带英文小标，右上角虚线名片，正文分区带编号与英文注释，传统中文简历的读法。',
+    tags: ['照片', '编号', '单栏', '校招'],
+    config: { layout: 'framed', accent: '#2f5c8f', font: 'sans', sectionStyle: 'number', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'qieying', name: '切影', category: '创意',
+    description: '整条深墨绿页眉压住全幅，姓名反白、照片从页眉下沿切出来；正文每个分区自己分两列，标题右对齐压一条竖线。',
+    tags: ['暗色页眉', '照片', '两列分区', '社招'],
+    config: { layout: 'qieying', accent: '#1f4a42', font: 'sans', sectionStyle: 'side', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'biaoge', name: '表册', category: '通用',
+    description: '账簿式的黑白排版：页眉用粗顶线压住，联系方式右对齐成一列；每个分区是一条双线表头，左中文右英文。',
+    tags: ['黑白', '表格', '双线', '国企'],
+    config: { layout: 'biaoge', accent: '#14161a', font: 'sans', sectionStyle: 'thead', density: 'standard', free: true, photo: false }
+  },
+  {
+    code: 'kapi', name: '卡片', category: '互联网',
+    description: '经历与自评各成一张浅灰卡片，标题做成实心胶囊；页眉是圆形头像配姓名，块与块之间靠留白分开。',
+    tags: ['卡片', '圆头像', '胶囊标题', '产品'],
+    config: { layout: 'kapi', accent: '#3b5a75', font: 'sans', sectionStyle: 'chip', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'zazhi', name: '杂志', category: '创意',
+    description: '姓名放大到标题级，下面压一条粗红线；分区标题带两位序号并拉一条细线到页边，留白大、字号对比强。',
+    tags: ['大标题', '衬线', '序号', '设计'],
+    config: { layout: 'editorial', accent: '#8a2a2f', font: 'serif', sectionStyle: 'folio', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'lantu', name: '蓝图', category: '技术',
+    description: '整页铺 5 毫米淡蓝网格，页眉上下各一道蓝线；分区标题以短线起头、虚线收尾，像一张工程图纸。',
+    tags: ['网格', '工程感', '蓝色', '技术'],
+    config: { layout: 'blueprint', accent: '#1f4e79', font: 'sans', sectionStyle: 'tick', density: 'standard', free: true, photo: false }
+  },
+  {
+    code: 'zheye', name: '折页', category: '简约',
+    description: '单栏正文配三列页眉，分区只留一条细下划线，紧凑密度把行距与模块间距收进一档；灰黑色调、不带照片，适合经历多、想压到一页的简历。',
+    tags: ['单栏', '紧凑', '多内容', '社招'],
+    config: { layout: 'fold', accent: '#4c4a45', font: 'sans', sectionStyle: 'plain', density: 'compact', free: true, photo: false }
+  },
+  {
+    code: 'qingai', name: '青霭', category: '通用',
+    description: '灰绿通栏页眉配深绿方头标题与圆点条目，姓名下压一条短绿线，日期靠右。适合行政、人事、教育与公共服务方向的中文单页简历。',
+    tags: ['单栏', '灰绿', '页眉色带', '圆点条目', '通用'],
+    config: { layout: 'profile', accent: '#4d7a5f', font: 'sans', sectionStyle: 'line', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'lanzhe', name: '蓝辙', category: '学术',
+    description: '蓝色时间轴版式：日期独立左栏，每块内容挂一条虚线导轨与同心圆节点，技能排成分段进度条。适合技术、运营与项目制岗位。',
+    tags: ['时间轴', '蓝色', '日期栏', '进度条', '技术岗'],
+    config: { layout: 'academic', accent: '#2f7fa8', font: 'sans', sectionStyle: 'caps', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'subai', name: '素白', category: '学术',
+    description: '右上角英文标头，模块标题中英双行，日期独立左栏、专业贴右。适合校招、实习与学术方向的简历。',
+    tags: ['中英标题', '日期栏', '素色', '校招', '学术'],
+    config: { layout: 'academic', accent: '#33719e', font: 'sans', sectionStyle: 'caps', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'yanlu', name: '研路', category: '学术',
+    description: '藏青页眉配矩形标牌标题，报考信息排成表格，正文适合长段落陈述。适合考研、调剂与复试材料。',
+    tags: ['考研', '调剂', '藏青', '标牌标题', '表格'],
+    config: { layout: 'band', accent: '#223a5e', font: 'sans', sectionStyle: 'block', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'jianqing', name: '简青', category: '技术',
+    description: '线条图标配蓝色标题，日期、单位、专业压成一行，正文用细圆点分条。适合技术、质检与制造类岗位。',
+    tags: ['线条图标', '蓝色', '单行条目', '技术岗', '质检'],
+    config: { layout: 'profile', accent: '#2b6f9e', font: 'sans', sectionStyle: 'line', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'yadai', name: '雅黛', category: '商务',
+    description: '灰蓝通栏标题带，姓名与求职意向同行，信息两列夹在上下细线之间，日期左栏成列。适合设计、服装与艺术类岗位。',
+    tags: ['灰蓝', '通栏标题带', '日期栏', '设计岗', '商务'],
+    config: { layout: 'formal', accent: '#566f8b', font: 'sans', sectionStyle: 'block', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'suding', name: '素钉', category: '通用',
+    description: '「个人简历」大字标头配浅灰图钉标题带，页眉收成一条浅灰信息带。适合通讯、运维与工程类岗位。',
+    tags: ['图钉', '浅灰', '双行标头', '工程岗', '通用'],
+    config: { layout: 'band', accent: '#45596b', font: 'sans', sectionStyle: 'block', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'shuangying', name: '双影', category: '双栏',
+    description: '白底通栏页眉，左侧窄栏收拢意向与技能，右侧主栏专注履历，标题压一道粗线。适合通用、管理与运营岗位。',
+    tags: ['双栏', '白底', '窄栏', '管理岗', '高密度'],
+    config: { layout: 'sidebar', accent: '#2b3b4e', font: 'sans', sectionStyle: 'bar', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'qimo', name: '旗墨', category: '国企',
+    description: '顶部 RESUME 旗标开场，藏青标牌标题拖一条细线，联系方式两列对齐。适合国企、行政与传统行业投递。',
+    tags: ['旗标', '藏青', 'RESUME', '国企', '传统'],
+    config: { layout: 'band', accent: '#1d3557', font: 'sans', sectionStyle: 'flag', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'ziyuan', name: '紫垣', category: '双栏',
+    description: '淡紫通栏页眉配圆形照片，左侧淡紫窄栏排技能条，主栏挂虚线导轨与圆点标题。适合物流、供应链与运营岗位。',
+    tags: ['紫色', '圆形照片', '侧栏', '导轨圆点', '物流'],
+    config: { layout: 'sidebar', accent: '#6a5aa8', font: 'sans', sectionStyle: 'bar', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'zhuling', name: '朱绫', category: '商务',
+    description: '绯红页眉配锯齿下沿，朱红短线压在标题下，日期与单位同一行展开。适合互联网、计算机与研发岗位。',
+    tags: ['绯红', '锯齿', '日期左栏', '互联网', '研发'],
+    config: { layout: 'band', accent: '#b5312a', font: 'sans', sectionStyle: 'line', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'xian', name: '汐岸', category: '互联网',
+    description: '浅蓝通栏页眉，左侧蓝色窄栏排成白卡，主栏点线导轨配右侧小图标。适合供应链、外贸与项目协调岗位。',
+    tags: ['浅蓝', '侧栏白卡', '点线导轨', '供应链', '互联网'],
+    config: { layout: 'sidebar', accent: '#3a6b8a', font: 'sans', sectionStyle: 'bar', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'bibo', name: '碧波', category: '通用',
+    description: '青碧波浪页眉压着居中的圆形证件照，模块标题是实心青圆配同色标题，技能排成三列分段进度条。适合通用、行政与服务岗的单页简历。',
+    tags: ['居中', '青碧', '波浪页眉', '圆头像', '通用'],
+    config: { layout: 'center', accent: '#3fb3a3', font: 'sans', sectionStyle: 'line', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'chengyi', name: '橙意', category: '销售',
+    description: '左侧圆形头像配橙色竖条标题，正文收进浅灰细框，技能条分三列排开。适合销售、市场与门店服务岗。',
+    tags: ['橙色', '圆头像', '浅框', '销售', '进度条'],
+    config: { layout: 'profile', accent: '#ef8a3d', font: 'sans', sectionStyle: 'line', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'tianqing', name: '天青', category: '国企',
+    description: '「个人简历」大字压天青粗线，模块标题是天青实底白字横条，联系方式用竖线分隔。适合国企、行政与应届岗位。',
+    tags: ['天青', '个人简历', '实底标题', '国企', '通用'],
+    config: { layout: 'band', accent: '#3aa7d4', font: 'sans', sectionStyle: 'block', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'mobai', name: '墨白', category: '商务',
+    description: '墨黑竖块压标题、通栏细线分区，日期独立左栏与单位岗位同一行，技能按名称熟练度两列铺开。适合商务、法务与工程岗。',
+    tags: ['墨黑', '竖块标题', '细线', '商务', '稳重'],
+    config: { layout: 'formal', accent: '#23282d', font: 'sans', sectionStyle: 'rule', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'liujin', name: '鎏金', category: '国企',
+    description: '金色粗线压「个人简历」标头，模块标题是金色实底白字横条，证件照带金色细框。适合国企、事业单位与传统行业。',
+    tags: ['金色', '个人简历', '实底标题', '国企', '证件照'],
+    config: { layout: 'band', accent: '#b39152', font: 'sans', sectionStyle: 'block', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'sulan', name: '素栏', category: '双栏',
+    description: '左侧窄栏收拢求职意向与技能条，右侧主栏专注教育与履历，两栏之间用一条细线分开。适合理工、运营与项目岗。',
+    tags: ['双栏', '灰蓝', '窄栏', '技能条', '通用'],
+    config: { layout: 'sidebar', accent: '#7d8d99', font: 'sans', sectionStyle: 'bar', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'qinghan', name: '青函', category: '医疗',
+    description: '圆形证件照配蓝色姓名，模块标题是蓝色实心圆徽配同色标题，技能按名称熟练度两列排开。适合护理、医疗与康复岗位。',
+    tags: ['蓝色', '圆头像', '圆徽标题', '医疗', '护理'],
+    config: { layout: 'profile', accent: '#2f8fc4', font: 'sans', sectionStyle: 'line', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'huijie', name: '灰阶', category: '技术',
+    description: '左栏放基本信息与技能，右栏每块履历挂一条竖线节点，日期与单位压成一行。适合技术、产品与工程岗。',
+    tags: ['灰阶', '圆头像', '导轨节点', '技术', '双栏'],
+    config: { layout: 'sidebar', accent: '#33393d', font: 'sans', sectionStyle: 'bar', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'feiying', name: '绯樱', category: '医疗',
+    description: '顶部绯色 RESUME 旗标开场，模块标题是绯色实底白字横条，证件照带同色细框。适合护理、医美与服务行业。',
+    tags: ['绯色', 'RESUME', '实底标题', '医疗', '护理'],
+    config: { layout: 'band', accent: '#f0837f', font: 'sans', sectionStyle: 'block', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'xuanmo', name: '玄墨', category: '管理',
+    description: '深墨侧栏从页顶一直通到底，白字放基本信息、证书与自我评价；主栏标题是墨色圆角标牌。适合管理、供应链与运营岗。',
+    tags: ['深色侧栏', '墨色标牌', '管理', '双栏', '沉稳'],
+    config: { layout: 'sidebar', accent: '#1f262b', font: 'sans', sectionStyle: 'bar', density: 'standard', free: true, photo: true }
+  },
+  {
+    code: 'yehang', name: '夜航', category: '互联网',
+    description: '藏青侧栏通到页顶，右上角压一枚淡淡的 RESUME 水印，主栏标题用藏青字配同色细线。适合物流、供应链与互联网运营岗。',
+    tags: ['藏青侧栏', 'RESUME水印', '互联网', '物流', '双栏'],
+    config: { layout: 'sidebar', accent: '#16324f', font: 'sans', sectionStyle: 'bar', density: 'standard', free: true, photo: true }
   }
 ]
 

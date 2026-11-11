@@ -1,0 +1,35 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "qimo",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "旗墨",
+    "description": "顶部 RESUME 旗标开场，藏青标牌标题拖一条细线，联系方式两列对齐。适合国企、行政与传统行业投递。",
+    "category": "国企",
+    "tags": [
+      "旗标",
+      "藏青",
+      "RESUME",
+      "国企",
+      "传统"
+    ],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "band",
+    "accent": "#1d3557",
+    "font": "sans",
+    "sectionStyle": "flag",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 984,
+  "style": "/* 旗墨 —— 顶部 RESUME 旗标，藏青标牌标题压在细线上 */\n\n.tw-qimo.layout-band.resume-paper .paper-flow::before {\n  content: \"RESUME\";\n  display: block;\n  width: 36mm;\n  margin: 0 auto 7mm;\n  padding: 1.6mm 0;\n  background: var(--paper-accent);\n  clip-path: polygon(3.4mm 0, 100% 0, calc(100% - 3.4mm) 100%, 0 100%);\n  color: #fff;\n  font-size: calc(var(--paper-base-size) * 1.14);\n  font-weight: 700;\n  letter-spacing: 0.34em;\n  text-align: center;\n  text-indent: 0.34em;\n  print-color-adjust: exact;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-header {\n  margin-bottom: 6.5mm;\n  padding-bottom: 4.4mm;\n  border-bottom: 0.3mm solid #d8dfe8;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-header--photo {\n  align-items: flex-start;\n  gap: 8mm;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-header__main {\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-photo {\n  order: 3;\n  width: 24mm;\n  height: 33mm;\n  border: 0.4mm solid #dde3ea;\n  border-radius: 0;\n  box-shadow: none;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-photo--monogram {\n  display: grid;\n  place-items: center;\n  background: #eef1f6;\n  color: var(--paper-accent);\n  font-size: calc(var(--paper-base-size) * 2);\n  font-weight: 700;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-name {\n  color: #182430;\n  font-family: var(--paper-font-family);\n  font-size: calc(var(--paper-base-size) * 2.3);\n  letter-spacing: 0.08em;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-identity {\n  padding: 0;\n  border: none;\n  color: #66757f;\n  font-size: calc(var(--paper-base-size) * 0.84);\n}\n\n.tw-qimo.layout-band.resume-paper .paper-role {\n  margin-top: 1.8mm;\n  color: #33424f;\n  font-size: calc(var(--paper-base-size) * 0.96);\n  font-weight: 400;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-contacts {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 1.4mm 8mm;\n  margin-top: 3.2mm;\n  color: #33424f;\n  font-size: calc(var(--paper-base-size) * 0.87);\n}\n\n.tw-qimo.layout-band.resume-paper .paper-contact {\n  display: flex;\n  gap: 1.8mm;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-contact + .paper-contact::before {\n  display: none;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-contact__label {\n  flex: 0 0 auto;\n  color: #7a8894;\n}\n\n/* 标题：旗标贴齐正文左缘，后面拖一条细线 */\n.tw-qimo.layout-band.resume-paper .paper-style-flag .paper-section__title {\n  margin-left: 0;\n  margin-bottom: 4mm;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-section__body {\n  color: #2f3d49;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-item-title {\n  color: #17222d;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-item-period {\n  color: #77848f;\n  font-size: calc(var(--paper-base-size) * 0.86);\n}\n\n.tw-qimo.layout-band.resume-paper .paper-item-sub {\n  color: #44525f;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-rich ul,\n.tw-qimo.layout-band.resume-paper .paper-rich ol {\n  margin-top: 0.8mm;\n  padding-left: 0;\n  list-style: none;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-rich li {\n  position: relative;\n  margin: 0.7mm 0;\n  padding-left: 3.6mm;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-rich li::before {\n  content: \"\";\n  position: absolute;\n  top: 0.7em;\n  left: 0.4mm;\n  width: 1.1mm;\n  height: 1.1mm;\n  border-radius: 50%;\n  background: #93a0ac;\n  print-color-adjust: exact;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-note__tag {\n  color: #17222d;\n  font-weight: 600;\n}\n\n.tw-qimo.layout-band.resume-paper .paper-footer {\n  border-top: 0.2mm solid #e2e7ee;\n  color: #9ba7b3;\n}"
+}

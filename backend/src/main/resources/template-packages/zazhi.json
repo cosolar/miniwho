@@ -1,0 +1,33 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "zazhi",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "杂志",
+    "description": "姓名放大到标题级，下面压一条粗红线；分区标题带两位序号并拉一条细线到页边。留白大、字号对比强，像一本人物专访的开篇页。",
+    "category": "创意",
+    "tags": [
+      "大标题",
+      "衬线",
+      "序号",
+      "设计"
+    ],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "editorial",
+    "accent": "#8a2a2f",
+    "font": "serif",
+    "sectionStyle": "folio",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 59
+}

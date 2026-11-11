@@ -1,0 +1,15 @@
+{
+  "api": 1,
+  "id": { "namespace": "official", "code": "yunjian", "version": "1.0.0" },
+  "meta": {
+    "name": "云笺",
+    "description": "米色页眉带压住带框证件照，姓名居中带英文小标，右上角虚线名片，正文分区带编号与英文注释，传统中文简历的读法。",
+    "category": "创意",
+    "tags": ["照片", "编号", "单栏", "校招"],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": { "layout": "framed", "accent": "#2f5c8f", "font": "sans", "sectionStyle": "number", "density": "standard" },
+  "capability": { "photo": true, "free": true },
+  "sortWeight": 55
+}

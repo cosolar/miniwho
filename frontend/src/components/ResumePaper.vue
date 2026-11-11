@@ -26,6 +26,8 @@ let again = false
 let observer
 
 // 分页不依赖绘制帧：无头浏览器打印与后台标签页都可能拿不到 requestAnimationFrame。
+// 系统规范：所有版式都必须能被分页算法计算，不允许存在「预览不标页」的例外。
+// fold（折页）是普通单栏正文，不再有 CSS 多栏与 break-inside 这类会让实测高度失真的写法。
 function paginate() {
   if (!props.paged) {
     pageMarks.value = []
@@ -185,15 +187,18 @@ const footerEnabled = computed(() => props.styleData?.showBrandFooter !== false)
 const paperStyle = computed(() => {
   const fontStep = Number(props.styleData?.fontSizeStep || 0)
   const spacingStep = Number(props.styleData?.spacingStep || 0)
+  // 模板自带的松紧档位：compact 把行距与模块间距的默认值收紧一档，
+  // 用户自己调的 spacingStep 仍在这基础上叠加，两个维度互不覆盖。
+  const compact = config.value.density === 'compact'
   const vars = {
     '--paper-accent': config.value.accent || '#2f6f62',
     '--paper-font-family': config.value.font === 'serif' ? 'var(--serif)' : 'var(--sans)',
     '--paper-base-size': `${(10.5 + fontStep * 0.5).toFixed(2)}pt`,
-    '--paper-line-height': (1.65 + spacingStep * 0.08).toFixed(2),
-    '--paper-section-gap': `${(5.6 + spacingStep * 0.9).toFixed(2)}mm`
+    '--paper-line-height': ((1.65 + spacingStep * 0.08) * (compact ? 0.9 : 1)).toFixed(2),
+    '--paper-section-gap': `${((5.6 + spacingStep * 0.9) * (compact ? 0.8 : 1)).toFixed(2)}mm`
   }
   // 只有用户自己调过才写这四个变量：各版式的默认留白并不相同（侧影通栏页眉靠 15mm 反白、
-  // 竖排用 11/14mm），缺省时让它们各自的取值生效，改这一处不会把 30 套模板的观感全推平。
+  // 竖排用 11/14mm），缺省时让它们各自的取值生效，改这一处不会把 60 套模板的观感全推平。
   const margin = props.styleData?.pageMargin
   if (margin?.custom) {
     vars['--paper-mt'] = `${Number(margin.top ?? 15)}mm`
@@ -873,7 +878,7 @@ function breakable(value) {
   background: #f3f4f5;
   color: #8d959b;
   font-family: var(--paper-font-family);
-  font-size: calc(var(--paper-base-size) * 2.2);
+  font-size: calc(var(--paper-base-size) * 2.7);
   font-weight: 700;
 }
 
@@ -2568,8 +2573,709 @@ function breakable(value) {
   color: #8d99a5;
 }
 
+/* 云笺：米色页眉带 + 带框证件照 + 编号分区，最接近传统中文「个人简历」的读法。
+   页眉是「照片 / 姓名 / 名片」三列网格，名片跟着内容长高，不会被页眉裁掉。 */
+.layout-framed .paper-flow {
+  counter-reset: framed-sec;
+}
+
+.layout-framed .paper-header,
+.layout-framed .paper-header--photo {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28mm minmax(0, 1fr) 56mm;
+  grid-template-rows: auto auto;
+  column-gap: 6mm;
+  align-content: center;
+  margin: calc(var(--paper-mt, 15mm) * -1) calc(var(--paper-mr, 15mm) * -1) 8.5mm calc(var(--paper-ml, 15mm) * -1);
+  padding: 11mm var(--paper-mr, 15mm) 10mm var(--paper-ml, 15mm);
+  border-bottom: 1px solid rgba(47, 92, 143, 0.18);
+  background: #f8f5ec;
+  text-align: center;
+}
+
+/* 右上角一道极淡的蓝色斜切色带；几何自带斜边，不需要 overflow 裁切 */
+.layout-framed .paper-header::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 96mm;
+  height: 18mm;
+  background-image: linear-gradient(100deg, rgba(47, 92, 143, 0.02), rgba(47, 92, 143, 0.13));
+  clip-path: polygon(16% 0, 100% 0, 100% 100%, 0 100%);
+  pointer-events: none;
+}
+
+/* 照片贴在页眉左上角，26×36mm 的白框证件照（约四分之三身位，比一寸照宽一点，
+   和右侧名片的高度也更配）。 */
+.layout-framed .paper-photo {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: start;
+  width: 28mm;
+  height: 37mm;
+  border: 1mm solid #fff;
+  border-radius: 0.6mm;
+  box-shadow: 0 1.6mm 4mm rgba(30, 56, 88, 0.22);
+  object-fit: cover;
+}
+
+/* 没有照片时用姓名首字占位：浅蓝底而不是白底，读起来仍是「这里是一张照片」 */
+.layout-framed .paper-photo--monogram {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(160deg, #eef3f9 0%, #dde7f1 100%);
+  color: rgba(47, 92, 143, 0.82);
+  font-family: var(--serif);
+  font-size: calc(var(--paper-base-size) * 2.2);
+  font-weight: 700;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* 姓名与意向拆成两行成员，名片纵跨两行；名片行数多时姓名块自动落到垂直中间 */
+.layout-framed .paper-header__main {
+  display: contents;
+}
+
+.layout-framed .paper-name-row {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
+  justify-content: center;
+  gap: 3mm;
+}
+
+.layout-framed .paper-header__summary {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+/* 姓名的上行小标：整份简历唯一的一处英文排印，起「抬头」的作用 */
+.layout-framed .paper-name::before {
+  content: "CURRICULUM VITAE";
+  display: block;
+  margin-bottom: 2mm;
+  color: var(--paper-accent);
+  font-family: var(--sans);
+  font-size: calc(var(--paper-base-size) * 0.64);
+  font-weight: 600;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+}
+
+.layout-framed .paper-name {
+  color: #23303a;
+  font-family: var(--serif);
+  font-size: calc(var(--paper-base-size) * 2.7);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  line-height: 1.15;
+}
+
+.layout-framed .paper-identity {
+  padding: 0.5mm 2.4mm;
+  border: 1px solid rgba(47, 92, 143, 0.34);
+  border-radius: 999px;
+  background: rgba(47, 92, 143, 0.06);
+  color: var(--paper-accent);
+  font-size: calc(var(--paper-base-size) * 0.78);
+  letter-spacing: 0.06em;
+}
+
+.layout-framed .paper-role {
+  grid-column: 2;
+  grid-row: 2;
+  margin-top: 2.2mm;
+  color: #46525c;
+  font-size: calc(var(--paper-base-size) * 1.02);
+  letter-spacing: 0.08em;
+}
+
+/* 联系方式做成右上角的虚线名片，和左边带框的照片一左一右压住页眉 */
+.layout-framed .paper-contacts {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: center;
+  display: grid;
+  gap: 1mm;
+  padding: 3mm 3.2mm;
+  border: 1px dashed rgba(47, 92, 143, 0.42);
+  border-radius: 1.6mm;
+  background: #fffdf8;
+  color: #2f3b45;
+  font-size: calc(var(--paper-base-size) * 0.78);
+  line-height: 1.55;
+  text-align: left;
+}
+
+.layout-framed .paper-contact {
+  display: flex;
+  gap: 1.4mm;
+}
+
+.layout-framed .paper-contact + .paper-contact::before {
+  display: none;
+}
+
+.layout-framed .paper-contact__label {
+  flex: 0 0 auto;
+  color: #7d8894;
+  font-weight: 400;
+}
+
+/* 每段经历的标题前一枚实心圆点，和日期右对齐一起回到传统简历的读法 */
+.layout-framed :deep(.paper-item-title)::before {
+  content: "";
+  display: inline-block;
+  width: 1.7mm;
+  height: 1.7mm;
+  margin-right: 2.2mm;
+  border-radius: 50%;
+  background: var(--paper-accent);
+  opacity: 0.8;
+  vertical-align: 0.35mm;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.layout-framed :deep(.paper-item-period) {
+  color: #8b95a0;
+}
+
+/* 技能圆点改成分段进度条，比五个点更像「熟练度」 */
+.layout-framed :deep(.paper-skill) {
+  border-bottom: 1px solid rgba(47, 92, 143, 0.1);
+}
+
+.layout-framed :deep(.paper-skill__dots) {
+  gap: 0.6mm;
+}
+
+.layout-framed :deep(.paper-skill__dots i) {
+  width: 7mm;
+  height: 1.5mm;
+  border-radius: 0;
+  background: rgba(47, 92, 143, 0.14);
+}
+
+.layout-framed :deep(.paper-skill__dots i.filled) {
+  background: var(--paper-accent);
+}
+
+.layout-framed :deep(.paper-skill__dots i:first-child) {
+  border-radius: 0.8mm 0 0 0.8mm;
+}
+
+.layout-framed :deep(.paper-skill__dots i:last-child) {
+  border-radius: 0 0.8mm 0.8mm 0;
+}
+
+.layout-framed :deep(.paper-skill__level) {
+  display: inline;
+  color: var(--paper-accent);
+  font-size: calc(var(--paper-base-size) * 0.82);
+}
+
+/* 自我评价收进一只细边框的方框，像参考稿最后那一块 */
+.layout-framed .paper-section.is-self_evaluation {
+  padding: 3mm 3.4mm 3.4mm;
+  border: 1px solid rgba(47, 92, 143, 0.22);
+  border-radius: 1.4mm;
+  background: #fbf9f3;
+}
+
+
+/* ══ 切影 qieying：整条深墨绿通栏页眉，照片从页眉下沿切出来；
+      正文每个分区自己分两列，标题右对齐压一条竖线。 ══ */
+.layout-qieying .paper-header,
+.layout-qieying .paper-header--photo {
+  position: relative;
+  display: block;
+  margin: calc(var(--paper-mt, 15mm) * -1) calc(var(--paper-mr, 15mm) * -1) 16mm calc(var(--paper-ml, 15mm) * -1);
+  padding: 14mm calc(var(--paper-mr, 15mm) + 38mm) 12mm var(--paper-ml, 15mm);
+  border-bottom: 0;
+  background: linear-gradient(118deg, #1f4a42 0%, #16332e 100%);
+  color: #f2efe7;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* 右边缘一道朱橘细线，像裁切留下的刀口 */
+.layout-qieying .paper-header::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1mm;
+  height: 100%;
+  background: linear-gradient(180deg, rgba(226, 96, 60, 0.95), rgba(226, 96, 60, 0.18));
+}
+
+.layout-qieying .paper-name {
+  color: #fff;
+  font-size: calc(var(--paper-base-size) * 2.85);
+  letter-spacing: 0.12em;
+}
+
+.layout-qieying .paper-identity {
+  border-color: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.layout-qieying .paper-role {
+  color: rgba(242, 239, 231, 0.76);
+  letter-spacing: 0.1em;
+}
+
+.layout-qieying .paper-contacts,
+.layout-qieying .paper-contact {
+  color: rgba(242, 239, 231, 0.84);
+}
+
+.layout-qieying .paper-contact + .paper-contact::before {
+  color: rgba(242, 239, 231, 0.32);
+}
+
+.layout-qieying .paper-header__summary {
+  color: rgba(242, 239, 231, 0.82);
+}
+
+.layout-qieying .paper-photo {
+  position: absolute;
+  right: var(--paper-mr, 15mm);
+  bottom: -12mm;
+  z-index: 2;
+  width: 28mm;
+  height: 36mm;
+  border: 1.4mm solid #fdfcf8;
+  border-radius: 0.8mm;
+  box-shadow: 0 2mm 7mm rgba(10, 28, 24, 0.36);
+}
+
+.layout-qieying .paper-photo--monogram {
+  display: grid;
+  place-items: center;
+  background: #35625a;
+  color: #fdfcf8;
+  font-family: var(--serif);
+  font-size: calc(var(--paper-base-size) * 2.6);
+  font-weight: 700;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.layout-qieying :deep(.paper-section) {
+  display: grid;
+  grid-template-columns: 32mm minmax(0, 1fr);
+  column-gap: 8mm;
+  align-items: start;
+}
+
+.layout-qieying :deep(.paper-section__title) {
+  grid-column: 1;
+  display: flex;
+  justify-content: flex-end;
+  margin: 0.7mm 0 0;
+  padding-right: 8mm;
+  border-right: 0.4mm solid rgba(31, 74, 66, 0.24);
+  color: #1f4a42;
+  font-size: calc(var(--paper-base-size) * 0.98);
+  line-height: 1.4;
+  text-align: right;
+}
+
+.layout-qieying :deep(.paper-section__body) {
+  grid-column: 2;
+  min-width: 0;
+}
+
+/* ══ 表册 biaoge：账簿式的粗顶线 + 细底线，联系方式右对齐成一列，
+      分区标题是上下双线表头。 ══ */
+.layout-biaoge .paper-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-items: end;
+  column-gap: 10mm;
+  margin-bottom: 9mm;
+  padding: 2mm 0 3.6mm;
+  border-top: 1.3mm solid #14161a;
+  border-bottom: 0.35mm solid #14161a;
+}
+
+.layout-biaoge .paper-header__main {
+  display: contents;
+}
+
+.layout-biaoge .paper-name-row {
+  grid-column: 1;
+  grid-row: 1;
+  gap: 3.5mm;
+}
+
+.layout-biaoge .paper-name {
+  font-size: calc(var(--paper-base-size) * 2.25);
+  letter-spacing: 0.2em;
+}
+
+.layout-biaoge .paper-identity {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #5d646c;
+  font-size: calc(var(--paper-base-size) * 0.86);
+  letter-spacing: 0.14em;
+}
+
+.layout-biaoge .paper-role {
+  grid-column: 1;
+  grid-row: 2;
+  margin-top: 1.2mm;
+  color: #2b3138;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}
+
+.layout-biaoge .paper-header__summary {
+  grid-column: 1 / -1;
+}
+
+.layout-biaoge .paper-contacts {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: start;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  justify-items: end;
+  gap: 0.5mm 6mm;
+  margin: 0;
+  color: #2b3138;
+  font-size: calc(var(--paper-base-size) * 0.82);
+  text-align: right;
+}
+
+.layout-biaoge .paper-contact + .paper-contact::before {
+  display: none;
+}
+
+.layout-biaoge .paper-header {
+  position: relative;
+}
+
+.layout-biaoge .paper-photo {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 18mm;
+  height: 24mm;
+  border-radius: 0.4mm;
+  object-fit: cover;
+}
+
+.layout-biaoge .paper-contacts {
+  padding-right: 22mm;
+}
+
+/* ══ 卡片 kapi：圆形头像在右，经历与自评各成一张浅底卡片 ══ */
+.layout-kapi .paper-header,
+.layout-kapi .paper-header--photo {
+  display: flex;
+  align-items: center;
+  gap: 7mm;
+  margin-bottom: 8mm;
+  padding-bottom: 5mm;
+  border-bottom: 1px solid rgba(59, 90, 117, 0.16);
+}
+
+.layout-kapi .paper-header__main {
+  flex: 1 1 auto;
+}
+
+.layout-kapi .paper-name {
+  font-size: calc(var(--paper-base-size) * 2.15);
+  letter-spacing: 0.1em;
+}
+
+.layout-kapi .paper-role {
+  color: #3b5a75;
+}
+
+.layout-kapi .paper-photo {
+  order: 2;
+  width: 24mm;
+  height: 24mm;
+  border: 1mm solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 1.4mm 4mm rgba(59, 90, 117, 0.26);
+}
+
+.layout-kapi .paper-photo--circle {
+  width: 24mm;
+  height: 24mm;
+}
+
+.layout-kapi .paper-photo--monogram {
+  display: grid;
+  place-items: center;
+  background: #e7eef5;
+  color: rgba(59, 90, 117, 0.8);
+  font-family: var(--serif);
+  font-size: calc(var(--paper-base-size) * 2.2);
+  font-weight: 700;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.layout-kapi :deep(.paper-item) {
+  padding: 3.2mm 3.8mm;
+  border-radius: 2.4mm;
+  background: #eef2f6;
+  box-shadow: inset 0 0 0 0.2mm rgba(59, 90, 117, 0.07);
+  /* 卡片被分页切开时，续页上的碎片要保留底色与圆角（Chrome 只认带前缀的写法）。 */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.layout-kapi :deep(.paper-item + .paper-item) {
+  margin-top: 3mm;
+}
+
+.layout-kapi :deep(.paper-section.is-self_evaluation) .paper-section__body,
+.layout-kapi :deep(.paper-section.is-skills_summary) .paper-section__body,
+.layout-kapi :deep(.paper-section.is-hobby) .paper-section__body {
+  padding: 3.2mm 3.8mm;
+  border-radius: 2.4mm;
+  background: #eef2f6;
+  box-shadow: inset 0 0 0 0.2mm rgba(59, 90, 117, 0.07);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* ══ 杂志 editorial：姓名放大到 3.4 倍，下方一条粗红线，照片压在右上 ══ */
+.layout-editorial .paper-content {
+  counter-reset: folio-sec;
+}
+
+.layout-editorial .paper-header,
+.layout-editorial .paper-header--photo {
+  position: relative;
+  display: block;
+  margin-bottom: 9mm;
+  padding: 1mm 34mm 5mm 0;
+  border-bottom: 1mm solid #8a2a2f;
+}
+
+.layout-editorial .paper-name {
+  font-size: calc(var(--paper-base-size) * 3.4);
+  letter-spacing: 0.02em;
+  line-height: 0.98;
+}
+
+.layout-editorial .paper-name-row {
+  align-items: baseline;
+  gap: 4mm;
+}
+
+.layout-editorial .paper-role {
+  margin-top: 3mm;
+  color: #55595e;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+}
+
+.layout-editorial .paper-identity {
+  padding: 0 0 0.3mm;
+  border: 0;
+  border-bottom: 0.35mm solid rgba(138, 42, 47, 0.6);
+  border-radius: 0;
+  background: none;
+  color: #8a2a2f;
+  letter-spacing: 0.1em;
+}
+
+.layout-editorial .paper-contacts {
+  margin-top: 4mm;
+  gap: 0.6mm 6mm;
+  color: #4a4e52;
+  letter-spacing: 0.06em;
+}
+
+.layout-editorial .paper-contact + .paper-contact::before {
+  color: #cbb9b6;
+}
+
+.layout-editorial .paper-photo {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 24mm;
+  height: 30mm;
+  border-radius: 0.4mm;
+  object-fit: cover;
+}
+
+.layout-editorial .paper-photo--monogram {
+  display: grid;
+  place-items: center;
+  background: #f6ecec;
+  color: rgba(138, 42, 47, 0.62);
+  font-family: var(--serif);
+  font-size: calc(var(--paper-base-size) * 2.2);
+  font-weight: 700;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ══ 蓝图 blueprint：正文区完全干净，图纸感集中在页眉——蓝线之间铺一层
+      极淡的 10mm 点阵，正文不再有任何底纹。 ══ */
+.layout-blueprint .paper-header {
+  position: relative;
+  margin-bottom: 10mm;
+  padding: 7mm 0 5mm;
+  border-top: 0.6mm solid #1f4e79;
+  border-bottom: 0.3mm solid rgba(31, 78, 121, 0.5);
+  background-image: radial-gradient(circle, rgba(31, 78, 121, 0.16) 0 0.26mm, transparent 0.38mm);
+  background-size: 10mm 10mm;
+  background-position: 0 0;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* 左上角一小段加粗的标注线，图纸的起笔 */
+.layout-blueprint .paper-header::before {
+  content: "";
+  position: absolute;
+  top: -0.3mm;
+  left: 0;
+  width: 14mm;
+  height: 0.6mm;
+  background: #1f4e79;
+}
+
+.layout-blueprint .paper-name {
+  color: #14355a;
+  font-size: calc(var(--paper-base-size) * 2.5);
+  letter-spacing: 0.24em;
+}
+
+.layout-blueprint .paper-role {
+  color: #1f4e79;
+}
+
+.layout-blueprint .paper-contacts,
+.layout-blueprint .paper-contact {
+  color: #2c4a68;
+}
+
+.layout-blueprint .paper-identity {
+  border-color: rgba(31, 78, 121, 0.5);
+  background: rgba(31, 78, 121, 0.07);
+  color: #1f4e79;
+}
+
+.layout-blueprint .paper-photo {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 18mm;
+  height: 24mm;
+  border-radius: 0.4mm;
+  object-fit: cover;
+}
+
+.layout-blueprint .paper-contacts {
+  padding-right: 22mm;
+}
+
+/* ══ 折页 fold：单栏正文 + 页眉三列，紧凑密度下仍能稳定分页。
+      正文保持普通块流，分页算法按实测 top 计算断点，与其余版式一致。
+      页眉三列：照片 | 姓名 | 联系方式，照片贴左垂直居中，不再被自动布局挤到页眉外面。 ══ */
+.layout-fold .paper-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-items: end;
+  column-gap: 7mm;
+  margin-bottom: 8mm;
+  padding-bottom: 4mm;
+  border-bottom: 0.35mm solid #4c4a45;
+}
+
+.layout-fold .paper-header__main {
+  display: contents;
+}
+
+.layout-fold .paper-photo {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: center;
+  width: 20mm;
+  height: 26mm;
+  border-radius: 0.5mm;
+  object-fit: cover;
+}
+
+.layout-fold .paper-name-row {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.layout-fold .paper-name {
+  font-size: calc(var(--paper-base-size) * 2.15);
+}
+
+.layout-fold .paper-role {
+  grid-column: 2;
+  grid-row: 2;
+  margin-top: 1mm;
+}
+
+.layout-fold .paper-contacts {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: start;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  justify-items: end;
+  gap: 0.5mm 6mm;
+  margin: 0;
+  text-align: right;
+}
+
+.layout-fold .paper-contact + .paper-contact::before {
+  display: none;
+}
+
+.layout-fold .paper-photo--monogram {
+  display: grid;
+  place-items: center;
+  background: #f0efeb;
+  color: rgba(76, 74, 69, 0.8);
+  font-family: var(--serif);
+  font-size: calc(var(--paper-base-size) * 1.9);
+  font-weight: 700;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* 正文保持普通块流单栏：不设 column-count，也不要用 break-inside / page-break-inside
+   替分页算法做决定，否则实测高度与打印分页会对不上，长分区也无法正常跨页。 */
+.layout-fold :deep(.paper-section) {
+  margin-bottom: 4.5mm;
+}
+
 @media print {
-  .resume-paper {
+  /* 暖纸滤镜的米白底色要跟到打印纸面上（print-color-adjust: exact 已在 base.css 声明）；
+     其余情况打印仍强制纯白，避免任何 canvas 底色混进纸面。
+     注意：暖纸的「整页画布染色」不能写在这里——本文件的样式是 scoped 的，
+     html/body 会被编译成 html[data-v-xxx] 而永远匹配不到，规则统一放在 base.css 的打印块里。 */
+  .resume-paper:not(.filter-soft) {
     background: #fff !important;
   }
 

@@ -1,0 +1,33 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "zheye",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "折页",
+    "description": "单栏正文配三列页眉，分区只留一条细下划线，紧凑密度把行距与模块间距收进一档；灰黑色调、不带照片，适合经历多、想压到一页的简历。",
+    "category": "简约",
+    "tags": [
+      "单栏",
+      "紧凑",
+      "多内容",
+      "社招"
+    ],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "fold",
+    "accent": "#4c4a45",
+    "font": "sans",
+    "sectionStyle": "plain",
+    "density": "compact"
+  },
+  "capability": {
+    "photo": false,
+    "free": true
+  },
+  "sortWeight": 61
+}

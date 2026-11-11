@@ -1,0 +1,35 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "qinghan",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "青函",
+    "description": "圆形证件照配蓝色姓名，模块标题是蓝色实心圆徽配同色标题，技能按名称熟练度两列排开。适合护理、医疗与康复岗位。",
+    "category": "医疗",
+    "tags": [
+      "蓝色",
+      "圆头像",
+      "圆徽标题",
+      "医疗",
+      "护理"
+    ],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "profile",
+    "accent": "#2f8fc4",
+    "font": "sans",
+    "sectionStyle": "line",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 997,
+  "style": "/* 青函 —— 圆形头像配蓝色圆徽标题 */\n\n.tw-qinghan.layout-profile.resume-paper .paper-header {\n  margin-bottom: 6mm;\n  padding-bottom: 4.4mm;\n  border-bottom: 0.25mm solid #d9e6ee;\n  align-items: center;\n  gap: 7mm;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-photo {\n  order: -1;\n  width: 28mm;\n  height: 28mm;\n  border: 1.4mm solid #fff;\n  border-radius: 50%;\n  box-shadow: 0 0 0 0.3mm #d7e6ef;\n  object-fit: cover;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-photo--monogram {\n  display: grid;\n  place-items: center;\n  border-radius: 50%;\n  background: #eff6fa;\n  color: var(--paper-accent);\n  font-size: calc(var(--paper-base-size) * 2);\n  font-weight: 700;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-name {\n  color: var(--paper-accent);\n  font-family: var(--paper-font-family);\n  font-size: calc(var(--paper-base-size) * 2.05);\n  letter-spacing: 0.08em;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-identity {\n  padding: 0;\n  border: none;\n  color: #6d7f89;\n  font-size: calc(var(--paper-base-size) * 0.84);\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-role {\n  margin-top: 1.4mm;\n  color: #3d4c55;\n  font-size: calc(var(--paper-base-size) * 0.9);\n  font-weight: 400;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-contacts {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 1.4mm 5mm;\n  margin-top: 3mm;\n  color: #33434c;\n  font-size: calc(var(--paper-base-size) * 0.86);\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-contact {\n  display: inline-flex;\n  gap: 1.4mm;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-contact + .paper-contact::before {\n  content: \"\";\n  left: -2.6mm;\n  width: 0.2mm;\n  height: 3.2mm;\n  background: #dbe7ee;\n  print-color-adjust: exact;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-contact__label {\n  color: #7f9099;\n}\n\n/* 标题：蓝色圆徽 + 蓝字 + 通栏细线 */\n.tw-qinghan.layout-profile.resume-paper .paper-section__title {\n  display: flex;\n  align-items: center;\n  gap: 2.4mm;\n  margin-bottom: 3.2mm;\n  padding-bottom: 1.4mm;\n  border-bottom: 0.25mm solid #dbe7ee;\n  color: var(--paper-accent);\n  font-size: calc(var(--paper-base-size) * 1.08);\n  letter-spacing: 0.08em;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-section__icon {\n  display: grid;\n  flex: 0 0 auto;\n  place-items: center;\n  width: 5.4mm;\n  height: 5.4mm;\n  border: none;\n  border-radius: 50%;\n  background: var(--paper-accent);\n  color: #fff;\n  print-color-adjust: exact;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-section__icon svg {\n  width: 58%;\n  height: 58%;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-style-line .paper-section__title span::before {\n  display: none;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-section__body {\n  color: #303f47;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-item-title {\n  color: #1d2b33;\n  font-size: calc(var(--paper-base-size) * 1.02);\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-item-period {\n  color: #7b8d97;\n  font-size: calc(var(--paper-base-size) * 0.86);\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-item-sub {\n  color: #44535b;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-rich ul,\n.tw-qinghan.layout-profile.resume-paper .paper-rich ol {\n  padding-left: 1.1em;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-rich li::marker {\n  color: var(--paper-accent);\n}\n\n/* 技能：两列，名称在左、熟练度在右 */\n.tw-qinghan.layout-profile.resume-paper .paper-skills {\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 2mm 12mm;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-skill {\n  padding-bottom: 1.2mm;\n  border-bottom: 0.2mm solid #e3edf2;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-skill__name {\n  font-size: calc(var(--paper-base-size) * 0.92);\n  font-weight: 400;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-skill__dots {\n  display: none;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-skill__level {\n  display: inline;\n  color: #6b7d87;\n  font-size: calc(var(--paper-base-size) * 0.84);\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-note__tag {\n  color: #1d2b33;\n  font-weight: 600;\n}\n\n/* 主修课程回到正文读法 */\n.tw-qinghan.layout-profile.resume-paper .paper-note__tag {\n  display: inline;\n  margin: 0;\n  padding: 0;\n  border: none;\n  border-radius: 0;\n  background: none;\n  color: #1d2b33;\n  font-weight: 600;\n  font-size: inherit;\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-note__tag::after {\n  content: \"：\";\n}\n\n.tw-qinghan.layout-profile.resume-paper .paper-footer {\n  border-top: 0.2mm solid #e2ecf2;\n  color: #9dabb3;\n}"
+}

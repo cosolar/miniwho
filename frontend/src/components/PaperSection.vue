@@ -639,6 +639,171 @@ function skillLevel(level) {
   display: none;
 }
 
+/* 切影：标题只是右对齐的一行字，竖线与对齐交给版式，不再加装饰。 */
+.paper-style-side .paper-section__title {
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+
+/* 表册：上下双线的表头，左边中文粗体、右边英文小标，像账簿的栏目行。 */
+.paper-style-thead .paper-section__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4mm;
+  margin-bottom: 3.4mm;
+  padding: 1.5mm 0 1.3mm;
+  border-top: 0.5mm solid #14161a;
+  border-bottom: 0.18mm solid #14161a;
+  color: #14161a;
+  font-size: calc(var(--paper-base-size) * 1.02);
+  letter-spacing: 0.16em;
+}
+
+.paper-style-thead .paper-section__title::after {
+  color: #6b7178;
+  font-family: var(--sans);
+  font-size: calc(var(--paper-base-size) * 0.62);
+  font-weight: 500;
+  letter-spacing: 0.24em;
+}
+
+.paper-style-thead.is-education .paper-section__title::after {
+  content: "EDUCATION";
+}
+
+.paper-style-thead.is-work_experience .paper-section__title::after {
+  content: "EXPERIENCE";
+}
+
+.paper-style-thead.is-project_experience .paper-section__title::after {
+  content: "PROJECTS";
+}
+
+.paper-style-thead.is-campus_experience .paper-section__title::after {
+  content: "CAMPUS";
+}
+
+.paper-style-thead.is-skill_proficiency .paper-section__title::after,
+.paper-style-thead.is-skills_summary .paper-section__title::after {
+  content: "SKILLS";
+}
+
+.paper-style-thead.is-certificate .paper-section__title::after {
+  content: "CERTIFICATES";
+}
+
+.paper-style-thead.is-award .paper-section__title::after {
+  content: "HONORS";
+}
+
+.paper-style-thead.is-competition .paper-section__title::after {
+  content: "COMPETITIONS";
+}
+
+.paper-style-thead.is-paper_publication .paper-section__title::after,
+.paper-style-thead.is-journal_paper .paper-section__title::after {
+  content: "PUBLICATIONS";
+}
+
+.paper-style-thead.is-self_evaluation .paper-section__title::after {
+  content: "PROFILE";
+}
+
+.paper-style-thead.is-hobby .paper-section__title::after {
+  content: "INTERESTS";
+}
+
+.paper-style-thead.is-job_intention .paper-section__title::after {
+  content: "OBJECTIVE";
+}
+
+.paper-style-thead.is-portfolio .paper-section__title::after {
+  content: "PORTFOLIO";
+}
+
+.paper-style-thead.is-postgraduate_info .paper-section__title::after {
+  content: "POSTGRAD";
+}
+
+/* 卡片：标题做成一枚实心胶囊，压在卡片上方 */
+.paper-style-chip .paper-section__title {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 3mm;
+  padding: 0.9mm 3.2mm;
+  border-radius: 999px;
+  background: var(--paper-accent, #3b5a75);
+  color: #fff;
+  font-size: calc(var(--paper-base-size) * 0.92);
+  letter-spacing: 0.12em;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* 杂志：序号 + 中文标题 + 一条拉到右边缘的细线 */
+.paper-style-folio .paper-section {
+  counter-increment: folio-sec;
+}
+
+.paper-style-folio .paper-section__title {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+  margin-bottom: 3.2mm;
+  color: #8a2a2f;
+  font-family: var(--serif);
+  font-size: calc(var(--paper-base-size) * 1.3);
+  letter-spacing: 0.08em;
+}
+
+.paper-style-folio .paper-section__title::before {
+  color: rgba(138, 42, 47, 0.45);
+  font-family: var(--sans);
+  font-size: calc(var(--paper-base-size) * 0.78);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  content: counter(folio-sec, decimal-leading-zero);
+}
+
+.paper-style-folio .paper-section__title::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: rgba(138, 42, 47, 0.3);
+}
+
+/* 蓝图：一截加粗短线起头，标题后面接虚线刻度 */
+.paper-style-tick .paper-section__title {
+  display: flex;
+  align-items: center;
+  gap: 2.6mm;
+  margin-bottom: 3mm;
+  padding-bottom: 1.4mm;
+  border-bottom: 1px dashed rgba(31, 78, 121, 0.42);
+  color: #14355a;
+  font-size: calc(var(--paper-base-size) * 1.05);
+  letter-spacing: 0.18em;
+}
+
+.paper-style-tick .paper-section__title::before {
+  content: "";
+  flex: none;
+  width: 6mm;
+  height: 0.6mm;
+  background: #1f4e79;
+}
+
+/* 折页：只有一条下划线，字距拉开，给单栏留出安静的层次 */
+.paper-style-plain .paper-section__title {
+  margin-bottom: 2.6mm;
+  padding-bottom: 1.2mm;
+  border-bottom: 1px solid rgba(76, 74, 69, 0.32);
+  color: #2c2b28;
+  font-size: calc(var(--paper-base-size) * 0.96);
+  letter-spacing: 0.2em;
+}
+
 /* 技术：主色描边圆形图标 + 黑字标题 + 通栏虚线。 */
 .paper-style-icon .paper-section__title {
   display: flex;
@@ -787,6 +952,111 @@ function skillLevel(level) {
   color: #1d2733;
   font-weight: 400;
   overflow-wrap: anywhere;
+}
+
+/* 云笺：编号方块 + 虚线下划线，标题用宋体，右侧跟一枚英文小标。
+   编号来自 CSS 计数器（.layout-framed .paper-flow 负责 reset），不用改 DOM。 */
+.layout-framed .paper-section {
+  counter-increment: framed-sec;
+}
+
+.paper-style-number .paper-section__title {
+  display: flex;
+  align-items: center;
+  gap: 2.6mm;
+  margin-bottom: 3.2mm;
+  padding-bottom: 2mm;
+  border-bottom: 1px dashed color-mix(in srgb, var(--paper-accent, #2f5c8f) 42%, transparent);
+  color: #26323c;
+  font-family: var(--serif);
+  font-size: calc(var(--paper-base-size, 10.5pt) * 1.24);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.paper-style-number .paper-section__title::before {
+  content: counter(framed-sec, decimal-leading-zero);
+  display: grid;
+  place-items: center;
+  min-width: 8.6mm;
+  padding: 1mm 1.4mm;
+  border-radius: 0.8mm;
+  background: var(--paper-accent, #2f5c8f);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: calc(var(--paper-base-size, 10.5pt) * 0.86);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.paper-style-number .paper-section__title span::after {
+  margin-left: 2.6mm;
+  color: color-mix(in srgb, var(--paper-accent, #2f5c8f) 55%, #fff);
+  font-family: var(--sans);
+  font-size: calc(var(--paper-base-size, 10.5pt) * 0.62);
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  vertical-align: 0.6mm;
+}
+
+.paper-style-number.is-education .paper-section__title span::after {
+  content: "EDUCATION";
+}
+
+.paper-style-number.is-work_experience .paper-section__title span::after {
+  content: "WORK EXPERIENCE";
+}
+
+.paper-style-number.is-project_experience .paper-section__title span::after {
+  content: "PROJECTS";
+}
+
+.paper-style-number.is-campus_experience .paper-section__title span::after {
+  content: "CAMPUS";
+}
+
+.paper-style-number.is-skill_proficiency .paper-section__title span::after,
+.paper-style-number.is-skills_summary .paper-section__title span::after {
+  content: "SKILLS";
+}
+
+.paper-style-number.is-certificate .paper-section__title span::after {
+  content: "CERTIFICATES";
+}
+
+.paper-style-number.is-award .paper-section__title span::after {
+  content: "HONORS";
+}
+
+.paper-style-number.is-competition .paper-section__title span::after {
+  content: "COMPETITIONS";
+}
+
+.paper-style-number.is-paper_publication .paper-section__title span::after,
+.paper-style-number.is-journal_paper .paper-section__title span::after {
+  content: "PUBLICATIONS";
+}
+
+.paper-style-number.is-portfolio .paper-section__title span::after {
+  content: "PORTFOLIO";
+}
+
+.paper-style-number.is-self_evaluation .paper-section__title span::after {
+  content: "ABOUT ME";
+}
+
+.paper-style-number.is-hobby .paper-section__title span::after {
+  content: "HOBBIES";
+}
+
+.paper-style-number.is-job_intention .paper-section__title span::after {
+  content: "OBJECTIVE";
+}
+
+.paper-style-number.is-postgraduate_info .paper-section__title span::after {
+  content: "POSTGRAD";
 }
 
 .is-compact .paper-section__title {

@@ -1,0 +1,35 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "feiying",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "绯樱",
+    "description": "顶部绯色 RESUME 旗标开场，模块标题是绯色实底白字横条，证件照带同色细框。适合护理、医美与服务行业。",
+    "category": "医疗",
+    "tags": [
+      "绯色",
+      "RESUME",
+      "实底标题",
+      "医疗",
+      "护理"
+    ],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "band",
+    "accent": "#f0837f",
+    "font": "sans",
+    "sectionStyle": "block",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 995,
+  "style": "/* 绯樱 —— 顶部 RESUME 旗标、绯色实底标题条 */\n\n.tw-feiying.layout-band.resume-paper .paper-flow::before {\n  content: \"RESUME\";\n  display: block;\n  width: 46mm;\n  margin: -3mm auto 7mm;\n  padding: 1.6mm 0;\n  background: var(--paper-accent);\n  clip-path: polygon(4mm 0, 100% 0, calc(100% - 4mm) 100%, 0 100%);\n  color: #fff;\n  font-size: calc(var(--paper-base-size) * 1.16);\n  font-weight: 700;\n  letter-spacing: 0.34em;\n  text-align: center;\n  text-indent: 0.34em;\n  print-color-adjust: exact;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-header {\n  margin-bottom: 6.5mm;\n  padding-bottom: 4.4mm;\n  border-bottom: 0.3mm solid #f6d9d7;\n  align-items: flex-start;\n  gap: 8mm;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-header__main {\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-photo {\n  order: 3;\n  width: 25mm;\n  height: 33mm;\n  border: 0.5mm solid var(--paper-accent);\n  border-radius: 0;\n  box-shadow: none;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-photo--monogram {\n  display: grid;\n  place-items: center;\n  background: #fdf0ef;\n  color: var(--paper-accent);\n  font-size: calc(var(--paper-base-size) * 2);\n  font-weight: 700;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-name {\n  color: var(--paper-accent);\n  font-family: var(--paper-font-family);\n  font-size: calc(var(--paper-base-size) * 2.1);\n  letter-spacing: 0.06em;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-identity {\n  padding: 0;\n  border: none;\n  color: #a08382;\n  font-size: calc(var(--paper-base-size) * 0.84);\n}\n\n.tw-feiying.layout-band.resume-paper .paper-role {\n  margin-top: 1.4mm;\n  color: #5c4c4b;\n  font-size: calc(var(--paper-base-size) * 0.92);\n  font-weight: 400;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-contacts {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 1.4mm 6mm;\n  margin-top: 3mm;\n  padding-top: 0;\n  border-top: none;\n  color: #55494a;\n  font-size: calc(var(--paper-base-size) * 0.86);\n}\n\n.tw-feiying.layout-band.resume-paper .paper-contact {\n  display: inline-flex;\n  gap: 1.4mm;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-contact + .paper-contact::before {\n  content: \"|\";\n  left: -3mm;\n  color: #f0cdcb;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-contact__label {\n  color: #a08a89;\n}\n\n/* 标题：绯色整条 + 白字 + 图标 */\n.tw-feiying.layout-band.resume-paper .paper-style-block .paper-section__title {\n  display: flex;\n  align-items: center;\n  gap: 2.4mm;\n  margin-bottom: 3.2mm;\n  padding: 1.2mm 3.2mm;\n  background: var(--paper-accent);\n  border-radius: 0;\n  color: #fff;\n  font-size: calc(var(--paper-base-size) * 1.04);\n  letter-spacing: 0.12em;\n  print-color-adjust: exact;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-style-block .paper-section__icon {\n  display: grid;\n  flex: 0 0 auto;\n  place-items: center;\n  width: 4mm;\n  height: 4mm;\n  color: #fff;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-style-block .paper-section__icon svg {\n  width: 100%;\n  height: 100%;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-section__body {\n  color: #3a3130;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-item-title {\n  color: #2a2221;\n  font-size: calc(var(--paper-base-size) * 1.02);\n}\n\n.tw-feiying.layout-band.resume-paper .paper-item-period {\n  color: #a08a89;\n  font-size: calc(var(--paper-base-size) * 0.86);\n}\n\n.tw-feiying.layout-band.resume-paper .paper-item-sub {\n  color: #4c4241;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-rich ul,\n.tw-feiying.layout-band.resume-paper .paper-rich ol {\n  padding-left: 1.1em;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-rich li::marker {\n  color: var(--paper-accent);\n}\n\n.tw-feiying.layout-band.resume-paper .paper-skills {\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  gap: 2mm 7mm;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-skill {\n  display: block;\n  padding-bottom: 0;\n  border-bottom: none;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-skill__name {\n  display: block;\n  font-size: calc(var(--paper-base-size) * 0.9);\n  font-weight: 400;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-skill__dots {\n  display: flex;\n  gap: 0;\n  margin-top: 1.2mm;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-skill__dots i {\n  width: 100%;\n  height: 1.8mm;\n  border-radius: 0;\n  background: #f7e5e4;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-skill__dots i.filled {\n  background: var(--paper-accent);\n}\n\n.tw-feiying.layout-band.resume-paper .paper-skill__level {\n  display: block;\n  margin-top: 1mm;\n  color: #a08a89;\n  font-size: calc(var(--paper-base-size) * 0.8);\n}\n\n.tw-feiying.layout-band.resume-paper .paper-note__tag {\n  color: var(--paper-accent);\n  font-weight: 600;\n}\n\n.tw-feiying.layout-band.resume-paper .paper-footer {\n  border-top: 0.2mm solid #f7e6e5;\n  color: #b3a09f;\n}"
+}

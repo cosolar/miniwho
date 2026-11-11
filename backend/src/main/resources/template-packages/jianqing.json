@@ -1,0 +1,35 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "jianqing",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "简青",
+    "description": "线条图标配蓝色标题，日期、单位、专业压成一行，正文用细圆点分条。适合技术、质检与制造类岗位。",
+    "category": "技术",
+    "tags": [
+      "线条图标",
+      "蓝色",
+      "单行条目",
+      "技术岗",
+      "质检"
+    ],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "profile",
+    "accent": "#2b6f9e",
+    "font": "sans",
+    "sectionStyle": "line",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 988,
+  "style": "/* 简青 —— 线条图标配蓝色标题，日期、单位、专业压成一行 */\n\n.tw-jianqing.layout-profile.resume-paper .paper-header {\n  margin-bottom: 7mm;\n  padding-bottom: 4.6mm;\n  border-bottom: 0.28mm solid #d9e4ea;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-header--photo {\n  align-items: flex-start;\n  gap: 8mm;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-header__main {\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-photo {\n  order: 3;\n  width: 22mm;\n  height: 30mm;\n  border: 0.4mm solid #dae4ea;\n  border-radius: 0;\n  box-shadow: none;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-photo--monogram {\n  display: grid;\n  place-items: center;\n  background: #eff4f7;\n  color: var(--paper-accent);\n  font-size: calc(var(--paper-base-size) * 2);\n  font-weight: 700;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-name {\n  color: #1b2a33;\n  font-family: var(--paper-font-family);\n  font-size: calc(var(--paper-base-size) * 2.15);\n  letter-spacing: 0.1em;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-identity {\n  padding: 0;\n  border: none;\n  color: #66787f;\n  font-size: calc(var(--paper-base-size) * 0.84);\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-role {\n  margin-top: 1.8mm;\n  color: #2a3c46;\n  font-size: calc(var(--paper-base-size) * 0.98);\n  font-weight: 500;\n  letter-spacing: 0.02em;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-contacts {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 1.4mm 8mm;\n  margin-top: 3mm;\n  color: #33454e;\n  font-size: calc(var(--paper-base-size) * 0.87);\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-contact {\n  display: flex;\n  gap: 1.6mm;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-contact + .paper-contact::before {\n  display: none;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-contact__label {\n  flex: 0 0 auto;\n  color: #7f9099;\n}\n\n/* 标题：线条图标 + 蓝字 + 通栏细线 */\n.tw-jianqing.layout-profile.resume-paper .paper-section__title {\n  display: flex;\n  align-items: center;\n  gap: 2.2mm;\n  margin-bottom: 3.2mm;\n  padding-bottom: 1.4mm;\n  border-bottom: 0.28mm solid color-mix(in srgb, var(--paper-accent) 42%, #fff);\n  color: var(--paper-accent);\n  font-size: calc(var(--paper-base-size) * 1.06);\n  letter-spacing: 0.1em;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-section__icon {\n  display: grid;\n  flex: 0 0 auto;\n  place-items: center;\n  width: 4.6mm;\n  height: 4.6mm;\n  border: none;\n  background: none;\n  border-radius: 0;\n  color: var(--paper-accent);\n  print-color-adjust: exact;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-section__icon svg {\n  width: 100%;\n  height: 100%;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-style-line .paper-section__title span::before {\n  display: none;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-section__body {\n  color: #2f3f48;\n}\n\n/* 条目：每个子元素默认占满一行，只把日期、单位、专业交出来同行 */\n.tw-jianqing.layout-profile.resume-paper .paper-item {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  column-gap: 6mm;\n  row-gap: 0.8mm;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-item > * {\n  flex: 1 0 100%;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-item > .paper-item-head {\n  flex: 0 1 auto;\n  justify-content: flex-start;\n  gap: 6mm;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-item-head .paper-item-title {\n  order: 2;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-item-period {\n  order: 1;\n  flex: 0 0 auto;\n  width: 27mm;\n  color: #6f818a;\n  font-size: calc(var(--paper-base-size) * 0.86);\n  white-space: nowrap;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-item > .paper-item-sub {\n  flex: 0 0 auto;\n  margin-top: 0;\n  margin-left: auto;\n  color: #3f515a;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-item-title {\n  color: #1d2c35;\n  font-size: calc(var(--paper-base-size) * 1.02);\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-item-sub span + span::before {\n  content: \"\";\n  margin-right: 6mm;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-rich {\n  margin-top: 0.8mm;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-rich ul,\n.tw-jianqing.layout-profile.resume-paper .paper-rich ol {\n  margin-top: 0.6mm;\n  padding-left: 0;\n  list-style: none;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-rich li {\n  position: relative;\n  margin: 0.7mm 0;\n  padding-left: 3.4mm;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-rich li::before {\n  content: \"\";\n  position: absolute;\n  top: 0.72em;\n  left: 0.2mm;\n  width: 1mm;\n  height: 1mm;\n  border-radius: 50%;\n  background: #93a5ae;\n  print-color-adjust: exact;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-note__tag {\n  color: #1d2c35;\n  font-weight: 600;\n}\n\n/* 主修课程回到正文读法：去掉胶囊边框与内边距 */\n.tw-jianqing.layout-profile.resume-paper .paper-note__tag {\n  display: inline;\n  margin: 0;\n  padding: 0;\n  border: none;\n  border-radius: 0;\n  background: none;\n  color: #1d2c35;\n  font-weight: 600;\n  font-size: inherit;\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-note__tag::after {\n  content: \"：\";\n}\n\n.tw-jianqing.layout-profile.resume-paper .paper-footer {\n  border-top: 0.2mm solid #e1e9ed;\n  color: #9dabb2;\n}"
+}

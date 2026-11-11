@@ -1,0 +1,35 @@
+{
+  "api": 1,
+  "id": {
+    "namespace": "official",
+    "code": "zhuling",
+    "version": "1.0.0"
+  },
+  "meta": {
+    "name": "朱绫",
+    "description": "绯红页眉配锯齿下沿，朱红短线压在标题下，日期与单位同一行展开。适合互联网、计算机与研发岗位。",
+    "category": "商务",
+    "tags": [
+      "绯红",
+      "锯齿",
+      "日期左栏",
+      "互联网",
+      "研发"
+    ],
+    "author": "MiniWho",
+    "license": "MIT"
+  },
+  "theme": {
+    "layout": "band",
+    "accent": "#b5312a",
+    "font": "sans",
+    "sectionStyle": "line",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 982,
+  "style": "/* 朱绫 —— 绯红页眉配锯齿下沿，朱线标题与日期左栏 */\n\n.tw-zhuling.layout-band.resume-paper .paper-header {\n  position: relative;\n  margin: -15mm -15mm 8mm;\n  padding: 11mm 15mm 8mm;\n  background: var(--paper-accent);\n  border: none;\n  color: #fff;\n  align-items: flex-start;\n  gap: 8mm;\n  print-color-adjust: exact;\n}\n\n/* 锯齿下沿：一张 4mm × 2mm 的三角贴片平铺，颜色与主色一致 */\n.tw-zhuling.layout-band.resume-paper .paper-header::after {\n  content: \"\";\n  position: absolute;\n  left: 0;\n  right: 0;\n  bottom: -1.9mm;\n  height: 2mm;\n  background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='4' viewBox='0 0 8 4'%3E%3Cpath d='M0 0h8L4 4z' fill='%23b5312a'/%3E%3C/svg%3E\");\n  background-size: 4mm 2mm;\n  background-repeat: repeat-x;\n  print-color-adjust: exact;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-header__main {\n  flex: 1 1 auto;\n  min-width: 0;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-photo {\n  order: 3;\n  width: 24mm;\n  height: 33mm;\n  border: 0.6mm solid rgba(255, 255, 255, 0.85);\n  border-radius: 0;\n  box-shadow: none;\n  print-color-adjust: exact;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-photo--monogram {\n  display: grid;\n  place-items: center;\n  background: rgba(255, 255, 255, 0.18);\n  color: #fff;\n  font-size: calc(var(--paper-base-size) * 2);\n  font-weight: 700;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-name {\n  color: #fff;\n  font-family: var(--paper-font-family);\n  font-size: calc(var(--paper-base-size) * 2.35);\n  letter-spacing: 0.1em;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-identity {\n  padding: 0;\n  border: none;\n  color: rgba(255, 255, 255, 0.82);\n  font-size: calc(var(--paper-base-size) * 0.84);\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-role {\n  margin-top: 2mm;\n  color: rgba(255, 255, 255, 0.92);\n  font-size: calc(var(--paper-base-size) * 0.96);\n  font-weight: 400;\n  line-height: 1.6;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-contacts {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 1.4mm 7mm;\n  margin-top: 3.4mm;\n  color: rgba(255, 255, 255, 0.92);\n  font-size: calc(var(--paper-base-size) * 0.86);\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-contact {\n  display: inline-flex;\n  gap: 1.4mm;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-contact + .paper-contact::before {\n  content: \"|\";\n  left: -3.8mm;\n  color: rgba(255, 255, 255, 0.42);\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-contact__label {\n  color: rgba(255, 255, 255, 0.7);\n}\n\n/* 标题：黑字 + 朱红细线，线头压一小段粗线 */\n.tw-zhuling.layout-band.resume-paper .paper-section__title {\n  position: relative;\n  margin-bottom: 3.2mm;\n  padding-bottom: 1.4mm;\n  border-bottom: 0.25mm solid color-mix(in srgb, var(--paper-accent) 45%, #fff);\n  color: #1d1a1a;\n  font-size: calc(var(--paper-base-size) * 1.06);\n  letter-spacing: 0.12em;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-style-line .paper-section__title span::before {\n  display: none;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-section__title::before {\n  content: \"\";\n  position: absolute;\n  left: 0;\n  bottom: -0.9mm;\n  width: 12mm;\n  height: 1.6mm;\n  background: var(--paper-accent);\n  print-color-adjust: exact;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-section__body {\n  color: #33302f;\n}\n\n/* 条目：日期左栏，标题与副行右侧 */\n.tw-zhuling.layout-band.resume-paper .paper-item {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  column-gap: 6mm;\n  row-gap: 0.8mm;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-item > * {\n  flex: 1 0 100%;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-item > .paper-item-head {\n  flex: 0 1 auto;\n  justify-content: flex-start;\n  gap: 6mm;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-item-head .paper-item-title {\n  order: 2;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-item-period {\n  order: 1;\n  flex: 0 0 auto;\n  width: 29mm;\n  color: #8c7b78;\n  font-size: calc(var(--paper-base-size) * 0.86);\n  white-space: normal;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-item > .paper-item-sub {\n  flex: 0 0 auto;\n  margin-top: 0;\n  margin-left: auto;\n  color: #4a403e;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-item-title {\n  color: #1d1a1a;\n  font-size: calc(var(--paper-base-size) * 1.02);\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-item-sub span + span::before {\n  content: \"\";\n  margin-right: 6mm;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-rich ul,\n.tw-zhuling.layout-band.resume-paper .paper-rich ol {\n  margin-top: 0.8mm;\n  padding-left: 0;\n  list-style: none;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-rich li {\n  position: relative;\n  margin: 0.7mm 0;\n  padding-left: 3.6mm;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-rich li::before {\n  content: \"\";\n  position: absolute;\n  top: 0.7em;\n  left: 0.4mm;\n  width: 1.1mm;\n  height: 1.1mm;\n  border-radius: 50%;\n  background: color-mix(in srgb, var(--paper-accent) 60%, #fff);\n  print-color-adjust: exact;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-note__tag {\n  color: var(--paper-accent);\n  font-weight: 600;\n}\n\n.tw-zhuling.layout-band.resume-paper .paper-footer {\n  border-top: 0.2mm solid #f0e2e0;\n  color: #b3a09d;\n}"
+}

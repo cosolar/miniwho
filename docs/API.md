@@ -818,7 +818,7 @@ GET /api/templates
 
 `styleCss` 是服务端**净化后重新生成**的 CSS，渲染端只读它，绝不读包原文。
 
-官方模板编码：`qinghe`、`moxian`、`ceying`、`chengshi`、`jianya`、`qiuye`、`jishu`、`xueshu`、`chenxing`、`qihang`、`qingwa`、`jinshi`。
+官方模板编码：`qinghe`、`moxian`、`ceying`、`chengshi`、`jianya`、`qiuye`、`jishu`、`xueshu`、`chenxing`、`qihang`、`qingwa`、`jinshi`、`qingling`、`ziteng`、`lanzhou`、`cangyan`、`mochuan`、`bijian`、`songshi`、`zitang`、`qingci`、`zhusha`、`zhuyin`、`lanyu`、`haichuan`、`jiandu`、`sujian`、`liucai`、`zifeng`、`qinglan`、`yunjian`、`qingai`、`lanzhe`、`subai`、`yanlu`、`jianqing`、`yadai`、`suding`、`shuangying`、`qimo`、`ziyuan`、`zhuling`、`xian`、`bibo`、`chengyi`、`tianqing`、`mobai`、`liujin`、`sulan`、`qinghan`、`huijie`、`feiying`、`xuanmo`、`yehang`。
 
 ### 3.2 我的模板（需登录）
 
