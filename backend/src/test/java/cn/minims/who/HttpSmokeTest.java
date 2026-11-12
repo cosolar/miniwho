@@ -217,6 +217,29 @@ class HttpSmokeTest {
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 
+    @Test
+    @Order(10)
+    void auditActorFilterAcceptsNameIdAndGarbage() throws Exception {
+        // 回归：操作者筛选曾是 Long actorId，前端把用户名等非数字传上来会在参数绑定时报
+        // 「参数格式不正确：actorId」。改成 String actor 后，名字 / ID / 乱串都按普通查询处理。
+        String token = login("admin", "smoke-admin");
+        // 登录本身写了一条 admin 审计：按名字模糊能查到
+        mockMvc.perform(get("/api/admin/audit-logs").param("actor", "admin").header("satoken", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.data.total").value(org.hamcrest.Matchers.greaterThan(0)));
+        // 纯数字按操作者 ID 精确匹配（admin 是首个用户，ID = 1）
+        mockMvc.perform(get("/api/admin/audit-logs").param("actor", "1").header("satoken", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.data.total").value(org.hamcrest.Matchers.greaterThan(0)));
+        // 非数字乱串按名字模糊，查不到但绝不再报参数格式错误
+        mockMvc.perform(get("/api/admin/audit-logs").param("actor", "NaN").header("satoken", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.data.total").value(0));
+    }
+
     private String login(String username, String password) throws Exception {
         // 滑块验证码在冒烟里关掉了：它要真拖一次才出票据，而这里的用例关心的是登录之后的事。
         String body = mockMvc.perform(post("/api/auth/login")

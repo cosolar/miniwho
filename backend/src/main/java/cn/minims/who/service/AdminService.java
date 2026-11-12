@@ -129,12 +129,20 @@ public class AdminService {
 
     // ───────────────── 审计日志：查看、手动清理、自动清理策略 ─────────────────
 
-    public cn.minims.who.dto.AdminDtos.AdminAuditPageVo auditLogs(Long actorId, String action, Long from, Long to,
+    /**
+     * actor 筛选：纯数字按操作者用户 ID 精确匹配，其余按操作者名字模糊匹配。
+     * 之前参数是 Long actorId，前端把非数字（用户名/残留文字）传上来会在参数绑定时报
+     * 「参数格式不正确：actorId」，改成字符串后在服务端分支处理，两种查法都支持。
+     */
+    public cn.minims.who.dto.AdminDtos.AdminAuditPageVo auditLogs(String actor, String action, Long from, Long to,
                                                                   int page, int size) {
         int safePage = Math.max(1, page);
         int safeSize = Math.min(Math.max(1, size), 100);
+        String actorFilter = actor == null ? "" : actor.trim();
+        boolean actorIsId = actorFilter.matches("\\d{1,19}");
         LambdaQueryWrapper<AuditLog> wrapper = new LambdaQueryWrapper<AuditLog>()
-                .eq(actorId != null, AuditLog::getActorId, actorId)
+                .eq(actorIsId, AuditLog::getActorId, actorIsId ? Long.valueOf(actorFilter) : null)
+                .like(!actorFilter.isEmpty() && !actorIsId, AuditLog::getActorName, actorFilter)
                 .eq(action != null && !action.isBlank(), AuditLog::getAction, action)
                 .ge(from != null, AuditLog::getCreatedAt, from)
                 .le(to != null, AuditLog::getCreatedAt, to)

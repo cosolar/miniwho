@@ -309,7 +309,7 @@ async function loadAuditLogs(page = auditPage.value) {
   auditLoading.value = true
   try {
     const data = await adminApi.auditLogs({
-      actorId: auditActor.value ? Number(auditActor.value) : undefined,
+      actor: auditActor.value.trim() || undefined,
       action: auditAction.value || undefined,
       page,
       size: auditPageSize.value
@@ -1620,7 +1620,7 @@ onBeforeUnmount(() => {
                 <el-input
                   v-model="auditActor"
                   class="user-search"
-                  placeholder="操作者用户 ID"
+                  placeholder="操作者 ID 或用户名"
                   clearable
                   @keyup.enter="loadAuditLogs(1)"
                 />

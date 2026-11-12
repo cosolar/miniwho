@@ -186,16 +186,16 @@ public class AdminController {
         return ApiResponse.ok(null);
     }
 
-    /** 操作日志：按操作者 / 动作 / 时间范围筛选，分页返回。 */
+    /** 操作日志：按操作者（用户 ID 或用户名）/ 动作 / 时间范围筛选，分页返回。 */
     @GetMapping("/audit-logs")
     public ApiResponse<AdminAuditPageVo> auditLogs(
-            @org.springframework.web.bind.annotation.RequestParam(required = false) Long actorId,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String actor,
             @org.springframework.web.bind.annotation.RequestParam(required = false) String action,
             @org.springframework.web.bind.annotation.RequestParam(required = false) Long from,
             @org.springframework.web.bind.annotation.RequestParam(required = false) Long to,
             @org.springframework.web.bind.annotation.RequestParam(defaultValue = "1") int page,
             @org.springframework.web.bind.annotation.RequestParam(defaultValue = "30") int size) {
-        return ApiResponse.ok(adminService.auditLogs(actorId, action, from, to, page, size));
+        return ApiResponse.ok(adminService.auditLogs(actor, action, from, to, page, size));
     }
 
     /** 手动清理：不带 before 表示清空全部。 */
