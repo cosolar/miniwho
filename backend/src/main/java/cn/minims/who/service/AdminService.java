@@ -375,7 +375,13 @@ public class AdminService {
     }
 
     public List<AdminTemplateVo> templates() {
+        // 与模板中心同一条铁律：官方永远排在社区前面，组内再按权重与 id；
+        // 后台还要看到已停用/未分享的包，所以不能直接复用 listActive()，只补同一套排序。
         return templateService.all().stream()
+                .sorted(java.util.Comparator
+                        .comparingInt((Template row) -> "imported".equals(row.getSource()) ? 1 : 0)
+                        .thenComparingInt(row -> row.getSortWeight() == null ? 0 : row.getSortWeight())
+                        .thenComparing(Template::getId))
                 .map(this::toAdminTemplateVo)
                 .toList();
     }

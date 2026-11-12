@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  ArrowRight, ChatDotSquare, Check, Close, DataBoard, Delete, Document, Download, FullScreen, Grid, Odometer, Refresh,
+  ArrowRight, ChatDotSquare, Check, Close, DataBoard, Delete, Document, Download, FullScreen, Grid, List, Odometer, Refresh,
   ScaleToOriginal, Search, Setting, Share, Timer, User, UserFilled, View
 } from '@element-plus/icons-vue'
 import AppLayout from '../layouts/AppLayout.vue'
@@ -73,6 +73,36 @@ function styleDataOf(style) {
 
 const previewStyle = computed(() => styleDataOf(userResumeDetail.value?.style))
 const templates = ref([])
+
+// 模板管理的两种读法：卡片看概览，列表看字段。选择记在本地，下次进来还是上次那种。
+const TEMPLATE_VIEW_KEY = 'miniwho.admin.templateView'
+const templateView = ref(localStorage.getItem(TEMPLATE_VIEW_KEY) === 'list' ? 'list' : 'card')
+
+function setTemplateView(view) {
+  templateView.value = view === 'list' ? 'list' : 'card'
+  try {
+    localStorage.setItem(TEMPLATE_VIEW_KEY, templateView.value)
+  } catch {
+    // 隐私模式下写不了，也不影响本次浏览。
+  }
+}
+
+const officialTemplateCount = computed(() => templates.value.filter((item) => item.source !== 'imported').length)
+const communityTemplateCount = computed(() => templates.value.length - officialTemplateCount.value)
+
+/** 官方永远在前、社区在后：分组渲染 + 后端已按同一规则排好，这里只做切片。 */
+const templateGroups = computed(() => {
+  const official = templates.value.filter((item) => item.source !== 'imported')
+  const community = templates.value.filter((item) => item.source === 'imported')
+  const groups = []
+  if (official.length) {
+    groups.push({ key: 'official', label: '官方模板', hint: '随版本发布，停用后仍在后台可见', items: official })
+  }
+  if (community.length) {
+    groups.push({ key: 'community', label: '社区模板', hint: '用户导入并分享到站内的模板', items: community })
+  }
+  return groups
+})
 const feedback = ref([])
 const sample = ref(null)
 const keyword = ref('')
@@ -1410,53 +1440,127 @@ onBeforeUnmount(() => {
             <div class="table-toolbar">
               <div>
                 <span class="card-kicker">Templates</span>
-                <h2>模板管理 <small>{{ templates.length }} 套</small></h2>
+                <h2>
+                  模板管理
+                  <small>{{ templates.length }} 套 · 官方 {{ officialTemplateCount }} / 社区 {{ communityTemplateCount }}</small>
+                </h2>
               </div>
-              <p class="toolbar-hint">
-                停用模板不会影响已创建的简历。分享与导出权限只能由作者设置，后台仅可查看。
-                <el-button size="small" link type="primary" @click="exportBundle">
-                  <el-icon><Download /></el-icon> 导出全部官方模板包
-                </el-button>
-              </p>
+              <div class="toolbar-actions">
+                <div class="view-switch" role="group" aria-label="视图切换">
+                  <button type="button" :class="{ 'is-active': templateView === 'card' }" @click="setTemplateView('card')">
+                    <el-icon><Grid /></el-icon>卡片
+                  </button>
+                  <button type="button" :class="{ 'is-active': templateView === 'list' }" @click="setTemplateView('list')">
+                    <el-icon><List /></el-icon>列表
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div class="template-admin-grid" v-loading="templatesLoading">
-              <article v-for="item in templates" :key="item.code" class="template-admin-card surface">
-                <header>
-                  <div>
-                    <strong>{{ item.name }}</strong>
-                    <span class="mono-code">{{ item.code }}</span>
-                  </div>
-                  <span class="status-tag" :class="item.status === 1 ? 'is-on' : 'is-off'">
-                    <i></i>{{ item.status === 1 ? '启用' : '停用' }}
-                  </span>
+            <p class="template-note">
+              停用模板不会影响已创建的简历；分享与导出权限只能由作者设置，后台仅可查看。
+              <el-button size="small" link type="primary" @click="exportBundle">
+                <el-icon><Download /></el-icon> 导出全部官方模板包
+              </el-button>
+            </p>
+
+            <div v-loading="templatesLoading" class="template-admin-groups">
+              <section v-for="group in templateGroups" :key="group.key" class="template-group">
+                <header class="template-group__head">
+                  <h3>{{ group.label }}<small>{{ group.items.length }}</small></h3>
+                  <span>{{ group.hint }}</span>
                 </header>
-                <p>{{ item.description || '未填写模板描述' }}</p>
-                <div class="template-tags">
-                  <span class="tag">{{ item.source === 'imported' ? `${item.author || '未署名'} 导入` : '官方' }}</span>
-                  <span v-if="item.source === 'imported' && item.metaEdited" class="tag">信息已定制</span>
-                  <span v-if="item.source === 'imported'" class="tag">
-                    {{ item.visibility === 'public'
-                      ? (item.exportable ? '已分享 · 可导出' : '已分享 · 仅选用')
-                      : '仅作者可见' }}
-                  </span>
-                  <span v-if="item.version" class="tag">v{{ item.version }}</span>
-                  <span v-if="item.category" class="tag">{{ item.category }}</span>
-                  <span v-for="tag in templateTags(item)" :key="tag" class="tag">{{ tag }}</span>
+
+                <div v-if="templateView === 'card'" class="template-admin-grid">
+                  <article v-for="item in group.items" :key="item.code" class="template-admin-card surface">
+                    <header>
+                      <div>
+                        <strong>{{ item.name }}</strong>
+                        <span class="mono-code">{{ item.code }}</span>
+                      </div>
+                      <span class="status-tag" :class="item.status === 1 ? 'is-on' : 'is-off'">
+                        <i></i>{{ item.status === 1 ? '启用' : '停用' }}
+                      </span>
+                    </header>
+                    <p>{{ item.description || '未填写模板描述' }}</p>
+                    <div class="template-tags">
+                      <span class="tag">{{ item.source === 'imported' ? `${item.author || '未署名'} 导入` : '官方' }}</span>
+                      <span v-if="item.source === 'imported' && item.metaEdited" class="tag">信息已定制</span>
+                      <span v-if="item.source === 'imported'" class="tag">
+                        {{ item.visibility === 'public'
+                          ? (item.exportable ? '已分享 · 可导出' : '已分享 · 仅选用')
+                          : '仅作者可见' }}
+                      </span>
+                      <span v-if="item.version" class="tag">v{{ item.version }}</span>
+                      <span v-if="item.category" class="tag">{{ item.category }}</span>
+                      <span v-for="tag in templateTags(item)" :key="tag" class="tag">{{ tag }}</span>
+                    </div>
+                    <footer>
+                      <span>{{ item.usageCount ?? 0 }} 份简历在用</span>
+                      <span class="footer-actions">
+                        <el-button v-if="item.source === 'imported'" size="small" link @click="openMetaDialog(item)">
+                          编辑信息
+                        </el-button>
+                        <el-button size="small" link @click="exportOne(item)">导出包</el-button>
+                        <el-button size="small" :type="item.status === 1 ? 'danger' : 'primary'" link @click="toggleTemplate(item)">
+                          {{ item.status === 1 ? '停用' : '启用' }}
+                        </el-button>
+                      </span>
+                    </footer>
+                  </article>
                 </div>
-                <footer>
-                  <span>{{ item.usageCount ?? 0 }} 份简历在用</span>
-                  <span class="footer-actions">
-                    <el-button v-if="item.source === 'imported'" size="small" link @click="openMetaDialog(item)">
-                      编辑信息
-                    </el-button>
-                    <el-button size="small" link @click="exportOne(item)">导出包</el-button>
-                    <el-button size="small" :type="item.status === 1 ? 'danger' : 'primary'" link @click="toggleTemplate(item)">
-                      {{ item.status === 1 ? '停用' : '启用' }}
-                    </el-button>
-                  </span>
-                </footer>
-              </article>
+
+                <el-table v-else :data="group.items" row-key="code" class="template-admin-table">
+                  <el-table-column label="模板" min-width="240">
+                    <template #default="{ row }">
+                      <div class="cell-stack">
+                        <strong class="template-row-name">{{ row.name }}</strong>
+                        <span>{{ row.code }}</span>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="分类" width="110">
+                    <template #default="{ row }">
+                      <span class="cell-muted">{{ row.category || '—' }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="标签" min-width="240">
+                    <template #default="{ row }">
+                      <span class="template-row-tags">
+                        <span v-for="tag in templateTags(row).slice(0, 3)" :key="tag" class="tag">{{ tag }}</span>
+                        <span v-if="row.version" class="tag">v{{ row.version }}</span>
+                      </span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="使用中" width="104" align="right">
+                    <template #default="{ row }">
+                      <span class="cell-muted">{{ row.usageCount ?? 0 }} 份</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="状态" width="104">
+                    <template #default="{ row }">
+                      <span class="status-tag" :class="row.status === 1 ? 'is-on' : 'is-off'">
+                        <i></i>{{ row.status === 1 ? '启用' : '停用' }}
+                      </span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="200" align="right">
+                    <template #default="{ row }">
+                      <div class="row-actions">
+                        <el-button v-if="row.source === 'imported'" size="small" link @click="openMetaDialog(row)">
+                          编辑
+                        </el-button>
+                        <el-button size="small" link @click="exportOne(row)">导出</el-button>
+                        <el-button size="small" link :type="row.status === 1 ? 'danger' : 'primary'" @click="toggleTemplate(row)">
+                          {{ row.status === 1 ? '停用' : '启用' }}
+                        </el-button>
+                      </div>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </section>
+
+              <div v-if="!templates.length && !templatesLoading" class="table-empty">还没有模板</div>
             </div>
           </section>
 
@@ -3849,6 +3953,108 @@ onBeforeUnmount(() => {
 .user-pager :deep(.el-pagination.is-background .el-pager li.is-active) {
   background: var(--accent);
   color: #fff;
+}
+
+.template-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: -6px 0 18px;
+  color: var(--faint);
+  font-size: 11.5px;
+}
+
+.template-admin-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.template-group__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.template-group__head h3 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.template-group__head h3 small {
+  margin-left: 8px;
+  color: var(--faint);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.template-group__head span {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+/* 视图切换：和预览区的适宽/整页是同一套胶囊，卡片与列表两个状态 */
+.view-switch {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.view-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.view-switch button .el-icon {
+  font-size: 13px;
+}
+
+.view-switch button:hover {
+  color: var(--ink);
+}
+
+.view-switch button.is-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.template-admin-table {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.template-row-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.template-admin-table .template-row-name {
+  font-family: var(--serif);
+  font-size: 13.5px;
+  font-weight: 600;
 }
 
 .template-admin-grid {
