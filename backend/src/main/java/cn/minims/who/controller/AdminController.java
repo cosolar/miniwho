@@ -111,6 +111,12 @@ public class AdminController {
         return ApiResponse.ok(resumeService.detailForAdmin(id));
     }
 
+    /** 回收站里的简历只读预览：已删简历不在普通详情接口的可见范围里。 */
+    @GetMapping("/resumes/deleted/{id}")
+    public ApiResponse<ResumeDetail> deletedResumeDetail(@PathVariable long id) {
+        return ApiResponse.ok(resumeService.detailForAdminDeleted(id));
+    }
+
     @PutMapping("/users/{id}/status")
     public ApiResponse<Void> updateUser(@PathVariable long id,
                                         @Valid @RequestBody AdminUserStatusRequest request) {

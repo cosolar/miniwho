@@ -53,22 +53,25 @@ const previewTemplate = computed(() => templateByCode(userResumeDetail.value?.te
 /** 简历记录的模板可能已下架或被作者取消分享，纸面仍要照原样渲染，只是给一句提示。 */
 const previewTemplateMissing = computed(() => Boolean(userResumeDetail.value?.templateCode)
   && !previewTemplates.value.some((tpl) => tpl.code === userResumeDetail.value.templateCode))
-const previewStyle = computed(() => {
-  const style = userResumeDetail.value?.style || {}
+/** 简历记录里的样式令牌 → PaperFrame 认识的参数；用户预览与回收站预览共用。 */
+function styleDataOf(style) {
+  const raw = style || {}
   return {
-    filter: style.filter || 'standard',
-    fontSizeStep: Number(style.fontSizeStep || 0),
-    spacingStep: Number(style.spacingStep || 0),
-    showBrandFooter: style.showBrandFooter !== false,
+    filter: raw.filter || 'standard',
+    fontSizeStep: Number(raw.fontSizeStep || 0),
+    spacingStep: Number(raw.spacingStep || 0),
+    showBrandFooter: raw.showBrandFooter !== false,
     pageMargin: {
-      custom: !!style.pageMargin?.custom,
-      top: Number(style.pageMargin?.top ?? 15),
-      right: Number(style.pageMargin?.right ?? 15),
-      bottom: Number(style.pageMargin?.bottom ?? 12),
-      left: Number(style.pageMargin?.left ?? 15)
+      custom: !!raw.pageMargin?.custom,
+      top: Number(raw.pageMargin?.top ?? 15),
+      right: Number(raw.pageMargin?.right ?? 15),
+      bottom: Number(raw.pageMargin?.bottom ?? 12),
+      left: Number(raw.pageMargin?.left ?? 15)
     }
   }
-})
+}
+
+const previewStyle = computed(() => styleDataOf(userResumeDetail.value?.style))
 const templates = ref([])
 const feedback = ref([])
 const sample = ref(null)
@@ -107,6 +110,21 @@ const tabs = computed(() => [
 const deletedResumes = ref([])
 const deletedLoading = ref(false)
 const purgeDeleting = ref(false)
+
+// ── 回收站预览：物理清除之前先看清内容 ──
+const deletedPreviewVisible = ref(false)
+const deletedPreviewRow = ref(null)
+const deletedPreviewDetail = ref(null)
+const deletedPreviewLoading = ref(false)
+const deletedPreviewError = ref('')
+const deletedPreviewPages = ref(1)
+const deletedPreviewFit = ref('width')
+const deletedPreviewStageRef = ref(null)
+const deletedPreviewStageHeight = ref(0)
+const deletedPreviewTemplate = computed(() => templateByCode(deletedPreviewDetail.value?.templateCode, previewTemplates.value))
+const deletedPreviewStyle = computed(() => styleDataOf(deletedPreviewDetail.value?.style))
+const deletedPreviewTemplateMissing = computed(() => Boolean(deletedPreviewDetail.value?.templateCode)
+  && !previewTemplates.value.some((tpl) => tpl.code === deletedPreviewDetail.value.templateCode))
 
 // ── 操作日志：账号级与敏感操作的审计流水 ──
 const auditRows = ref([])
@@ -216,6 +234,50 @@ async function loadDeletedResumes() {
   } finally {
     deletedLoading.value = false
   }
+}
+
+async function openDeletedPreview(row) {
+  deletedPreviewRow.value = row
+  deletedPreviewDetail.value = null
+  deletedPreviewError.value = ''
+  deletedPreviewPages.value = 1
+  deletedPreviewVisible.value = true
+  deletedPreviewLoading.value = true
+  try {
+    const detail = await adminApi.deletedResumeDetail(row.id)
+    deletedPreviewDetail.value = detail
+    // 模板可能已下架或被作者取消分享：仍按默认版式渲染，只给一句提示。
+    if (detail?.templateCode) {
+      await ensurePreviewTemplate(detail.templateCode)
+    }
+    await nextTick()
+    measureDeletedPreviewStage()
+  } catch (error) {
+    deletedPreviewError.value = error?.response?.data?.message || '这份简历已无法预览（可能刚刚被清除）'
+  } finally {
+    deletedPreviewLoading.value = false
+  }
+}
+
+// 弹窗动画结束后容器才有真实高度，「整页」模式要靠它算比例。
+watch(deletedPreviewFit, () => nextTick(measureDeletedPreviewStage))
+
+function measureDeletedPreviewStage() {
+  const el = deletedPreviewStageRef.value
+  deletedPreviewStageHeight.value = el ? Math.max(0, el.clientHeight - 24) : 0
+}
+
+function closeDeletedPreview() {
+  deletedPreviewVisible.value = false
+  deletedPreviewDetail.value = null
+  deletedPreviewRow.value = null
+}
+
+async function purgeFromPreview() {
+  const row = deletedPreviewRow.value
+  if (!row) return
+  await purgeDeleted(row)
+  closeDeletedPreview()
 }
 
 async function purgeDeleted(rows) {
@@ -1486,11 +1548,18 @@ onBeforeUnmount(() => {
                 <el-table-column label="删除时间" min-width="150">
                   <template #default="{ row }">{{ formatTime(row.deletedAt) }}</template>
                 </el-table-column>
-                <el-table-column label="操作" width="120" align="right">
+                <el-table-column label="操作" width="168" align="right">
                   <template #default="{ row }">
-                    <el-button size="small" link type="danger" :loading="purgeDeleting" @click="purgeDeleted(row)">
-                      彻底删除
-                    </el-button>
+                    <div class="row-actions">
+                      <el-button size="small" link @click="openDeletedPreview(row)">
+                        <el-icon><View /></el-icon>
+                        预览
+                      </el-button>
+                      <span class="row-actions__sep" aria-hidden="true"></span>
+                      <el-button size="small" link type="danger" :loading="purgeDeleting" @click="purgeDeleted(row)">
+                        彻底删除
+                      </el-button>
+                    </div>
                   </template>
                 </el-table-column>
               </el-table>
@@ -2054,6 +2123,85 @@ onBeforeUnmount(() => {
         </div>
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="deletedPreviewVisible"
+      width="min(1120px, 92vw)"
+      top="5vh"
+      class="deleted-preview-dialog"
+      :show-close="false"
+      append-to-body
+      destroy-on-close
+      @opened="measureDeletedPreviewStage"
+      @closed="deletedPreviewDetail = null"
+    >
+      <template #header>
+        <div class="deleted-preview__head">
+          <div class="deleted-preview__title">
+            <span class="card-kicker">Recycle bin · Preview</span>
+            <h3>{{ deletedPreviewRow?.title || '（未命名简历）' }}</h3>
+            <p>
+              属主 {{ deletedPreviewRow?.nickname || deletedPreviewRow?.username || '—' }}
+              · 删除于 {{ formatTime(deletedPreviewRow?.deletedAt) }}
+              <span class="deleted-preview__tag">只读</span>
+            </p>
+          </div>
+          <button type="button" class="deleted-preview__close" aria-label="关闭" @click="closeDeletedPreview">
+            <el-icon><Close /></el-icon>
+          </button>
+        </div>
+      </template>
+
+      <div class="deleted-preview__bar">
+        <span class="mono">A4 PREVIEW</span>
+        <div class="deleted-preview__tools">
+          <span v-if="deletedPreviewDetail" class="deleted-preview__meta">共 {{ deletedPreviewPages }} 页</span>
+          <div class="fit-switch" role="group" aria-label="预览缩放方式">
+            <button type="button" :class="{ 'is-active': deletedPreviewFit === 'width' }" @click="deletedPreviewFit = 'width'">适宽</button>
+            <button type="button" :class="{ 'is-active': deletedPreviewFit === 'page' }" @click="deletedPreviewFit = 'page'">整页</button>
+          </div>
+        </div>
+      </div>
+
+      <div ref="deletedPreviewStageRef" v-loading="deletedPreviewLoading" class="deleted-preview__stage">
+        <div v-if="deletedPreviewError" class="deleted-preview__state is-error">
+          <p>{{ deletedPreviewError }}</p>
+          <el-button size="small" plain @click="deletedPreviewRow && openDeletedPreview(deletedPreviewRow)">重新加载</el-button>
+        </div>
+        <div v-else-if="!deletedPreviewDetail" class="deleted-preview__state">
+          <el-icon><Document /></el-icon>
+          <p>正在载入简历…</p>
+        </div>
+        <template v-else>
+          <p v-if="deletedPreviewTemplateMissing" class="deleted-preview__notice">
+            模板「{{ deletedPreviewDetail.templateCode }}」已下架或不存在，纸面按默认版式渲染。
+          </p>
+          <PaperFrame
+            :content="deletedPreviewDetail.content"
+            :template="deletedPreviewTemplate"
+            :style-data="deletedPreviewStyle"
+            :avatar="deletedPreviewDetail.avatar"
+            :padding="0"
+            :fit-mode="deletedPreviewFit"
+            :fit-height="deletedPreviewStageHeight"
+            @pages="(count) => (deletedPreviewPages = count)"
+          />
+        </template>
+      </div>
+
+      <template #footer>
+        <div class="deleted-preview__foot">
+          <span class="deleted-preview__hint">彻底删除会连同附件、头像与分享记录一起清除，不可恢复</span>
+          <div class="deleted-preview__actions">
+            <el-button @click="closeDeletedPreview">关闭</el-button>
+            <el-button type="danger" plain :loading="purgeDeleting" @click="purgeFromPreview">
+              <el-icon v-if="!purgeDeleting"><Delete /></el-icon>
+              彻底删除
+            </el-button>
+          </div>
+        </div>
+      </template>
+    </el-dialog>
   </AppLayout>
 </template>
 
@@ -2247,6 +2395,156 @@ onBeforeUnmount(() => {
 .cell-stack__action {
   font-family: var(--sans);
   font-weight: 600;
+}
+
+/* 回收站预览弹窗：白纸对话框 + 纸面舞台，和用户侧的简历弹窗同一套语气 */
+.deleted-preview__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-right: 4px;
+}
+
+.deleted-preview__title h3 {
+  margin: 4px 0 6px;
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.deleted-preview__title p {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.deleted-preview__tag {
+  padding: 1px 7px;
+  border: 1px solid rgba(181, 72, 63, 0.28);
+  border-radius: 999px;
+  color: var(--danger);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+}
+
+.deleted-preview__close {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+
+.deleted-preview__close:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.deleted-preview__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.deleted-preview__tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.deleted-preview__meta {
+  color: var(--faint);
+  font-size: 11.5px;
+}
+
+.deleted-preview__stage {
+  position: relative;
+  height: min(66vh, 720px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--canvas-deep);
+}
+
+.deleted-preview__state {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  height: 100%;
+  color: var(--faint);
+  font-size: 13px;
+  text-align: center;
+}
+
+.deleted-preview__state.is-error {
+  color: var(--danger);
+}
+
+.deleted-preview__notice {
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(196, 122, 42, 0.08);
+  color: #a3611c;
+  font-size: 12px;
+}
+
+.deleted-preview__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.deleted-preview__hint {
+  color: var(--faint);
+  font-size: 11.5px;
+  text-align: left;
+}
+
+.deleted-preview__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 弹窗里的破坏性按钮与工具栏用同一档砖红，别在这里退回 Element 的粉红 */
+.deleted-preview__actions :deep(.el-button--danger) {
+  border-color: rgba(181, 72, 63, 0.44);
+  background: #fffdfc;
+  color: var(--danger);
+}
+
+.deleted-preview__actions :deep(.el-button--danger:hover) {
+  border-color: var(--danger);
+  background: rgba(181, 72, 63, 0.07);
+  color: var(--danger);
+}
+
+/* 弹窗里的破坏性按钮与工具栏用同一档砖红，别在这里退回 Element 的粉红 */
+.deleted-preview__actions :deep(.el-button--danger) {
+  border-color: rgba(181, 72, 63, 0.44);
+  background: #fffdfc;
+  color: var(--danger);
+}
+
+.deleted-preview__actions :deep(.el-button--danger:hover) {
+  border-color: var(--danger);
+  background: rgba(181, 72, 63, 0.07);
+  color: var(--danger);
 }
 
 

@@ -184,6 +184,18 @@ public class ResumeService {
         return toDetail(resume);
     }
 
+    /**
+     * 后台回收站预览：已删简历被逻辑删除过滤掉了，这里走原生查询读出来，
+     * 让管理员在决定是否物理清除之前能先看清里面是什么内容。
+     */
+    public ResumeDetail detailForAdminDeleted(long id) {
+        Resume resume = resumeMapper.selectDeletedById(id);
+        if (resume == null) {
+            throw BizException.notFound("简历不在回收站");
+        }
+        return toDetail(resume);
+    }
+
     public WorkbenchResponse workbench(long userId, long id) {
         Resume resume = findOwned(userId, id);
         List<AttachmentVo> attachments = attachmentMapper.selectList(new LambdaQueryWrapper<ResumeAttachment>()

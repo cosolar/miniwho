@@ -179,6 +179,7 @@ export const adminApi = {
   siteConfig: () => client.get('/admin/site-config'),
   updateSiteConfig: (payload) => client.put('/admin/site-config', payload),
   deletedResumes: (limit = 200) => client.get('/admin/resumes/deleted', { params: { limit } }),
+  deletedResumeDetail: (id) => client.get(`/admin/resumes/deleted/${id}`),
   purgeResumes: (ids) => client.post('/admin/resumes/purge', { ids }),
   cancelUserDeletion: (id) => client.post(`/admin/users/${id}/deletion/cancel`),
   purgeUserDeletion: (id) => client.post(`/admin/users/${id}/deletion/purge`),
