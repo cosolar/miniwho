@@ -77,6 +77,18 @@ async function load() {
     const data = await shareApi.publicGet(token)
     applyShare(data)
   } catch (error) {
+    // 「链接已失效」有可能只是一份陈旧的缓存：分享链接撤销后会马上失效，同名又可以重发，
+    // 浏览器却可能还存着撤销时那份响应。这时强制回源再问一次，确认真的失效才提示。
+    if (error?.code === 'SHARE_REVOKED') {
+      try {
+        const fresh = await shareApi.publicGet(token, { fresh: true })
+        applyShare(fresh)
+        loading.value = false
+        return
+      } catch {
+        // 重试仍然失败，说明是真的失效了，落到下面的提示。
+      }
+    }
     handleFailure(error)
   } finally {
     loading.value = false

@@ -137,8 +137,24 @@ export const shareApi = {
   create: (resumeId, payload) => client.post(`/resumes/${resumeId}/shares`, payload),
   list: (resumeId) => client.get(`/resumes/${resumeId}/shares`),
   revoke: (shareId) => client.delete(`/shares/${shareId}`),
-  publicGet: (token) => client.get(`/public/shares/${token}`),
-  unlock: (token, password) => client.post(`/public/shares/${token}/unlock`, { password })
+  /**
+   * 公开分享页的读取：强制回源，不吃浏览器缓存。
+   *
+   * 分享链接撤销即失效、同名可以马上重发，浏览器却可能把上一轮那份「链接已失效」存着，
+   * 于是链接修好了访客仍看到失效。除了服务端给 no-store，这里再加两道：
+   * 请求头 no-cache 让浏览器重新校验，URL 上的时间戳让缓存键每次都不同——
+   * 已经存进浏览器的旧响应因此再也命中不了。
+   *
+   * fresh=true 时再换一个时间戳，用于「疑似缓存误报」后的复查。
+   */
+  publicGet: (token, options = {}) => client.get(`/public/shares/${token}`, {
+    headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    params: { _t: Date.now() + (options.fresh ? 1 : 0) }
+  }),
+  unlock: (token, password) => client.post(`/public/shares/${token}/unlock`, { password }, {
+    headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    params: { _t: Date.now() }
+  })
 }
 
 export const feedbackApi = {
