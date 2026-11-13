@@ -32,7 +32,7 @@ public class SchemaMigrator implements ApplicationRunner {
     static {
         Map<String, String> resumes = new LinkedHashMap<>();
         resumes.put("avatar_key", "VARCHAR(500)");
-        resumes.put("avatar_shape", "VARCHAR(20) NOT NULL DEFAULT 'rect'");
+        resumes.put("avatar_shape", "VARCHAR(20) NOT NULL DEFAULT 'auto'");
         // 全站唯一的示例简历标记：被标上的那份会通过无鉴权接口公开显示，只有管理员能设。
         resumes.put("is_sample", "INT NOT NULL DEFAULT 0");
         // 逻辑删除的时间戳：用户删除后进回收站，后台据此显示删除时间并决定是否物理清除。
@@ -99,6 +99,13 @@ public class SchemaMigrator implements ApplicationRunner {
             } catch (SQLException e) {
                 log.warn("users.email 唯一索引创建失败（{}），注册与登录仍按应用层查重，不影响启动", e.getMessage());
             }
+            // 证件照形状新增「跟随模板」一档：存量库里默认记的是 rect，而那时形状根本不由用户决定
+            // （模板自带圆角优先），所以这些行应当归到「跟随模板」，避免升级后模板头像集体变方。
+            try (Statement statement = connection.createStatement()) {
+                migrateAvatarShape(statement, sqlite);
+            } catch (SQLException e) {
+                log.warn("头像形状数据迁移失败（{}），不影响启动", e.getMessage());
+            }
         } catch (SQLException e) {
             throw new IllegalStateException("数据库结构升级失败，请确认数据库账号具备 ALTER 权限：" + e.getMessage(), e);
         }
@@ -121,6 +128,29 @@ public class SchemaMigrator implements ApplicationRunner {
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_logs(actor_id)");
+        }
+    }
+
+    /**
+     * 证件照形状新增「跟随模板」一档后，存量数据里默认记的 rect 要归到 auto。
+     * 用 site_settings 里的标记保证只做一次：SQLite 改不了列默认值，
+     * 靠默认值判断会在每次重启时重跑，把用户后来显式选的形状又抹掉。
+     */
+    private void migrateAvatarShape(Statement statement, boolean sqlite) throws SQLException {
+        if (settingExists(statement, "avatar_shape.auto_migrated")) {
+            return;
+        }
+        int changed = statement.executeUpdate("UPDATE resumes SET avatar_shape = 'auto' WHERE avatar_shape = 'rect'");
+        statement.executeUpdate("INSERT INTO site_settings (setting_key, setting_value, updated_at)"
+                + " VALUES ('avatar_shape.auto_migrated', '1', " + System.currentTimeMillis() + ")");
+        if (changed > 0) {
+            log.info("头像形状：{} 份简历由「证件照」归为「跟随模板」", changed);
+        }
+    }
+
+    private boolean settingExists(Statement statement, String key) throws SQLException {
+        try (ResultSet rs = statement.executeQuery("SELECT 1 FROM site_settings WHERE setting_key = '" + key + "' LIMIT 1")) {
+            return rs.next();
         }
     }
 

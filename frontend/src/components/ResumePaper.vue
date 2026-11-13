@@ -53,25 +53,63 @@ function paginate() {
   })
 }
 
-onMounted(() => {
+/**
+ * 联系项之间的分隔符（「/」或「|」）是画在每项左侧的绝对定位伪元素。
+ * flex 换行时，行首那一项的伪元素会甩到整行最左边，看着像凭空多出一个斜杠。
+ * 这里按实际排版把「换行后的第一项」标出来，由样式隐藏它的分隔符。
+ * 逐套模板改分隔符写法代价太大（50 多处引用、还有 20 多个模板包），所以统一在运行时判定。
+ */
+function syncContactSeparators() {
+  if (!root.value) return
+  root.value.querySelectorAll('.paper-contacts').forEach((group) => {
+    const items = Array.from(group.children).filter((el) => el.classList.contains('paper-contact'))
+    let previous = null
+    items.forEach((item) => {
+      const box = item.getBoundingClientRect()
+      // 同一行的两项在垂直方向必然相交（stretch / center / baseline 各种对齐都一样），
+      // 换行后则完全不相交——比比较顶端稳妥，顶端会被字号差异带偏。
+      const wrapped = previous
+        ? Math.min(box.bottom, previous.bottom) - Math.max(box.top, previous.top) <= 0.5
+        : false
+      item.classList.toggle('paper-contact--line-start', wrapped)
+      previous = box
+    })
+  })
+}
+
+/** 纸面重排后，分页与分隔符都要重新算一遍。 */
+function refreshLayout() {
   paginate()
-  if (document.fonts?.ready) document.fonts.ready.then(paginate)
-  observer = new ResizeObserver(paginate)
+  nextTick().then(syncContactSeparators)
+}
+
+onMounted(() => {
+  refreshLayout()
+  if (document.fonts?.ready) document.fonts.ready.then(refreshLayout)
+  observer = new ResizeObserver(refreshLayout)
   if (root.value) observer.observe(root.value)
-  window.addEventListener('resize', paginate)
+  window.addEventListener('resize', refreshLayout)
 })
 
 onBeforeUnmount(() => {
   observer?.disconnect()
-  window.removeEventListener('resize', paginate)
+  window.removeEventListener('resize', refreshLayout)
   scopedStyle?.remove()
   scopedStyle = null
 })
 
-watch(() => [props.content, props.template, props.styleData, props.avatar, props.paged], paginate, { deep: true })
+watch(() => [props.content, props.template, props.styleData, props.avatar, props.paged], refreshLayout, { deep: true })
 
 const photo = computed(() => mediaUrl(props.avatar?.url || ''))
-const photoShape = computed(() => (props.avatar?.shape === 'circle' ? 'circle' : 'rect'))
+/**
+ * 证件照形状：auto 跟随模板自带圆角；rect / circle 是用户在「基础信息」里显式选的，
+ * 这时用 data-photo-shape 交给全局样式压过模板包的圆角设置。
+ */
+const photoShape = computed(() => {
+  const shape = props.avatar?.shape
+  return shape === 'circle' || shape === 'rect' ? shape : 'auto'
+})
+const photoShapeClass = computed(() => (photoShape.value === 'auto' ? '' : `paper-photo--${photoShape.value}`))
 
 const config = computed(() => configOf(props.template))
 const sections = computed(() => visibleSections(props.content))
@@ -79,14 +117,22 @@ const basicSection = computed(() => sections.value.find((section) => section.typ
 const basic = computed(() => basicSection.value?.items?.[0]?.fields || {})
 const intentionSection = computed(() => sections.value.find((section) => section.type === 'job_intention'))
 const intention = computed(() => intentionSection.value?.items?.[0]?.fields || {})
-const titleOnly = computed(() => (intentionSection.value?.meta?.displayMode || 'title_only') === 'title_only')
+const intentionMode = computed(() => intentionSection.value?.meta?.displayMode || 'title_only')
+/**
+ * 求职意向三档：
+ * title_only 只把期望职位放在页眉姓名下方；full 只在正文摊成独立模块；both 两边都显示。
+ */
+const showRoleInHeader = computed(() => intentionMode.value !== 'full')
+const showIntentionSection = computed(() => intentionMode.value !== 'title_only')
 
 const name = computed(() => basic.value.name?.trim() || '你的姓名')
 const isRibbon = computed(() => config.value.layout === 'ribbon')
-// 岗位只在「显示在姓名下方」这一档进页眉；独立模块模式由正文自己带岗位，重复一次反而像两份。
+// 岗位只在「显示在姓名下方」与「都显示」这两档进页眉；纯独立模块模式由正文自己带岗位，重复一次反而像两份。
 const jobTitle = computed(() => (
-  titleOnly.value && !isRibbon.value ? intention.value.jobTitle?.trim() || '' : ''
+  showRoleInHeader.value && !isRibbon.value ? intention.value.jobTitle?.trim() || '' : ''
 ))
+// 页眉没有岗位行时给纸面打标记：网格页眉里为岗位预留的那一格会空成一块洞，版式据此收拢。
+const noRoleInHeader = computed(() => !jobTitle.value)
 // 金石把性别与身份读在姓名后面，联系方式那一行留给手机、邮箱与生日。
 const identity = computed(() => {
   const parts = []
@@ -125,6 +171,21 @@ const contacts = computed(() => {
 // 侧栏已经把联系方式单独成块，籍贯等不该混在「联系方式」标题下。
 const railContacts = computed(() => contacts.value.filter((item) => !item.plainLabel))
 
+// 云笺（framed）的名片是两列网格：手机、邮箱、主页这类长值单独占一行并排在最前面，
+// 短值（所在地、民族、政治面貌……）再走两列。判定按显示文本长度，自适应不同内容。
+const WIDE_CONTACT_MAX = 8
+function isWideContact(item) {
+  const text = item.type === 'website' ? displayUrl(item.value) : String(item.value || '')
+  return text.length > WIDE_CONTACT_MAX
+}
+const headerContacts = computed(() => {
+  if (config.value.layout !== 'framed') return contacts.value
+  const wide = []
+  const narrow = []
+  contacts.value.forEach((item) => (isWideContact(item) ? wide : narrow).push(item))
+  return [...wide, ...narrow]
+})
+
 const contactLabels = {
   phone: '手机',
   email: '邮箱',
@@ -140,8 +201,9 @@ const contactLabels = {
 
 const paperSections = computed(() => sections.value.filter((section) => {
   if (section.type === 'basic_info') return false
-  // 金石没有「只把期望职位放在页眉」这一档，求职意向始终按标签摊成独立模块。
-  if (section.type === 'job_intention' && titleOnly.value && !isRibbon.value) return false
+  // 「只在姓名下方」这一档把求职意向收进页眉，正文就不再重复一个模块；
+  // 「作为独立模块展示」与「都显示」两档正文里都要有。
+  if (section.type === 'job_intention' && !showIntentionSection.value && !isRibbon.value) return false
   return sectionHasContent(section)
 }))
 
@@ -232,7 +294,7 @@ function applyScopedStyle() {
 // 换模板时先注入再测量：内置样式与导入包的高度不同，断页位置也随之变化。
 watch(() => [config.value.scopeClass, config.value.styleCss], () => {
   applyScopedStyle()
-  paginate()
+  refreshLayout()
 }, { immediate: true })
 
 function displayUrl(url) {
@@ -267,7 +329,8 @@ function breakable(value) {
   <article
     ref="root"
     class="resume-paper"
-    :class="[`layout-${config.layout || 'minimal'}`, `filter-${filter}`, config.scopeClass]"
+    :class="[`layout-${config.layout || 'minimal'}`, `filter-${filter}`, config.scopeClass, { 'paper-no-role': noRoleInHeader }]"
+    :data-photo-shape="photoShape"
     :style="paperStyle"
   >
     <div v-if="pageMarks.length" class="paper-pages no-print" aria-hidden="true">
@@ -284,7 +347,7 @@ function breakable(value) {
       <img
         v-if="photo"
         class="paper-photo paper-photo--rail"
-        :class="`paper-photo--${photoShape}`"
+        :class="photoShapeClass"
         :src="photo"
         alt=""
       />
@@ -336,7 +399,7 @@ function breakable(value) {
       </h2>
       <header class="paper-header" :class="{ 'paper-header--photo': photoSlot }">
         <div v-if="config.layout === 'center'" class="paper-header__crest">
-          <img v-if="photo" class="paper-photo paper-photo--crest" :class="`paper-photo--${photoShape}`" :src="photo" alt="" />
+          <img v-if="photo" class="paper-photo paper-photo--crest" :class="photoShapeClass" :src="photo" alt="" />
           <div v-else class="paper-monogram">{{ monogram }}</div>
         </div>
         <div class="paper-header__main">
@@ -347,15 +410,20 @@ function breakable(value) {
           <p v-if="jobTitle" class="paper-role"><span v-if="labeledHeader" class="paper-role__label">求职意向：</span>{{ jobTitle }}</p>
           <div v-if="headerSummaryHtml" class="paper-header__summary rich-content" v-html="headerSummaryHtml" />
           <div v-if="!isRail" class="paper-contacts" :class="{ 'paper-contacts--labeled': labeledContacts }">
-            <template v-for="item in contacts" :key="item.type">
-              <a v-if="contactHref(item)" :href="contactHref(item)" class="paper-contact">
+            <template v-for="item in headerContacts" :key="item.type">
+              <a
+                v-if="contactHref(item)"
+                :href="contactHref(item)"
+                class="paper-contact"
+                :class="{ 'paper-contact--wide': isWideContact(item) }"
+              >
                 <span v-if="labeledContacts" class="paper-contact__label" :class="{ 'paper-contact__label--text': item.plainLabel }">
                   <PaperIcon v-if="contactIcons && !item.plainLabel" :type="item.type" />
                   <template v-else>{{ contactLabels[item.type] }}</template>
                 </span>
                 <template v-for="(segment, index) in breakable(item.type === 'website' ? displayUrl(item.value) : item.value)" :key="index"><wbr v-if="index" />{{ segment }}</template>
               </a>
-              <span v-else class="paper-contact">
+              <span v-else class="paper-contact" :class="{ 'paper-contact--wide': isWideContact(item) }">
                 <span v-if="labeledContacts" class="paper-contact__label" :class="{ 'paper-contact__label--text': item.plainLabel }">
                   <PaperIcon v-if="contactIcons && !item.plainLabel" :type="item.type" />
                   <template v-else>{{ contactLabels[item.type] }}</template>
@@ -368,7 +436,7 @@ function breakable(value) {
         <img
           v-if="headerPhoto"
           class="paper-photo"
-          :class="`paper-photo--${photoShape}`"
+          :class="photoShapeClass"
           :src="photo"
           alt=""
         />
@@ -381,7 +449,7 @@ function breakable(value) {
             <img
               v-if="photo && !isSidebar"
               class="paper-photo paper-photo--aside"
-              :class="`paper-photo--${photoShape}`"
+              :class="photoShapeClass"
               :src="photo"
               alt=""
             />
@@ -532,6 +600,12 @@ function breakable(value) {
   position: absolute;
   left: -2.9mm;
   color: #aab2ad;
+}
+
+/* 换行后的行首不再挂分隔符：伪元素画在每项左侧，折行后会落到整行最左边，
+   像凭空多出一个斜杠。运行时给行首项打标记，这里把它收掉（模板包的规则不带 !important，收得掉）。 */
+.paper-contact--line-start::before {
+  display: none !important;
 }
 
 .paper-contact__label {
@@ -2583,7 +2657,8 @@ function breakable(value) {
 .layout-framed .paper-header--photo {
   position: relative;
   display: grid;
-  grid-template-columns: 28mm minmax(0, 1fr) 56mm;
+  /* 右栏名片走两列，宽度相应从 56mm 放到 64mm；中栏（姓名 + 求职）随之收窄，字号同步下调。 */
+  grid-template-columns: 28mm minmax(0, 1fr) 68mm;
   grid-template-rows: auto auto;
   column-gap: 6mm;
   align-content: center;
@@ -2656,74 +2731,92 @@ function breakable(value) {
 .layout-framed .paper-name::before {
   content: "CURRICULUM VITAE";
   display: block;
-  margin-bottom: 2mm;
+  margin-bottom: 1.6mm;
   color: var(--paper-accent);
   font-family: var(--sans);
-  font-size: calc(var(--paper-base-size) * 0.64);
+  font-size: calc(var(--paper-base-size) * 0.6);
   font-weight: 600;
-  letter-spacing: 0.42em;
-  text-indent: 0.42em;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
 }
 
 .layout-framed .paper-name {
   color: #23303a;
   font-family: var(--serif);
-  font-size: calc(var(--paper-base-size) * 2.7);
+  font-size: calc(var(--paper-base-size) * 2.2);
   font-weight: 700;
-  letter-spacing: 0.16em;
-  text-indent: 0.16em;
+  letter-spacing: 0.14em;
+  text-indent: 0.14em;
   line-height: 1.15;
 }
 
 .layout-framed .paper-identity {
-  padding: 0.5mm 2.4mm;
+  padding: 0.4mm 2.2mm;
   border: 1px solid rgba(47, 92, 143, 0.34);
   border-radius: 999px;
   background: rgba(47, 92, 143, 0.06);
   color: var(--paper-accent);
-  font-size: calc(var(--paper-base-size) * 0.78);
-  letter-spacing: 0.06em;
+  font-size: calc(var(--paper-base-size) * 0.72);
+  letter-spacing: 0.04em;
 }
 
 .layout-framed .paper-role {
   grid-column: 2;
   grid-row: 2;
-  margin-top: 2.2mm;
+  margin-top: 2mm;
   color: #46525c;
-  font-size: calc(var(--paper-base-size) * 1.02);
-  letter-spacing: 0.08em;
+  font-size: calc(var(--paper-base-size) * 0.95);
+  letter-spacing: 0.06em;
 }
 
-/* 联系方式做成右上角的虚线名片，和左边带框的照片一左一右压住页眉 */
+/* 联系方式做成右上角的虚线名片，和左边带框的照片一左一右压住页眉；
+   名片内部走两列：九条基本信息排成五行，页眉高度不被右栏撑高。 */
 .layout-framed .paper-contacts {
   grid-column: 3;
   grid-row: 1 / span 2;
   align-self: center;
   display: grid;
-  gap: 1mm;
-  padding: 3mm 3.2mm;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 3mm;
+  row-gap: 1.1mm;
+  align-content: center;
+  padding: 2.8mm 3mm;
   border: 1px dashed rgba(47, 92, 143, 0.42);
   border-radius: 1.6mm;
   background: #fffdf8;
   color: #2f3b45;
-  font-size: calc(var(--paper-base-size) * 0.78);
-  line-height: 1.55;
+  font-size: calc(var(--paper-base-size) * 0.72);
+  line-height: 1.45;
   text-align: left;
 }
 
 .layout-framed .paper-contact {
   display: flex;
-  gap: 1.4mm;
+  gap: 1.2mm;
+  min-width: 0;
 }
 
+/* 名片是两列网格，条目自带标签与值，不再需要条目之间的「/」分隔符 */
 .layout-framed .paper-contact + .paper-contact::before {
   display: none;
+}
+
+/* 手机、邮箱、主页这类长值独占整行，前面短项的两列排在它们下面 */
+.layout-framed .paper-contact--wide {
+  grid-column: 1 / -1;
 }
 
 .layout-framed .paper-contact__label {
   flex: 0 0 auto;
   color: #7d8894;
   font-weight: 400;
+  white-space: nowrap;
+}
+
+/* 值那一截允许换行：邮箱、网址这类长内容不会把整列撑破 */
+.layout-framed .paper-contact > :not(.paper-contact__label) {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* 每段经历的标题前一枚实心圆点，和日期右对齐一起回到传统简历的读法 */
@@ -2897,12 +2990,14 @@ function breakable(value) {
       分区标题是上下双线表头。 ══ */
 .layout-biaoge .paper-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* 三栏：姓名 / 联系方式 / 证件照。照片进网格后由 align-self 居中，
+     原来绝对定位贴顶边会压住上方那条粗黑线。 */
+  grid-template-columns: minmax(0, 1fr) auto 20mm;
   grid-template-rows: auto auto;
   align-items: end;
-  column-gap: 10mm;
+  column-gap: 7mm;
   margin-bottom: 9mm;
-  padding: 2mm 0 3.6mm;
+  padding: 3.4mm 0 4.4mm;
   border-top: 1.3mm solid #14161a;
   border-bottom: 0.35mm solid #14161a;
 }
@@ -2966,18 +3061,15 @@ function breakable(value) {
   position: relative;
 }
 
+/* 证件照：进第三栏后上下居中，与上下两条横线各留一段空隙 */
 .layout-biaoge .paper-photo {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 18mm;
-  height: 24mm;
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: center;
+  width: 20mm;
+  height: 25mm;
   border-radius: 0.4mm;
   object-fit: cover;
-}
-
-.layout-biaoge .paper-contacts {
-  padding-right: 22mm;
 }
 
 /* ══ 卡片 kapi：圆形头像在右，经历与自评各成一张浅底卡片 ══ */
@@ -3136,6 +3228,14 @@ function breakable(value) {
       极淡的 10mm 点阵，正文不再有任何底纹。 ══ */
 .layout-blueprint .paper-header {
   position: relative;
+  display: grid;
+  /* 三栏：姓名 / 岗位 / 证件照，联系方式另起一整行通栏排。
+     照片进网格后由 align-self 居中并放大；原来绝对定位贴顶边、又小，
+     压着上方那条蓝色粗线不好看。 */
+  grid-template-columns: minmax(0, 1fr) 22mm;
+  grid-template-rows: auto auto auto;
+  align-items: end;
+  column-gap: 8mm;
   margin-bottom: 10mm;
   padding: 7mm 0 5mm;
   border-top: 0.6mm solid #1f4e79;
@@ -3145,6 +3245,32 @@ function breakable(value) {
   background-position: 0 0;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
+}
+
+/* 主体拆成网格项：姓名、岗位、联系方式各占一格，照片占第三栏 */
+.layout-blueprint .paper-header__main {
+  display: contents;
+}
+
+.layout-blueprint .paper-name-row {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.layout-blueprint .paper-role {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.layout-blueprint .paper-header__summary {
+  grid-column: 1 / -1;
+}
+
+/* 联系方式通栏排一行，不再为绝对定位的照片预留右边距 */
+.layout-blueprint .paper-contacts {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  padding-right: 0;
 }
 
 /* 左上角一小段加粗的标注线，图纸的起笔 */
@@ -3180,17 +3306,42 @@ function breakable(value) {
 }
 
 .layout-blueprint .paper-photo {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 18mm;
-  height: 24mm;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  width: 22mm;
+  height: 28mm;
   border-radius: 0.4mm;
   object-fit: cover;
 }
 
+/* 页眉没有岗位行时（求职意向改成独立模块），网格里为岗位预留的那一格就空了：
+   照片横跨两格会把空格拉高，姓名与联系方式之间就会空出一大块，图纸底纹上尤其明显。
+   这时让照片继续横跨「姓名行 + 联系方式行」，联系方式上移一格紧跟姓名；
+   照片若只占姓名那一行，28mm 的照片高会把姓名行撑到 28mm，姓名底下又空一块。 */
+.layout-blueprint.paper-no-role .paper-contacts {
+  grid-row: 2;
+}
+
+.layout-blueprint.paper-no-role .paper-name-row {
+  align-self: start;
+}
+
+/* 蓝图：分隔符「/」原来绝对定位画在每项左侧 2.9mm 处，联系方式一行放不下会折行，
+   行首那一项的「/」就甩到行首最左边，看着像多出来的。
+   改成挂在上一项末尾——分隔符永远落在两项之间，折行时行首干干净净。 */
 .layout-blueprint .paper-contacts {
-  padding-right: 22mm;
+  gap: 1mm 2.4mm;
+}
+
+.layout-blueprint .paper-contact + .paper-contact::before {
+  content: none;
+}
+
+.layout-blueprint .paper-contact:not(:last-child)::after {
+  content: "/";
+  margin: 0 1.4mm;
+  color: #aab2ad;
 }
 
 /* ══ 折页 fold：单栏正文 + 页眉三列，紧凑密度下仍能稳定分页。

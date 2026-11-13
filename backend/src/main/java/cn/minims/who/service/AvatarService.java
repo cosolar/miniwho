@@ -166,8 +166,16 @@ public class AvatarService {
         return new AvatarVo(true, shapeOf(resume), url, size, resume.getUpdatedAt());
     }
 
+    /**
+     * 形状三档：auto 跟随模板自带样式，rect 方形（一寸照比例），circle 圆形。
+     * 旧版本这里把 auto 压成 rect，用户点「跟随模板」存进去又读回来还是 rect，界面看着像按钮失灵。
+     */
     private String shapeOf(Resume resume) {
-        return "circle".equals(resume.getAvatarShape()) ? "circle" : "rect";
+        String shape = resume.getAvatarShape();
+        if ("circle".equals(shape) || "rect".equals(shape)) {
+            return shape;
+        }
+        return "auto";
     }
 
     /** 简历详情与分享页里内嵌的头像描述，无头像时返回 null（Jackson 会省略字段）。 */

@@ -23,7 +23,8 @@ public class Resume {
     private String modulePrefs;
     private String style;
     private String avatarKey;
-    private String avatarShape;
+    /** 证件照形状：auto 跟随模板自带样式，rect / circle 为用户显式选择。 */
+    private String avatarShape = "auto";
     private Integer contentVersion;
     private Integer completeness;
     private Integer score;

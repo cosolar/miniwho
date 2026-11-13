@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS resumes (
     module_prefs      TEXT         NOT NULL,
     style             TEXT         NOT NULL,
     avatar_key        VARCHAR(500),
-    avatar_shape      VARCHAR(20)  NOT NULL DEFAULT 'rect',
+    avatar_shape      VARCHAR(20)  NOT NULL DEFAULT 'auto',
     content_version   INTEGER      NOT NULL DEFAULT 0,
     completeness      INTEGER      NOT NULL DEFAULT 0,
     score             INTEGER,

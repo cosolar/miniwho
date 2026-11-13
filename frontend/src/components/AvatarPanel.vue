@@ -17,7 +17,15 @@ const busy = ref(false)
 const source = ref(null)
 const cropper = ref(false)
 
-const shape = computed(() => props.avatar?.shape || 'rect')
+/**
+ * 形状：auto 跟随模板自带样式，rect / circle 是用户显式选择。
+ */
+const shape = computed(() => {
+  const value = props.avatar?.shape
+  return value === 'circle' || value === 'rect' ? value : 'auto'
+})
+/** 面板里的预览：跟随模板时按方形（一寸照比例）示意，纸面实际形状以右侧预览为准。 */
+const previewShape = computed(() => (shape.value === 'circle' ? 'circle' : 'rect'))
 const thumb = computed(() => mediaUrl(props.avatar?.url || ''))
 
 function pick() {
@@ -96,7 +104,7 @@ async function remove() {
     </div>
 
     <div class="avatar-panel__body">
-      <div class="avatar-preview" :class="`avatar-preview--${shape}`">
+      <div class="avatar-preview" :class="`avatar-preview--${previewShape}`">
         <img v-if="avatar?.present && thumb" :src="thumb" alt="简历头像" />
         <el-icon v-else class="avatar-preview__empty"><Picture /></el-icon>
       </div>
@@ -109,10 +117,16 @@ async function remove() {
         <div class="avatar-shape">
           <button
             type="button"
+            :class="{ active: shape === 'auto' }"
+            :disabled="busy || !avatar?.present"
+            @click="toggleShape('auto')"
+          >跟随模板</button>
+          <button
+            type="button"
             :class="{ active: shape === 'rect' }"
             :disabled="busy || !avatar?.present"
             @click="toggleShape('rect')"
-          >证件照</button>
+          >方形</button>
           <button
             type="button"
             :class="{ active: shape === 'circle' }"
@@ -264,11 +278,13 @@ async function remove() {
 }
 
 .avatar-shape button {
-  padding: 5px 12px;
+  /* 三档（跟随模板 / 证件照 / 圆形）并排，内边距收窄一档才不会挤出面板 */
+  padding: 5px 9px;
   border: none;
   background: #fff;
   color: var(--muted);
   font-size: 12px;
+  white-space: nowrap;
   cursor: pointer;
 }
 

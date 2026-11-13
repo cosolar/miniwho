@@ -49,7 +49,8 @@ export function useSampleResume() {
   const displayName = computed(() => basicFields.value.name || '')
   const avatar = computed(() => {
     const url = SAMPLE_PHOTOS[basicFields.value.gender]
-    return url ? { present: true, shape: 'rect', url } : null
+    // 形状跟随模板自带样式（auto），示例简历不替用户做决定。
+    return url ? { present: true, shape: 'auto', url } : null
   })
 
   return { content, template, displayName, avatar }

@@ -15,9 +15,13 @@ public final class MediaDtos {
     public record AvatarVo(boolean present, String shape, String url, Long sizeBytes, Long updatedAt) {
     }
 
+    /**
+     * 头像形状：auto 跟随模板自带样式，rect 方形（一寸照比例），circle 圆形。
+     * 用户显式选过的那一档会压过模板包的圆角设置。
+     */
     public record AvatarShapeRequest(
             @NotBlank(message = "请选择头像形状")
-            @Pattern(regexp = "circle|rect", message = "头像形状仅支持 circle 或 rect") String shape) {
+            @Pattern(regexp = "circle|rect|auto", message = "头像形状仅支持 circle、rect 或 auto") String shape) {
     }
 
     /** 条目图片（院校 / 公司 logo）：key 存进简历 content，url 由 key 直接推导。 */

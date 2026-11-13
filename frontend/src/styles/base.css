@@ -500,6 +500,24 @@ ul, ol {
   text-decoration: none;
 }
 
+/* 证件照形状：用户在「基础信息」里显式选过的那一档要压过模板包自带的圆角。
+   模板包的 CSS 作用域类前缀（.tw-xxx）优先级更高，且包内 CSS 不允许 !important，
+   所以这两条用全局样式 + !important 兜住；没有显式选择时（data-photo-shape="auto"）
+   不加这两个类，模板自己的圆角原样保留。
+   显式选择还会统一长宽比例：方形按一寸照（25×35mm，5:7）排，圆形按正圆排，
+   这样同一份简历换模板时照片不会被拉成正方形或椭圆。 */
+.resume-paper[data-photo-shape='circle'] .paper-photo {
+  border-radius: 50% !important;
+  height: auto !important;
+  aspect-ratio: 1 / 1 !important;
+}
+
+.resume-paper[data-photo-shape='rect'] .paper-photo {
+  border-radius: 0.6mm !important;
+  height: auto !important;
+  aspect-ratio: 25 / 35 !important;
+}
+
 .resume-paper .rich-content ul,
 .resume-paper .rich-content ol {
   margin: 4px 0 0;

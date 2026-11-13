@@ -75,6 +75,7 @@ function labelFor(index) {
       >
         <el-option label="显示在姓名下方" value="title_only" />
         <el-option label="作为独立模块展示" value="full" />
+        <el-option label="都显示" value="both" />
       </el-select>
     </div>
     <div v-else-if="draft.type === 'job_intention'" class="embedded-mode">
@@ -84,6 +85,7 @@ function labelFor(index) {
         <el-select v-model="draft.meta.displayMode" size="small" class="display-mode">
           <el-option label="显示在姓名下方" value="title_only" />
           <el-option label="作为独立模块展示" value="full" />
+          <el-option label="都显示" value="both" />
         </el-select>
       </template>
     </div>
@@ -137,7 +139,7 @@ function labelFor(index) {
       <span class="save-hint">点击保存后才会写入云端，取消不会保留本次修改。</span>
       <div class="action-buttons">
         <el-button :disabled="saving" @click="emit('cancel')">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="emit('save')">保存模块</el-button>
+        <el-button type="primary" :loading="saving" @click="emit('save')">保存</el-button>
       </div>
     </div>
   </div>

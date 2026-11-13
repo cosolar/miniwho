@@ -242,10 +242,12 @@ async function refreshWorkbench(silent = true) {
 }
 
 function normalizeAvatar(node) {
-  if (!node) return { present: false, shape: 'rect' }
+  if (!node) return { present: false, shape: 'auto' }
+  // 形状三态：auto 跟随模板自带样式，rect / circle 为用户显式选择。
+  const shape = node.shape === 'circle' ? 'circle' : node.shape === 'rect' ? 'rect' : 'auto'
   return {
     present: node.present !== false && Boolean(node.url),
-    shape: node.shape === 'circle' ? 'circle' : 'rect',
+    shape,
     url: node.url || '',
     sizeBytes: node.sizeBytes,
     updatedAt: node.updatedAt
