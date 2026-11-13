@@ -240,6 +240,30 @@ class HttpSmokeTest {
                 .andExpect(jsonPath("$.data.total").value(0));
     }
 
+    /**
+     * 公开分享页的响应一律禁止缓存。
+     *
+     * <p>回归：分享链接撤销后立刻失效，同一个链接名又能马上重新启用。响应一旦允许缓存，
+     * 浏览器会把「链接已失效」那份 410 存下来，重新分享后访客仍读到旧缓存，看到的是
+     * 已经修好的链接却报失效。成功响应同样不能缓存——撤销后重新分享，访客不该继续看到
+     * 上一份内容。
+     *
+     * <p>只断言响应头，不断言状态码：公开接口有匿名限流，同一个 IP 连着打会先撞到 429，
+     * 而这一条要盯的是「有没有禁止缓存」这件事本身。
+     */
+    @Test
+    @Order(11)
+    void publicShareResponsesAreNeverCached() throws Exception {
+        // 不存在的链接：走的是「已失效」那条分支，错误响应同样不能被缓存。
+        mockMvc.perform(get("/api/public/shares/smoke-token"))
+                .andExpect(header().string("Cache-Control", containsString("no-store")));
+
+        mockMvc.perform(post("/api/public/shares/smoke-token/unlock")
+                        .contentType("application/json")
+                        .content("{\"password\":\"x\"}"))
+                .andExpect(header().string("Cache-Control", containsString("no-store")));
+    }
+
     private String login(String username, String password) throws Exception {
         // 滑块验证码在冒烟里关掉了：它要真拖一次才出票据，而这里的用例关心的是登录之后的事。
         String body = mockMvc.perform(post("/api/auth/login")

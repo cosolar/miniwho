@@ -27,9 +27,17 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    /**
+     * 业务异常一律不缓存。
+     *
+     * <p>最要紧的是分享链接：撤销后这条链接会失效，而同一个链接名又可以马上重新启用。
+     * 若「链接已失效」那份 410 响应被浏览器存下，重新分享后访客仍读到旧缓存，看到的是
+     * 已经修好的链接却报失效。404 / 405 之类同理——它们的结论会随服务端状态改变。
+     */
     @ExceptionHandler(BizException.class)
     public ResponseEntity<ApiResponse<Object>> handleBiz(BizException ex) {
         return ResponseEntity.status(ex.getStatus())
+                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "no-store")
                 .body(ApiResponse.error(ex.getCode(), ex.getMessage(), ex.getDetails()));
     }
 
