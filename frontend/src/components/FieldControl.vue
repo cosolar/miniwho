@@ -66,7 +66,7 @@ async function onImageFile(event) {
   try {
     const data = await itemMediaApi.upload(props.resumeId, file)
     setValue(data.key)
-    ElMessage.success('图片已上传，保存模块后生效')
+    ElMessage.success('图片已上传，保存后生效')
   } catch (error) {
     notifyError(error, '图片上传失败')
   } finally {

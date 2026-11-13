@@ -3,11 +3,12 @@ import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  ArrowRight, CopyDocument, InfoFilled, Lock, Printer, View, Warning
+  ArrowRight, CopyDocument, Download, InfoFilled, Lock, View, Warning
 } from '@element-plus/icons-vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import PaperFrame from '../components/PaperFrame.vue'
 import { shareApi } from '../api'
+import { mediaUrl } from '../api/client'
 import { copyText, formatDateTime, timeAgo } from '../utils/format'
 
 const route = useRoute()
@@ -26,6 +27,12 @@ const passwordError = ref('')
 const unlocking = ref(false)
 const printDialog = ref(false)
 const printing = ref(false)
+const avatarBroken = ref(false)
+
+// 分享页头部的作者头像取这份简历自己的照片（后端已用短时签名链接下发），
+// 没传照片或链接失效时才回落到昵称首字母。
+const ownerPhoto = computed(() => (avatarBroken.value ? '' : mediaUrl(share.value?.avatar?.url || '')))
+const ownerInitial = computed(() => (share.value?.ownerName || '求').slice(0, 1))
 
 const template = computed(() => {
   if (!share.value) return null
@@ -78,6 +85,7 @@ async function load() {
 
 function applyShare(data) {
   share.value = data
+  avatarBroken.value = false
   passwordRequired.value = false
   document.title = `${data.title} · 极简简历`
 }
@@ -204,7 +212,15 @@ onMounted(load)
     <main v-else-if="share" class="share-content">
       <div class="share-meta no-print">
         <div class="share-meta__owner">
-          <span class="owner-avatar">{{ (share.ownerName || '求').slice(0, 1) }}</span>
+          <span class="owner-avatar" :class="{ 'owner-avatar--rect': share.avatar?.shape === 'rect' }">
+            <img
+              v-if="ownerPhoto"
+              :src="ownerPhoto"
+              :alt="`${share.ownerName || '分享者'}的头像`"
+              @error="avatarBroken = true"
+            />
+            <template v-else>{{ ownerInitial }}</template>
+          </span>
           <div>
             <strong>{{ share.title }}</strong>
             <p>由 {{ share.ownerName || '一位求职者' }} 分享 · {{ timeAgo(share.updatedAt) }}更新</p>
@@ -213,9 +229,9 @@ onMounted(load)
         <div class="share-meta__actions">
           <span v-if="share.expiresAt" class="expiry-chip">{{ formatDateTime(share.expiresAt) }} 前有效</span>
           <span v-else class="expiry-chip">永久有效</span>
-          <el-button v-if="share.allowDownload" plain size="small" @click="printDialog = true">
-            <el-icon><Printer /></el-icon>
-            保存为 PDF
+          <el-button v-if="share.allowDownload" class="download-btn" @click="printDialog = true">
+            <el-icon><Download /></el-icon>
+            <span>下载</span>
           </el-button>
           <span v-else class="view-only">
             <el-icon><View /></el-icon>
@@ -251,7 +267,7 @@ onMounted(load)
 
     <el-dialog v-model="printDialog" width="460px" align-center class="share-print-dialog">
       <template #header>
-        <h2 class="share-print-title">保存这份简历</h2>
+        <h2 class="share-print-title">下载这份简历</h2>
       </template>
       <ol class="share-print-steps">
         <li>在打印窗口的目标打印机中选择「另存为 PDF」。</li>
@@ -303,35 +319,52 @@ onMounted(load)
 .copy-link {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 0;
-  border: none;
-  background: none;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255, 254, 251, 0.7);
   color: var(--muted);
   font-family: var(--sans);
   font-size: 11px;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .copy-link:hover {
+  border-color: rgba(10, 125, 118, 0.35);
+  background: var(--accent-soft);
   color: var(--accent);
 }
 
 .share-cta {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 8px 14px;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
   border: 1px solid var(--ink);
-  border-radius: 7px;
+  border-radius: 9px;
   color: var(--ink);
   font-size: 11px;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
   transition: all 0.2s ease;
+}
+
+.share-cta .el-icon {
+  transition: transform 0.2s ease;
 }
 
 .share-cta:hover {
   background: var(--ink);
   color: #f7f4ec;
+  transform: translateY(-1px);
+}
+
+.share-cta:hover .el-icon {
+  transform: translateX(2px);
 }
 
 .share-loading {
@@ -497,14 +530,29 @@ onMounted(load)
 .owner-avatar {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
   border-radius: 50%;
-  background: var(--ink);
+  background: linear-gradient(150deg, #2b3a34, var(--ink));
+  box-shadow: 0 0 0 3px rgba(255, 254, 251, 0.8), var(--shadow-sm);
   color: #f6f3ea;
   font-family: var(--serif);
-  font-size: 13px;
+  font-size: 14px;
+}
+
+.owner-avatar--rect {
+  border-radius: 10px;
+}
+
+.owner-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
 }
 
 .share-meta__owner strong {
@@ -531,24 +579,57 @@ onMounted(load)
 }
 
 .expiry-chip {
-  padding: 4px 9px;
+  padding: 5px 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
+  background: rgba(255, 254, 251, 0.7);
   color: var(--muted);
-  font-size: 8px;
+  font-size: 9px;
+  white-space: nowrap;
 }
 
 .view-only {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  height: 32px;
+  padding: 0 11px;
+  border: 1px dashed var(--line-strong, var(--line));
+  border-radius: 9px;
   color: var(--faint);
-  font-size: 9px;
+  font-size: 10px;
+  white-space: nowrap;
 }
 
-.share-meta__actions :deep(.el-button) {
-  height: 30px;
-  font-size: 10px;
+.share-meta__actions :deep(.download-btn) {
+  height: 34px;
+  padding: 0 17px;
+  border: 1px solid var(--accent-dark);
+  border-radius: 9px;
+  background: linear-gradient(135deg, #0d8c84, var(--accent-dark));
+  box-shadow: 0 5px 14px rgba(8, 95, 90, 0.2);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  transition: all 0.2s ease;
+}
+
+.share-meta__actions :deep(.download-btn .el-icon) {
+  margin-right: 5px;
+  font-size: 14px;
+}
+
+.share-meta__actions :deep(.download-btn:hover) {
+  border-color: var(--accent-dark);
+  background: linear-gradient(135deg, #0a7d76, #064f4b);
+  box-shadow: 0 8px 18px rgba(8, 95, 90, 0.26);
+  transform: translateY(-1px);
+}
+
+.share-meta__actions :deep(.download-btn:active) {
+  box-shadow: 0 2px 8px rgba(8, 95, 90, 0.2);
+  transform: translateY(0);
 }
 
 .share-stage {
@@ -676,7 +757,7 @@ onMounted(load)
   }
 
   .share-cta {
-    padding: 7px 10px;
+    padding: 0 10px;
     font-size: 10px;
   }
 
@@ -711,5 +792,19 @@ onMounted(load)
   .gone-card {
     padding: 30px 22px 24px;
   }
+}
+</style>
+
+<!-- 弹窗 teleport 到 body，scoped 选择器够不着，这里按弹窗类名单独收口。 -->
+<style>
+.share-print-dialog .el-button {
+  height: 34px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.share-print-dialog .el-button--primary {
+  box-shadow: 0 5px 14px rgba(8, 95, 90, 0.2);
 }
 </style>
