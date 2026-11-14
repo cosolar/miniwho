@@ -12,7 +12,7 @@ export const authApi = {
   loginCode: (username) => client.post('/auth/login-code', { username }),
   loginByCode: (payload) => client.post('/auth/login-by-code', payload),
   /** 验证码登录后的免原密码改密，票据由服务端记在本次登录的令牌上。 */
-  passwordAfterCode: (newPassword) => client.put('/auth/password-after-code', { newPassword }),
+  passwordAfterCode: (payload) => client.put('/auth/password-after-code', payload),
   register: (payload) => client.post('/auth/register', payload),
   emailCode: (email) => client.post('/auth/email-code', { email }),
   registerEmail: (payload) => client.post('/auth/register-email', payload),
