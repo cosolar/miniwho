@@ -271,6 +271,8 @@ async function submit() {
       return
     }
     if (isRegister.value) {
+      // 用户名是登录凭证：邮箱注册没自己填的话是系统按邮箱前缀生成的，必须明确告诉用户。
+      let assigned = ''
       if (isEmailRegister.value) {
         const created = await auth.registerWithEmail({
           email: form.email.trim(),
@@ -279,15 +281,15 @@ async function submit() {
           nickname: form.nickname.trim(),
           username: form.username.trim()
         })
+        assigned = created?.user?.username || ''
       } else {
-        await auth.register({
+        const created = await auth.register({
           username: form.username.trim(),
           password: form.password,
           nickname: form.nickname.trim()
         })
+        assigned = created?.user?.username || form.username.trim()
       }
-      // 用户名是登录凭证：没自己填的话是系统按邮箱前缀生成的，必须明确告诉用户。
-      const assigned = created?.user?.username
       ElMessage.success(assigned ? `账号已创建，登录用户名：${assigned}` : '账号已创建，你的第一份简历准备好了')
     } else if (isLoginByCode.value) {
       const data = await auth.loginByCode({
