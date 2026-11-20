@@ -26,7 +26,6 @@ const visible = computed({
   set: (value) => emit('update:modelValue', value)
 })
 
-const dialogRef = ref(null)
 /** 贴着触发按钮的位置；空对象表示交给默认布局（居中）。 */
 const posStyle = ref({})
 
@@ -305,7 +304,6 @@ onBeforeUnmount(() => {
 
 <template>
   <el-dialog
-    ref="dialogRef"
     v-model="visible"
     width="404px"
     :show-close="false"
