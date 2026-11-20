@@ -75,10 +75,11 @@ function syncContactSeparators() {
       const wrapped = previous
         ? Math.min(box.bottom, previous.bottom) - Math.max(box.top, previous.top) <= 0.5
         : false
-      // 有些模板把图标画在 ::before 上（mask 图形）而不是分隔符，标了行首反而会把图标一起隐藏。
-      const before = getComputedStyle(item, '::before')
-      const iconBefore = before.maskImage && before.maskImage !== 'none'
-      item.classList.toggle('paper-contact--line-start', wrapped && !iconBefore)
+      // 只有「伪元素里画的是文字分隔符」才需要行首标记。有些模板把图标或色块画在 ::before 上
+      // （content 为空），标了行首会把图标一起隐藏，白色图标落在白底上就彻底看不见了。
+      const content = getComputedStyle(item, '::before').content
+      const isSeparator = Boolean(content) && content !== 'none' && content !== '""' && content !== "''"
+      item.classList.toggle('paper-contact--line-start', wrapped && isSeparator)
       previous = box
     })
   })
