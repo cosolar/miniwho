@@ -39,10 +39,11 @@
     display: flex;
     flex-direction: column;
     padding: 40px 42px 34px;
-    color: #f3efe5;
+    color: #16231e;
     background:
-      radial-gradient(620px 440px at 0% 0%, rgba(199, 164, 101, 0.15), transparent 62%),
-      #16231e;
+      radial-gradient(620px 440px at 0% 0%, rgba(199, 164, 101, 0.2), transparent 62%),
+      radial-gradient(520px 380px at 100% 100%, rgba(10, 125, 118, 0.07), transparent 60%),
+      #f7f3e8;
   }
 
   /* 点阵纹理：登录页视觉区用的同一套，顺带给拼图缺口提供可辨认的底纹 */
@@ -50,9 +51,9 @@
     content: "";
     position: absolute;
     inset: 0;
-    background-image: radial-gradient(rgba(243, 239, 229, 0.5) 1px, transparent 1px);
+    background-image: radial-gradient(rgba(22, 35, 30, 0.5) 1px, transparent 1px);
     background-size: 7px 7px;
-    opacity: 0.14;
+    opacity: 0.1;
     pointer-events: none;
   }
 
@@ -61,7 +62,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: radial-gradient(120% 100% at 50% 40%, transparent 46%, rgba(6, 14, 11, 0.42));
+    background: radial-gradient(120% 100% at 50% 38%, transparent 52%, rgba(22, 35, 30, 0.05));
     pointer-events: none;
   }
 
@@ -73,7 +74,7 @@
     line-height: 0.8;
     font-weight: 800;
     letter-spacing: -0.04em;
-    color: rgba(199, 164, 101, 0.105);
+    color: rgba(22, 35, 30, 0.075);
     user-select: none;
     right: 22px;
     bottom: 82px;
@@ -86,10 +87,10 @@
     z-index: 2;
     display: flex;
     align-items: center;
-    gap: 9px;
-    font-size: 10px;
-    letter-spacing: 0.2em;
-    color: rgba(243, 239, 229, 0.44);
+    gap: 10px;
+    font-size: 14px;
+    letter-spacing: 0.16em;
+    color: rgba(22, 35, 30, 0.52);
   }
 
   .kicker .dot {
@@ -97,42 +98,43 @@
     height: 5px;
     border-radius: 50%;
     flex: none;
-    background: #c7a465;
+    background: #0a7d76;
   }
 
   .title {
     position: relative;
     z-index: 2;
-    margin-top: 22px;
-    font-size: 40px;
-    line-height: 1.28;
+    margin-top: 16px;
+    font-size: 54px;
+    line-height: 1.24;
     font-weight: 700;
-    max-width: 380px;
+    letter-spacing: -0.01em;
+    max-width: 400px;
   }
 
   .title em {
     font-style: normal;
-    color: #7fb9a6;
+    color: #0a7d76;
   }
 
   .title.solo {
-    font-size: 46px;
-    letter-spacing: 0.01em;
+    font-size: 62px;
+    letter-spacing: 0.005em;
   }
 
   .say {
     position: relative;
     z-index: 2;
-    margin-top: 20px;
-    font-size: 13px;
-    line-height: 1.75;
-    max-width: 380px;
-    color: rgba(243, 239, 229, 0.54);
+    margin-top: 16px;
+    font-size: 19px;
+    line-height: 1.62;
+    max-width: 400px;
+    color: rgba(22, 35, 30, 0.62);
   }
 
   .say b {
     font-weight: 600;
-    color: rgba(243, 239, 229, 0.92);
+    color: #16231e;
   }
 
   .foot {
@@ -142,9 +144,9 @@
     display: flex;
     align-items: center;
     gap: 9px;
-    font-size: 9.5px;
-    letter-spacing: 0.24em;
-    color: rgba(243, 239, 229, 0.3);
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    color: rgba(22, 35, 30, 0.42);
   }
 
   .foot .bar {
@@ -159,10 +161,10 @@
     z-index: 2;
     right: 40px;
     bottom: 34px;
-    font-size: 10px;
-    letter-spacing: 0.18em;
+    font-size: 13px;
+    letter-spacing: 0.16em;
     font-variant-numeric: tabular-nums;
-    color: rgba(243, 239, 229, 0.26);
+    color: rgba(22, 35, 30, 0.4);
   }
 </style>
 </head>
@@ -213,7 +215,7 @@
   <div class="mark" style="font-size:210px">1</div>
   <div class="kicker"><span class="dot"></span>简历小技巧</div>
   <h1 class="title">排不下，<br />是<em>重点没定</em></h1>
-  <p class="say">一页装不下的不是经历太多，<b>是没想清楚要什么</b>。</p>
+  <p class="say">装不下不是经历太多，<b>是重点没定</b>。</p>
   <div class="foot"><span class="bar"></span>MINIWHO</div>
   <div class="no">05 / 08</div>
 </div>
@@ -223,7 +225,7 @@
   <div class="mark" style="font-size:166px">%</div>
   <div class="kicker"><span class="dot"></span>简历小技巧</div>
   <h1 class="title">没数据，<br />就写<em>影响面</em></h1>
-  <p class="say">量不出百分比，就说清<b>影响了多少人、多大范围</b>。</p>
+  <p class="say">量不出百分比，就说清<b>影响了多大范围</b>。</p>
   <div class="foot"><span class="bar"></span>MINIWHO</div>
   <div class="no">06 / 08</div>
 </div>
@@ -233,7 +235,7 @@
   <div class="mark" style="font-size:132px">JD</div>
   <div class="kicker"><span class="dot"></span>简历小技巧</div>
   <h1 class="title">只写<em>对得上的</em></h1>
-  <p class="say">简历不是自传，<b>是把岗位要的那几条挑出来放大</b>。</p>
+  <p class="say">简历不是自传，<b>挑对得上的放大</b>。</p>
   <div class="foot"><span class="bar"></span>MINIWHO</div>
   <div class="no">07 / 08</div>
 </div>
