@@ -1,15 +1,34 @@
 {
   "api": 1,
-  "id": { "namespace": "official", "code": "ceying", "version": "2.0.0" },
+  "id": {
+    "namespace": "official",
+    "code": "ceying",
+    "version": "2.0.0"
+  },
   "meta": {
     "name": "侧影",
     "description": "藏青通栏页眉，右侧浅灰信息栏收拢意向与技能，正文专注履历。",
     "category": "双栏",
-    "tags": ["双栏", "藏青", "社招", "高密度"],
+    "tags": [
+      "双栏",
+      "藏青",
+      "社招",
+      "高密度"
+    ],
     "author": "MiniWho",
     "license": "MIT"
   },
-  "theme": { "layout": "sidebar", "accent": "#1f2f44", "font": "sans", "sectionStyle": "bar", "density": "standard" },
-  "capability": { "photo": true, "free": true },
-  "sortWeight": 30
+  "theme": {
+    "layout": "sidebar",
+    "accent": "#1f2f44",
+    "font": "sans",
+    "sectionStyle": "bar",
+    "density": "standard"
+  },
+  "capability": {
+    "photo": true,
+    "free": true
+  },
+  "sortWeight": 30,
+  "style": "/* 显式选择的列表样式接管模板默认圆点装饰，避免 data-list 被模板 ul/li 规则盖掉。 */\n.tw-ceying.resume-paper .paper-rich ul[data-list],\n.tw-ceying.resume-paper .paper-rich ol[data-list] {\n  margin: 0.5mm 0 0;\n  padding-left: 1.2em;\n}\n.tw-ceying.resume-paper .paper-rich ul[data-list] > li,\n.tw-ceying.resume-paper .paper-rich ol[data-list] > li {\n  padding-left: 0;\n  position: relative;\n}\n.tw-ceying.resume-paper .paper-rich ul[data-list] > li::before,\n.tw-ceying.resume-paper .paper-rich ol[data-list] > li::before {\n  content: none;\n  width: auto;\n  height: auto;\n  border-radius: 0;\n  background: none;\n  border: 0;\n  box-shadow: none;\n  left: auto;\n  right: auto;\n  top: auto;\n  margin: 0;\n  padding: 0;\n}\n.tw-ceying.resume-paper .paper-rich ul[data-list=\"disc\"] { list-style-type: disc; }\n.tw-ceying.resume-paper .paper-rich ul[data-list=\"circle\"] { list-style-type: circle; }\n.tw-ceying.resume-paper .paper-rich ul[data-list=\"square\"] { list-style-type: square; }\n.tw-ceying.resume-paper .paper-rich ul[data-list=\"square-open\"] { list-style-type: \"□   \"; }\n.tw-ceying.resume-paper .paper-rich ul[data-list=\"square-open\"] > li::marker { font-size: 0.62em; }\n.tw-ceying.resume-paper .paper-rich ul[data-list=\"diamond\"] { list-style-type: \"◆   \"; }\n.tw-ceying.resume-paper .paper-rich ul[data-list=\"diamond-open\"] { list-style-type: \"◇   \"; }\n.tw-ceying.resume-paper .paper-rich ul[data-list=\"diamond\"] > li::marker,\n.tw-ceying.resume-paper .paper-rich ul[data-list=\"diamond-open\"] > li::marker { font-size: 0.62em; }\n.tw-ceying.resume-paper .paper-rich ul[data-list=\"triangle\"] { list-style-type: \"▸   \"; }\n.tw-ceying.resume-paper .paper-rich ul[data-list=\"check\"] { list-style-type: \"✓   \"; }\n.tw-ceying.resume-paper .paper-rich ul[data-list=\"check\"] > li::marker { font-size: 0.75em; }\n.tw-ceying.resume-paper .paper-rich ol[data-list=\"decimal\"] { list-style-type: decimal; }\n.tw-ceying.resume-paper .paper-rich ol[data-list=\"cjk\"] { list-style-type: miniwho-cjk; }\n.tw-ceying.resume-paper .paper-rich ol[data-list=\"roman-upper\"] { list-style-type: upper-roman; }\n.tw-ceying.resume-paper .paper-rich ol[data-list=\"roman-lower\"] { list-style-type: lower-roman; }\n.tw-ceying.resume-paper .paper-rich ol[data-list=\"alpha-upper\"] { list-style-type: upper-alpha; }\n.tw-ceying.resume-paper .paper-rich ol[data-list=\"alpha-lower\"] { list-style-type: lower-alpha; }\n.tw-ceying.resume-paper .paper-rich ol[data-list=\"paren\"] { padding-left: 1.2em; list-style: none; counter-reset: paren-item; }\n.tw-ceying.resume-paper .paper-rich ol[data-list=\"paren\"] > li { position: relative; counter-increment: paren-item; }\n.tw-ceying.resume-paper .paper-rich ol[data-list=\"paren\"] > li::before {\n  content: \"（\" counter(paren-item) \"）\";\n  position: absolute;\n  right: calc(100% + 0.08em);\n  top: 0;\n  font-family: var(--mono);\n  font-variant-numeric: tabular-nums;\n  font-size: 0.62em;\n  line-height: 1.7;\n  white-space: nowrap;\n}\n.tw-ceying.resume-paper .paper-rich ol[data-list=\"paren-right\"] { padding-left: 1.2em; list-style: none; counter-reset: paren-right-item; }\n.tw-ceying.resume-paper .paper-rich ol[data-list=\"paren-right\"] > li { position: relative; counter-increment: paren-right-item; }\n.tw-ceying.resume-paper .paper-rich ol[data-list=\"paren-right\"] > li::before {\n  content: counter(paren-right-item) \")\";\n  position: absolute;\n  right: calc(100% + 0.12em);\n  top: 0;\n  font-family: var(--mono);\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n"
 }
