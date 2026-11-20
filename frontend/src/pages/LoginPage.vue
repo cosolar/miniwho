@@ -30,6 +30,9 @@ let countdownTimer = null
  */
 const captchaOpen = ref(false)
 const captchaTicket = ref('')
+/** 「安全验证」那一行在视口里的位置，用来把验证弹窗贴着它弹出。 */
+const verifyRowRef = ref(null)
+const captchaAnchor = ref(null)
 /** 只在「滑完了但还没登录成功」时显示已通过，避免用户以为可以一直复用。 */
 const captchaSolved = computed(() => Boolean(captchaTicket.value))
 /** 密码连错 3 次后，密码入口关闭，整张表单切换成邮箱验证码登录。 */
@@ -146,6 +149,11 @@ function resetCaptcha() {
 
 function openCaptcha() {
   if (isRegister.value || isReset.value || isLoginByCode.value) return
+  // 记下这一行的位置，弹窗贴着它开，不用跑到屏幕正中。
+  const box = verifyRowRef.value?.getBoundingClientRect()
+  captchaAnchor.value = box
+    ? { top: box.top, bottom: box.bottom, left: box.left, width: box.width }
+    : null
   captchaOpen.value = true
 }
 
@@ -520,6 +528,7 @@ onMounted(async () => {
 
           <el-form-item v-if="!isRegister && !isReset && !isLoginByCode" label="安全验证">
             <button
+              ref="verifyRowRef"
               type="button"
               class="verify-row"
               :class="{ 'is-solved': captchaSolved }"
@@ -629,7 +638,7 @@ onMounted(async () => {
       </div>
     </main>
 
-    <SliderCaptcha v-model="captchaOpen" @success="onCaptchaSolved" />
+    <SliderCaptcha v-model="captchaOpen" :anchor="captchaAnchor" @success="onCaptchaSolved" />
   </div>
 </template>
 

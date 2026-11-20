@@ -10,7 +10,14 @@ import { notifyError } from '../api/client'
  * 校验通过后拿到一张一次性票据，登录时带上即可。
  */
 const props = defineProps({
-  modelValue: { type: Boolean, default: false }
+  modelValue: { type: Boolean, default: false },
+  /**
+   * 触发按钮在视口里的位置（getBoundingClientRect 的结果）。
+   *
+   * 给了就贴着这一行弹出，而不是飘到屏幕正中：鼠标刚点完就在旁边，不用横跨半个屏幕；
+   * 左边缘跟表单列对齐，也不会压住页面左侧的视觉区。没给（或窄屏）就沿用居中。
+   */
+  anchor: { type: Object, default: null }
 })
 const emit = defineEmits(['update:modelValue', 'success'])
 
@@ -18,6 +25,10 @@ const visible = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value)
 })
+
+const dialogRef = ref(null)
+/** 贴着触发按钮的位置；空对象表示交给默认布局（居中）。 */
+const posStyle = ref({})
 
 const stageRef = ref(null)
 const loading = ref(false)
@@ -212,13 +223,67 @@ function close() {
   visible.value = false
 }
 
+/**
+ * 把弹窗摆到触发按钮旁边。
+ *
+ * 优先落在按钮正下方——鼠标刚点完就在这里，几乎不用再移动；下方放不下就翻到上方；
+ * 上下都放不下（视口很矮）时贴到视口内能完整显示的位置，至少还能整块看到。
+ * 水平方向左边缘对齐表单列，并夹在视口左右留白之间，不会跑到屏幕外。
+ * 窄屏没有摆布的余地，退回居中铺满。
+ */
+function place() {
+  const anchor = props.anchor
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const narrow = vw < 520
+  if (!anchor || narrow) {
+    posStyle.value = {}
+    return
+  }
+  // 量真实尺寸：弹窗的根节点是 .el-overlay（铺满视口），不能拿组件实例的 $el 当弹窗。
+  const box = document.querySelector('.el-dialog.slider-captcha')?.getBoundingClientRect()
+  const width = box?.width || Math.min(404, vw - 32)
+  const height = box?.height || 420
+  const gap = 12
+  const pad = 16
+
+  const left = Math.min(Math.max(pad, anchor.left), Math.max(pad, vw - width - pad))
+  // 优先落在按钮下方；下方放不下就翻到上方，让弹窗底边贴着按钮顶边。
+  const below = anchor.bottom + gap
+  const above = anchor.top - height - gap
+  let top
+  if (below + height <= vh - pad) {
+    top = below
+  } else if (above >= pad) {
+    top = above
+  } else {
+    top = Math.min(Math.max(pad, vh - height - pad), below)
+  }
+  posStyle.value = {
+    '--captcha-top': `${Math.round(top)}px`,
+    '--captcha-left': `${Math.round(left)}px`,
+    '--captcha-right': '0px'
+  }
+}
+
+function onViewportChange() {
+  if (visible.value) {
+    measure()
+    place()
+  }
+}
+
 watch(visible, (open) => {
   if (open) {
     nextTick(() => {
+      place()
       measure()
       load()
+      // 弹窗渲染完再量一次真实尺寸校正位置；只重排不改内容，肉眼看不到跳动。
+      requestAnimationFrame(() => requestAnimationFrame(place))
     })
   } else {
+    posStyle.value = {}
     drag = null
     window.removeEventListener('pointermove', onPointerMove)
     window.removeEventListener('pointerup', onPointerUp)
@@ -228,25 +293,26 @@ watch(visible, (open) => {
 
 watch(stageWidth, () => measure())
 
-window.addEventListener('resize', measure)
+window.addEventListener('resize', onViewportChange)
 
 onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
   window.removeEventListener('pointercancel', onPointerUp)
-  window.removeEventListener('resize', measure)
+  window.removeEventListener('resize', onViewportChange)
 })
 </script>
 
 <template>
   <el-dialog
+    ref="dialogRef"
     v-model="visible"
     width="404px"
-    align-center
     :show-close="false"
     :close-on-click-modal="false"
     class="slider-captcha"
     append-to-body
+    :style="posStyle"
   >
     <template #header>
       <div class="slider-captcha__head">
@@ -494,5 +560,24 @@ onBeforeUnmount(() => {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-4px); }
   75% { transform: translateX(4px); }
+}
+</style>
+
+<style>
+/* 弹窗被 teleport 到 body，scoped 的 data-v 够不着，只能写在全局。
+   默认（没给锚点 / 窄屏）由 Element Plus 的 margin 负责居中，这里不插手；
+   给了锚点就用变量把弹窗摆到触发按钮旁边。 */
+.el-dialog.slider-captcha {
+  margin-top: var(--captcha-top, 15vh);
+  margin-bottom: 16px;
+  /* 两个都是 auto 时居中；摆了锚点后左固定、右归零。 */
+  margin-left: var(--captcha-left, auto);
+  margin-right: var(--captcha-right, auto);
+}
+
+@media (max-width: 519px) {
+  .el-dialog.slider-captcha {
+    margin: 15vh auto 16px;
+  }
 }
 </style>
