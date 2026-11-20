@@ -214,13 +214,15 @@ function skillLevel(level) {
             <div class="paper-item-title">
               {{ item.fields.company }}
             </div>
+            <!-- 「地点跟公司同一行」的模板打开它；其余版式默认 display: none，不参与排布 -->
+            <span v-if="item.fields.city && !sideColumn" class="paper-item-city">{{ item.fields.city }}</span>
             <div v-if="!sideColumn" class="paper-item-period">{{ periodOf(item) }}</div>
           </div>
           <div class="paper-item-sub">
             <span v-if="item.fields.position">{{ item.fields.position }}</span>
             <span v-if="item.fields.department">{{ item.fields.department }}</span>
             <span v-if="item.fields.workType">{{ item.fields.workType }}</span>
-            <span v-if="item.fields.city && !sideColumn">{{ item.fields.city }}</span>
+            <span v-if="item.fields.city && !sideColumn" class="paper-item-sub__city">{{ item.fields.city }}</span>
           </div>
           <div class="paper-rich rich-content" v-html="safe(item.fields.content)" />
         </div>
@@ -369,6 +371,12 @@ function skillLevel(level) {
   font-weight: 700;
   font-size: calc(var(--paper-base-size, 10.5pt) * 1.02);
   line-height: 1.45;
+}
+
+/* 工作经历的地点：默认不显示。让「地点跟在公司名后面」的模板把它打开，
+   其余版式继续把地点放在副行里，排布完全不受影响。 */
+.paper-item-city {
+  display: none;
 }
 
 /* 徽标栏：带框白底方框，浮动在条目左侧，标题 / 副行贴着它排。
