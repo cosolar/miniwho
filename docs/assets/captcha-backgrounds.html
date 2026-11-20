@@ -15,8 +15,11 @@
   然后按 720px 一张竖切、每张缩到 600x360 存成 JPG（质量 86 左右）即可。
   底图尺寸固定在 600x360，换成别的尺寸拼图比例和判定都会跟着变。
 
-  版式是一整幅：不左右分栏，一张纸或一块墨色到底，巨大的淡色图形沉在背景里当纹样，
+  版式是一整幅：不左右分栏，一块墨色到底，巨大的淡色字沉在背景里当纹样，
   文字直接压在上面。这样拼图缺口落在哪都能靠底纹认出来，也不会被中缝切断。
+
+  配色取自登录页左侧视觉区（#16231e 墨底 + 琥珀微光 + #f3efe5 米白字 + 点阵纹理），
+  八张全部同一套，出现在验证弹窗里跟登录页是同一个调子。
 -->
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -27,6 +30,7 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /* ---------------- 统一底色：跟登录页视觉区一致 ---------------- */
   .card {
     position: relative;
     width: 600px;
@@ -35,88 +39,48 @@
     display: flex;
     flex-direction: column;
     padding: 40px 42px 34px;
-  }
-
-  /* ---------------- 浅色：一张纸 ---------------- */
-  .card.light {
-    background: #f7f3e8;
-    color: #14231e;
-  }
-
-  /* 稿纸网格 */
-  .card.light::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background-image:
-      linear-gradient(to right, rgba(20, 35, 30, 0.055) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(20, 35, 30, 0.055) 1px, transparent 1px);
-    background-size: 26px 26px;
-    pointer-events: none;
-  }
-
-  /* 纸边一圈暖影，别让它像纯色块 */
-  .card.light::after {
-    content: "";
-    position: absolute;
-    inset: 0;
+    color: #f3efe5;
     background:
-      radial-gradient(90% 70% at 0% 0%, rgba(47, 156, 140, 0.07), transparent 62%),
-      radial-gradient(80% 60% at 100% 100%, rgba(20, 35, 30, 0.06), transparent 58%);
-    pointer-events: none;
+      radial-gradient(620px 440px at 0% 0%, rgba(199, 164, 101, 0.15), transparent 62%),
+      #16231e;
   }
 
-  /* ---------------- 深色：一块墨 ---------------- */
-  .card.dark {
-    background:
-      radial-gradient(110% 90% at 8% 0%, rgba(47, 156, 140, 0.16), transparent 58%),
-      linear-gradient(152deg, #1d3128, #11201b 72%);
-    color: #f7f3e8;
-  }
-
-  /* 深色底上的极细斜纹，给拼图一点可辨认的纹理 */
-  .card.dark::before {
+  /* 点阵纹理：登录页视觉区用的同一套，顺带给拼图缺口提供可辨认的底纹 */
+  .card::before {
     content: "";
     position: absolute;
     inset: 0;
-    background-image: repeating-linear-gradient(
-      135deg,
-      rgba(247, 243, 232, 0.028) 0 1px,
-      transparent 1px 9px
-    );
+    background-image: radial-gradient(rgba(243, 239, 229, 0.5) 1px, transparent 1px);
+    background-size: 7px 7px;
+    opacity: 0.14;
     pointer-events: none;
   }
 
-  /* ---------------- 背景巨字 / 巨形 ---------------- */
+  /* 四角压暗，避免整块平得像色卡 */
+  .card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(120% 100% at 50% 40%, transparent 46%, rgba(6, 14, 11, 0.42));
+    pointer-events: none;
+  }
+
+  /* ---------------- 背景巨字 ---------------- */
   .mark {
     position: absolute;
     z-index: 0;
     pointer-events: none;
-    line-height: 0.78;
+    line-height: 0.8;
     font-weight: 800;
     letter-spacing: -0.04em;
+    color: rgba(199, 164, 101, 0.105);
     user-select: none;
+    right: 22px;
+    bottom: 82px;
+    white-space: nowrap;
   }
 
-  .card.light .mark { color: rgba(20, 35, 30, 0.062); }
-  .card.dark  .mark { color: rgba(247, 243, 232, 0.072); }
-
-  /* 都放在右侧中段：底部留给 MINIWHO 与编号，别互相压 */
-  .mark.mid-right    { right: 30px; top: 46%; transform: translateY(-50%); }
-  .mark.top-right    { right: -12px; top: 6%; }
-
-  /* 背景大图形（圆 / 靶 / 印章） */
-  .shape {
-    position: absolute;
-    z-index: 0;
-    pointer-events: none;
-    border-radius: 50%;
-  }
-
-  .card.light .shape { border-color: rgba(47, 156, 140, 0.22); }
-  .card.dark  .shape { border-color: rgba(110, 198, 184, 0.2); }
-
-  /* ---------------- 前景文字 ---------------- */
+  /* ---------------- 前景 ---------------- */
   .kicker {
     position: relative;
     z-index: 2;
@@ -125,58 +89,52 @@
     gap: 9px;
     font-size: 10px;
     letter-spacing: 0.2em;
+    color: rgba(243, 239, 229, 0.44);
   }
-
-  .card.light .kicker { color: rgba(20, 35, 30, 0.42); }
-  .card.dark  .kicker { color: rgba(247, 243, 232, 0.46); }
 
   .kicker .dot {
     width: 5px;
     height: 5px;
     border-radius: 50%;
     flex: none;
+    background: #c7a465;
   }
-
-  .card.light .kicker .dot { background: #2f9c8c; }
-  .card.dark  .kicker .dot { background: #6ec6b8; }
 
   .title {
     position: relative;
     z-index: 2;
     margin-top: 22px;
     font-size: 40px;
-    line-height: 1.26;
+    line-height: 1.28;
     font-weight: 700;
-    letter-spacing: 0.005em;
-    max-width: 400px;
+    max-width: 380px;
   }
 
-  .title em { font-style: normal; }
+  .title em {
+    font-style: normal;
+    color: #7fb9a6;
+  }
 
-  .card.light .title em { color: #1f8a7a; }
-  .card.dark  .title em { color: #6ec6b8; }
+  .title.solo {
+    font-size: 46px;
+    letter-spacing: 0.01em;
+  }
 
-  /* 举例：一行小字，用引号带出来，不做成按钮 */
   .say {
     position: relative;
     z-index: 2;
     margin-top: 20px;
     font-size: 13px;
-    line-height: 1.7;
-    max-width: 400px;
+    line-height: 1.75;
+    max-width: 380px;
+    color: rgba(243, 239, 229, 0.54);
   }
 
-  .card.light .say { color: rgba(20, 35, 30, 0.5); }
-  .card.dark  .say { color: rgba(247, 243, 232, 0.55); }
+  .say b {
+    font-weight: 600;
+    color: rgba(243, 239, 229, 0.92);
+  }
 
-  .say b { font-weight: 600; }
-
-  .card.light .say b { color: #14231e; }
-  .card.dark  .say b { color: rgba(247, 243, 232, 0.95); }
-
-  .say .arrow { margin: 0 6px; opacity: 0.6; }
-
-  /* 底部标识 */
   .foot {
     position: relative;
     z-index: 2;
@@ -186,10 +144,8 @@
     gap: 9px;
     font-size: 9.5px;
     letter-spacing: 0.24em;
+    color: rgba(243, 239, 229, 0.3);
   }
-
-  .card.light .foot { color: rgba(20, 35, 30, 0.3); }
-  .card.dark  .foot { color: rgba(247, 243, 232, 0.3); }
 
   .foot .bar {
     width: 20px;
@@ -198,7 +154,6 @@
     opacity: 0.6;
   }
 
-  /* 右下角的小印记：编号 */
   .no {
     position: absolute;
     z-index: 2;
@@ -207,92 +162,88 @@
     font-size: 10px;
     letter-spacing: 0.18em;
     font-variant-numeric: tabular-nums;
+    color: rgba(243, 239, 229, 0.26);
   }
-
-  .card.light .no { color: rgba(20, 35, 30, 0.26); }
-  .card.dark  .no { color: rgba(247, 243, 232, 0.26); }
 </style>
 </head>
 <body>
 
-<!-- 01 写结果 · 浅 -->
-<div class="card light" id="c1">
-  <div class="mark mid-right" style="font-size:168px">→</div>
+<!-- 01 负责 -->
+<div class="card">
+  <div class="mark" style="font-size:108px">负责</div>
   <div class="kicker"><span class="dot"></span>简历小技巧</div>
-  <h1 class="title">写<em>结果</em>，<br />别只写职责</h1>
-  <p class="say">「负责用户增长」<span class="arrow">→</span><b>「3 个月把留存做到 21%」</b></p>
+  <h1 class="title">写了<em>「负责」</em>，<br />等于没写</h1>
+  <p class="say">负责是岗位描述，<b>做成了什么才是你</b>。</p>
   <div class="foot"><span class="bar"></span>MINIWHO</div>
   <div class="no">01 / 08</div>
 </div>
 
-<!-- 02 数字 · 深 -->
-<div class="card dark" id="c2">
-  <div class="mark mid-right" style="font-size:138px">21%</div>
+<!-- 02 三条 -->
+<div class="card">
+  <div class="mark" style="font-size:210px">3</div>
   <div class="kicker"><span class="dot"></span>简历小技巧</div>
-  <h1 class="title">数字，<br />最有<em>说服力</em></h1>
-  <p class="say">「显著提升性能」<span class="arrow">→</span><b>「响应从 800ms 降到 120ms」</b></p>
+  <h1 class="title">把最想被问的<br />放<em>最上面</em></h1>
+  <p class="say">一页纸他只看三眼，<b>先摆你想聊的那几条</b>。</p>
   <div class="foot"><span class="bar"></span>MINIWHO</div>
   <div class="no">02 / 08</div>
 </div>
 
-<!-- 03 一岗一版 · 浅 -->
-<div class="card light" id="c3">
-  <div class="shape" style="right:-6px;top:44%;transform:translateY(-50%);width:222px;height:222px;border:1.5px solid;"></div>
-  <div class="shape" style="right:23px;top:44%;transform:translateY(-50%);width:158px;height:158px;border:1.5px dashed;"></div>
-  <div class="shape" style="right:57px;top:44%;transform:translateY(-50%);width:80px;height:80px;background:rgba(47,156,140,.14);"></div>
+<!-- 03 然后呢 -->
+<div class="card">
+  <div class="mark" style="font-size:176px">？</div>
   <div class="kicker"><span class="dot"></span>简历小技巧</div>
-  <h1 class="title">一岗，<br />改<em>一版</em></h1>
-  <p class="say">对着 JD 换关键词，<b>别一份投遍所有公司</b>。</p>
+  <h1 class="title">经得起一句<br /><em>「然后呢」</em></h1>
+  <p class="say">写上去的每一条，<b>都要能往下追问三层</b>。</p>
   <div class="foot"><span class="bar"></span>MINIWHO</div>
   <div class="no">03 / 08</div>
 </div>
 
-<!-- 04 一页就够 · 深 -->
-<div class="card dark" id="c4">
-  <div class="mark mid-right" style="font-size:196px">1</div>
+<!-- 04 形容词 -->
+<div class="card">
+  <div class="mark" style="font-size:96px">形容词</div>
   <div class="kicker"><span class="dot"></span>简历小技巧</div>
-  <h1 class="title">一页<em>就够</em></h1>
-  <p class="say">应届生与三年以内，<b>没人会翻你的第二页</b>。</p>
+  <h1 class="title solo">删掉<em>形容词</em></h1>
+  <p class="say">「认真、踏实、有责任心」<b>占地方，又不加分</b>。</p>
   <div class="foot"><span class="bar"></span>MINIWHO</div>
   <div class="no">04 / 08</div>
 </div>
 
-<!-- 05 动词开头 · 浅 -->
-<div class="card light" id="c5">
-  <div class="mark mid-right" style="font-size:124px">动词</div>
+<!-- 05 一页 -->
+<div class="card">
+  <div class="mark" style="font-size:210px">1</div>
   <div class="kicker"><span class="dot"></span>简历小技巧</div>
-  <h1 class="title">用<em>动词</em>开头</h1>
-  <p class="say">主导、搭建、重构、落地——<b>比「参与了」有力得多</b>。</p>
+  <h1 class="title">排不下，<br />是<em>重点没定</em></h1>
+  <p class="say">一页装不下的不是经历太多，<b>是没想清楚要什么</b>。</p>
   <div class="foot"><span class="bar"></span>MINIWHO</div>
   <div class="no">05 / 08</div>
 </div>
 
-<!-- 06 留白 · 深 -->
-<div class="card dark" id="c6">
-  <div class="shape" style="right:-4px;top:52%;transform:translateY(-50%);width:246px;height:246px;border:1.5px solid;"></div>
+<!-- 06 影响面 -->
+<div class="card">
+  <div class="mark" style="font-size:166px">%</div>
   <div class="kicker"><span class="dot"></span>简历小技巧</div>
-  <h1 class="title">留白，<br />也是<em>内容</em></h1>
-  <p class="say">塞得太满没人读得下去，<b>一页留三分空</b>。</p>
+  <h1 class="title">没数据，<br />就写<em>影响面</em></h1>
+  <p class="say">量不出百分比，就说清<b>影响了多少人、多大范围</b>。</p>
   <div class="foot"><span class="bar"></span>MINIWHO</div>
   <div class="no">06 / 08</div>
 </div>
 
-<!-- 07 再读一遍 · 浅 -->
-<div class="card light" id="c7">
-  <div class="mark mid-right" style="font-size:158px">✓</div>
+<!-- 07 对得上 -->
+<div class="card">
+  <div class="mark" style="font-size:132px">JD</div>
   <div class="kicker"><span class="dot"></span>简历小技巧</div>
-  <h1 class="title">投之前，<br />再<em>读一遍</em></h1>
-  <p class="say">错别字和日期错位，<b>是最容易被扣分的细节</b>。</p>
+  <h1 class="title">只写<em>对得上的</em></h1>
+  <p class="say">简历不是自传，<b>是把岗位要的那几条挑出来放大</b>。</p>
   <div class="foot"><span class="bar"></span>MINIWHO</div>
   <div class="no">07 / 08</div>
 </div>
 
-<!-- 08 关键词 · 深 -->
-<div class="card dark" id="c8">
-  <div class="mark mid-right" style="font-size:170px">#</div>
+<!-- 08 三十遍 -->
+<div class="card">
+  <div class="mark" style="font-size:172px">30</div>
   <div class="kicker"><span class="dot"></span>简历小技巧</div>
-  <h1 class="title">把<em>关键词</em><br />写进简历</h1>
-  <p class="say">HR 先搜词再读内容，<b>把岗位要的词摆到明面上</b>。</p>
+  <h1 class="title">改三十遍<br /><em>不丢人</em></h1>
+  <p class="say">投出去的那一版才算定稿，<b>之前都只是草稿</b>。</p>
   <div class="foot"><span class="bar"></span>MINIWHO</div>
   <div class="no">08 / 08</div>
 </div>
