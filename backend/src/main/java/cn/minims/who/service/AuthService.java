@@ -132,10 +132,12 @@ public class AuthService {
             throw BizException.forbidden("管理员未开放邮箱注册");
         }
         String email = normalizeEmail(request.email());
-        emailCodeService.verifyRegisterCode(email, request.code());
+        // 先查邮箱是否已注册，再校验验证码：反过来的话，重复注册的人会收到「请先获取邮箱验证码」，
+        // 而真正的原因是「这个邮箱已经有账号了」——发码接口本来就明说占用情况，这里没有多暴露信息。
         if (findByEmail(email) != null) {
             throw BizException.badRequest("该邮箱已注册，请直接登录");
         }
+        emailCodeService.verifyRegisterCode(email, request.code());
         User user = new User();
         String wanted = request.username() == null ? "" : request.username().trim();
         if (wanted.isEmpty()) {
