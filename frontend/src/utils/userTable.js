@@ -46,7 +46,7 @@ export function userColumnWidths(users) {
     role: 88,
     resumeCount: 66,
     storage: columnWidth(sample.map((item) => formatFileSize(item.storageBytes || 0)), 84, 120, 24),
-    createdAt: 104,
+    createdAt: 168,
     lastActiveAt: columnWidth(sample.map((item) => timeAgo(item.lastActiveAt)), 88, 120, 24),
     status: columnWidth(sample.map((item) => `${item.online ? '在线' : '离线'}${item.status !== 1 ? ' 已冻结' : ''}`), 100, 140, 24),
     actions: 150

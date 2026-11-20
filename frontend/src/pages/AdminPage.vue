@@ -11,7 +11,7 @@ import { useAuthStore } from '../stores/auth'
 import { adminApi, templateApi } from '../api'
 import { notifyError } from '../api/client'
 import { applyContentWidth } from '../utils/appearance'
-import { formatDate, formatDateTime, formatFileSize, saveBlob, timeAgo } from '../utils/format'
+import { formatDate, formatDateTime, formatFileSize, formatFullDateTime, saveBlob, timeAgo } from '../utils/format'
 import { queryUsers, userColumnWidths } from '../utils/userTable'
 import { templateByCode } from '../data/templatePresets'
 import { useTemplates } from '../composables/useTemplates'
@@ -1363,7 +1363,7 @@ onBeforeUnmount(() => {
                 </el-table-column>
                 <el-table-column prop="createdAt" label="注册时间" :min-width="columnWidths.createdAt" sortable="custom">
                   <template #default="{ row }">
-                    <span class="cell-muted">{{ formatDate(row.createdAt) }}</span>
+                    <span class="cell-muted">{{ formatFullDateTime(row.createdAt) }}</span>
                   </template>
                 </el-table-column>
                 <el-table-column prop="lastActiveAt" label="最后活跃" :min-width="columnWidths.lastActiveAt" sortable="custom">

@@ -12,7 +12,7 @@ defineProps({
     </span>
     <span class="brand__text">
       <strong>极简简历</strong>
-      <small>MINIWHO</small>
+      <small><span v-for="ch in 'MINIWHO'" :key="ch">{{ ch }}</span></small>
     </span>
   </router-link>
 </template>
@@ -55,14 +55,20 @@ defineProps({
   font-size: 18px;
   font-weight: 600;
   letter-spacing: 0.04em;
+  /* 抵消末字符后面的字距，让盒子宽度等于「历」的可见右边缘 */
+  margin-right: -0.04em;
 }
 
+/* 每个字母一个 span，两端对齐撑满标题宽度，跟随标题字号自适应。 */
 .brand__text small {
+  display: flex;
+  justify-content: space-between;
   margin-top: 4px;
+  /* 两端各内缩一点，比标题可见宽度略窄 */
+  padding: 0 2px;
   color: var(--muted);
   font-family: var(--mono);
   font-size: 8px;
-  letter-spacing: 0.3em;
 }
 
 .brand--light {

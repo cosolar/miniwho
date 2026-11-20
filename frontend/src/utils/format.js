@@ -15,6 +15,14 @@ export function formatDateTime(value) {
   return Number.isNaN(date.getTime()) ? '—' : DATETIME.format(date).replaceAll('/', '.')
 }
 
+export function formatFullDateTime(value) {
+  if (!value) return '—'
+  const date = new Date(Number(value))
+  if (Number.isNaN(date.getTime())) return '—'
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
 export function timeAgo(value) {
   if (!value) return '—'
   const diff = Date.now() - Number(value)

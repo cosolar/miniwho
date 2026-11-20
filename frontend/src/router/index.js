@@ -114,7 +114,10 @@ router.beforeEach(async (to) => {
   if (to.meta.guestOnly && auth.isLoggedIn) {
     return { path: '/dashboard' }
   }
-  document.title = to.meta.title ? `${to.meta.title} · 极简简历 MiniWho` : '极简简历 MiniWho'
+  // 首页使用完整品牌标题，其它页面保留各自的页面名 + 站名后缀。
+  document.title = to.name === 'home'
+    ? '极简简历·MINIWHO'
+    : (to.meta.title ? `${to.meta.title} · 极简简历 MiniWho` : '极简简历·MINIWHO')
   return true
 })
 

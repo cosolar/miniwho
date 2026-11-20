@@ -4,6 +4,7 @@ import {
   formatDate,
   formatDateTime,
   formatFileSize,
+  formatFullDateTime,
   greeting,
   timeAgo
 } from './format'
@@ -21,6 +22,17 @@ describe('formatDate / formatDateTime', () => {
     expect(formatDate(undefined)).toBe('—')
     expect(formatDate('not-a-number')).toBe('—')
     expect(formatDateTime(0)).toBe('—')
+  })
+})
+
+describe('formatFullDateTime', () => {
+  it('输出横杠分隔、带秒的完整时间', () => {
+    expect(formatFullDateTime(new Date(2026, 9, 30, 14, 5, 9).getTime())).toBe('2026-10-30 14:05:09')
+  })
+
+  it('空值与非法值显示破折号', () => {
+    expect(formatFullDateTime(null)).toBe('—')
+    expect(formatFullDateTime('not-a-number')).toBe('—')
   })
 })
 

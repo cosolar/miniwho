@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  ArrowRight, CopyDocument, Delete, Document, EditPen, MoreFilled, Plus, Search, View
+  ArrowRight, CopyDocument, Delete, Document, EditPen, MoreFilled, Plus, Search, Select, View
 } from '@element-plus/icons-vue'
 import AppLayout from '../layouts/AppLayout.vue'
 import { resumeApi } from '../api'
@@ -230,40 +230,49 @@ onMounted(async () => {
                 @click="router.push(`/resumes/${resume.id}`)"
               >
                 <div class="resume-card__cover" :class="`cover-${filterOf(resume.templateCode)}`">
-                  <div class="cover-sheet">
-                    <span class="cover-rule"></span>
-                    <strong>{{ resume.title }}</strong>
-                    <small v-if="resume.targetJob">{{ resume.targetJob }}</small>
-                    <div class="cover-lines">
-                      <i></i><i></i><i></i><i class="short"></i>
+                  <div class="cover-stage">
+                    <div class="cover-sheet">
+                      <span class="cover-rule"></span>
+                      <strong>{{ resume.title }}</strong>
+                      <small v-if="resume.targetJob">{{ resume.targetJob }}</small>
+                      <div class="cover-lines">
+                        <i></i><i></i><i></i><i class="short"></i>
+                      </div>
+                      <span class="cover-mark">MW</span>
                     </div>
-                    <span class="cover-mark">MW</span>
                   </div>
                   <div class="resume-card__badges">
-                    <span class="template-badge">{{ resume.templateName || templateName(resume.templateCode) }}</span>
-                    <span v-if="resume.completeness >= 100" class="done-badge">信息完整</span>
+                    <span class="template-badge">
+                      <i :style="{ background: accentOf(resume.templateCode) }"></i>
+                      {{ resume.templateName || templateName(resume.templateCode) }}
+                    </span>
+                    <span v-if="resume.completeness >= 100" class="done-badge">
+                      <el-icon><Select /></el-icon> 信息完整
+                    </span>
                   </div>
                 </div>
 
                 <div class="resume-card__body">
                   <div class="resume-card__heading">
-                    <div>
+                    <div class="resume-card__title">
                       <h2>{{ resume.title }}</h2>
                       <p>{{ resume.targetJob || '还没有填写目标岗位' }}</p>
                     </div>
-                    <el-dropdown trigger="click" @command="(command) => handleCommand(command, resume)">
-                      <button class="more-btn" type="button" aria-label="更多操作" @click.stop>
-                        <el-icon><MoreFilled /></el-icon>
-                      </button>
-                      <template #dropdown>
-                        <el-dropdown-menu>
-                          <el-dropdown-item command="preview" :icon="View">预览与导出</el-dropdown-item>
-                          <el-dropdown-item command="rename" :icon="EditPen">重命名</el-dropdown-item>
-                          <el-dropdown-item command="duplicate" :icon="CopyDocument">创建副本</el-dropdown-item>
-                          <el-dropdown-item command="delete" :icon="Delete" divided>删除</el-dropdown-item>
-                        </el-dropdown-menu>
-                      </template>
-                    </el-dropdown>
+                    <el-tooltip content="更多操作：重命名 / 复制 / 删除" placement="top" :show-after="120">
+                      <el-dropdown trigger="click" @command="(command) => handleCommand(command, resume)">
+                        <button class="more-btn" type="button" aria-label="更多操作" @click.stop>
+                          <el-icon><MoreFilled /></el-icon>
+                        </button>
+                        <template #dropdown>
+                          <el-dropdown-menu>
+                            <el-dropdown-item command="preview" :icon="View">预览与导出</el-dropdown-item>
+                            <el-dropdown-item command="rename" :icon="EditPen">重命名</el-dropdown-item>
+                            <el-dropdown-item command="duplicate" :icon="CopyDocument">创建副本</el-dropdown-item>
+                            <el-dropdown-item command="delete" :icon="Delete" divided>删除</el-dropdown-item>
+                          </el-dropdown-menu>
+                        </template>
+                      </el-dropdown>
+                    </el-tooltip>
                   </div>
 
                   <div class="resume-card__meta">
@@ -283,11 +292,17 @@ onMounted(async () => {
 
                   <div class="resume-card__footer">
                     <div class="resume-score" :class="{ low: (resume.score || 0) < 60 }">
-                      <strong>{{ resume.score ?? '—' }}</strong>
-                      <span>诊断分</span>
+                      <span
+                        class="score-badge"
+                        :style="{ '--score': Math.min(100, Math.max(0, resume.score || 0)) }"
+                      >
+                        <i>{{ resume.score ?? '—' }}</i>
+                      </span>
+                      <span class="score-label">诊断分</span>
                     </div>
                     <button class="open-btn" type="button" @click.stop="router.push(`/resumes/${resume.id}`)">
-                      继续编辑 <el-icon><ArrowRight /></el-icon>
+                      继续编辑
+                      <el-icon><ArrowRight /></el-icon>
                     </button>
                   </div>
                 </div>
@@ -553,34 +568,86 @@ onMounted(async () => {
 }
 
 .resume-card {
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--paper);
   text-align: left;
   cursor: pointer;
-  transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease;
+  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.26s ease, border-color 0.26s ease;
 }
 
 .resume-card:hover {
-  border-color: var(--line-strong);
-  transform: translateY(-3px);
-  box-shadow: var(--shadow);
+  border-color: color-mix(in srgb, var(--card-accent) 34%, var(--line-strong));
+  transform: translateY(-4px);
+  box-shadow: 0 18px 40px -26px rgba(25, 34, 30, 0.4), var(--shadow-sm);
 }
 
+/* 封面：模板主色做一层很淡的光晕，再叠一点点阵，纸面才有质感 */
 .resume-card__cover {
   position: relative;
   display: grid;
   place-items: center;
-  height: 176px;
-  padding: 20px;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--card-accent) 13%, var(--paper-deep)), var(--canvas-deep));
+  height: 188px;
+  padding: 22px 20px;
+  overflow: hidden;
   border-bottom: 1px solid var(--line);
+  background:
+    radial-gradient(115% 85% at 50% 4%, color-mix(in srgb, var(--card-accent) 17%, transparent) 0%, transparent 64%),
+    linear-gradient(168deg, color-mix(in srgb, var(--card-accent) 5%, var(--paper-deep)) 0%, var(--canvas-deep) 100%);
+}
+
+.resume-card__cover::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(color-mix(in srgb, var(--card-accent) 32%, transparent) 0.7px, transparent 0.7px);
+  background-size: 14px 14px;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* 叠纸舞台：两片后置纸张让封面像一摞简历，而不是单独一张 */
+.cover-stage {
+  position: relative;
+  width: 128px;
+  height: 136px;
+}
+
+.cover-stage::before,
+.cover-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(25, 34, 30, 0.05);
+  border-radius: 2px;
+  background: #fffdf8;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cover-stage::before {
+  opacity: 0.5;
+  transform: rotate(3.4deg) translate(4px, 2px);
+}
+
+.cover-stage::after {
+  opacity: 0.78;
+  transform: rotate(-2.6deg) translate(-3px, 3px);
+}
+
+.resume-card:hover .cover-stage::before {
+  transform: rotate(5.4deg) translate(7px, 3px);
+}
+
+.resume-card:hover .cover-stage::after {
+  transform: rotate(-4deg) translate(-6px, 4px);
 }
 
 .cover-sheet {
   position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   width: 128px;
@@ -591,11 +658,12 @@ onMounted(async () => {
   background: #fffefb;
   box-shadow: 0 16px 34px -18px rgba(25, 34, 30, 0.42);
   transform: rotate(-1.4deg);
-  transition: transform 0.28s ease;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease;
 }
 
 .resume-card:hover .cover-sheet {
-  transform: rotate(0deg) translateY(-2px);
+  transform: rotate(0deg) translateY(-4px);
+  box-shadow: 0 22px 40px -20px rgba(25, 34, 30, 0.48);
 }
 
 .cover-rule {
@@ -692,28 +760,51 @@ onMounted(async () => {
 .resume-card__badges {
   position: absolute;
   top: 12px;
+  left: 12px;
   right: 12px;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  pointer-events: none;
 }
 
 .template-badge,
 .done-badge {
-  padding: 3px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid rgba(255, 254, 251, 0.7);
   border-radius: 999px;
-  background: rgba(255, 254, 251, 0.86);
-  color: var(--muted);
-  font-size: 9px;
-  backdrop-filter: blur(4px);
+  background: rgba(255, 254, 251, 0.82);
+  color: var(--ink-soft);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 6px -3px rgba(25, 34, 30, 0.3);
+  backdrop-filter: blur(6px);
+}
+
+.template-badge i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex: none;
 }
 
 .done-badge {
   color: var(--accent);
 }
 
+.done-badge .el-icon {
+  font-size: 10px;
+}
+
 .resume-card__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   padding: 16px 18px 18px;
 }
 
@@ -721,14 +812,19 @@ onMounted(async () => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
+}
+
+.resume-card__title {
+  min-width: 0;
 }
 
 .resume-card__heading h2 {
   overflow: hidden;
   font-family: var(--serif);
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 600;
+  letter-spacing: -0.01em;
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -736,28 +832,45 @@ onMounted(async () => {
 
 .resume-card__heading p {
   overflow: hidden;
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 11px;
+  margin-top: 4px;
+  color: color-mix(in srgb, var(--card-accent) 72%, var(--ink-soft));
+  font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.resume-card__heading :deep(.el-tooltip__trigger) {
+  display: inline-flex;
+  flex: none;
 }
 
 .more-btn {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: none;
-  color: var(--faint);
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--paper-deep);
+  color: var(--ink-soft);
+  font-size: 15px;
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .more-btn:hover {
-  border-color: var(--line);
-  color: var(--ink);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.more-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(10, 125, 118, 0.16);
 }
 
 .resume-card__meta {
@@ -767,6 +880,7 @@ onMounted(async () => {
   margin-top: 12px;
   color: var(--faint);
   font-size: 10px;
+  letter-spacing: 0.02em;
 }
 
 .resume-card__meta span + span::before {
@@ -775,14 +889,15 @@ onMounted(async () => {
 }
 
 .resume-card__progress {
-  margin-top: 16px;
+  margin-top: auto;
+  padding-top: 16px;
 }
 
 .progress-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: 7px;
   color: var(--muted);
   font-size: 10px;
 }
@@ -790,14 +905,14 @@ onMounted(async () => {
 .progress-head strong {
   color: var(--ink-soft);
   font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 500;
+  font-size: 10.5px;
+  font-weight: 600;
 }
 
 .progress-track {
-  height: 3px;
+  height: 4px;
   overflow: hidden;
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--canvas-deep);
 }
 
@@ -805,8 +920,8 @@ onMounted(async () => {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--accent);
-  transition: width 0.4s ease;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--card-accent) 62%, #fff), var(--card-accent));
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .resume-card__footer {
@@ -821,42 +936,82 @@ onMounted(async () => {
 
 .resume-score {
   display: flex;
-  align-items: baseline;
-  gap: 5px;
+  align-items: center;
+  gap: 9px;
+  --ring-color: var(--accent);
 }
 
-.resume-score strong {
-  color: var(--accent);
+.resume-score.low {
+  --ring-color: var(--copper);
+}
+
+/* 环形分数：conic-gradient 画进度，内圈用纸色挖空，比裸数字更有分量 */
+.score-badge {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: conic-gradient(var(--ring-color) calc(var(--score, 0) * 1%), var(--canvas-deep) 0);
+}
+
+.score-badge::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--paper);
+}
+
+.score-badge i {
+  position: relative;
+  z-index: 1;
+  color: var(--ring-color);
   font-family: var(--serif);
-  font-size: 22px;
+  font-size: 14px;
+  font-style: normal;
   font-weight: 600;
   line-height: 1;
 }
 
-.resume-score span {
+.score-label {
   color: var(--faint);
-  font-size: 9px;
-}
-
-.resume-score.low strong {
-  color: var(--copper);
+  font-size: 10px;
+  line-height: 1.5;
 }
 
 .open-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--accent);
+  gap: 5px;
+  height: 30px;
+  padding: 0 13px;
+  border: 1px solid color-mix(in srgb, var(--card-accent) 26%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card-accent) 9%, var(--paper));
+  color: color-mix(in srgb, var(--card-accent) 82%, var(--ink));
   font-family: var(--sans);
   font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, gap 0.2s ease;
 }
 
-.open-btn:hover {
-  gap: 8px;
+.open-btn .el-icon {
+  font-size: 11px;
+  transition: transform 0.2s ease;
+}
+
+.resume-card:hover .open-btn {
+  border-color: var(--card-accent);
+  background: var(--card-accent);
+  color: #fff;
+}
+
+.resume-card:hover .open-btn .el-icon {
+  transform: translateX(2px);
 }
 
 .resume-card--new {
@@ -865,41 +1020,54 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   min-height: 370px;
-  padding: 30px;
+  padding: 30px 26px;
   border-style: dashed;
-  background: rgba(255, 254, 251, 0.4);
+  border-color: var(--line-strong);
+  background: rgba(255, 254, 251, 0.34);
   font-family: inherit;
   text-align: center;
+  transition: background 0.24s ease, border-color 0.24s ease, transform 0.24s ease;
 }
 
 .resume-card--new:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line-strong));
   background: var(--paper);
+  transform: translateY(-4px);
 }
 
 .new-plus {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  margin-bottom: 14px;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 15px;
   border: 1px solid var(--line-strong);
   border-radius: 50%;
+  background: var(--paper);
   color: var(--muted);
-  font-size: 18px;
+  font-size: 17px;
+  transition: border-color 0.24s ease, color 0.24s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.resume-card--new:hover .new-plus {
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: rotate(90deg);
 }
 
 .resume-card--new strong {
   font-family: var(--serif);
   font-size: 17px;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .resume-card--new p {
   max-width: 200px;
-  margin-top: 7px;
+  margin-top: 8px;
   color: var(--muted);
-  font-size: 11px;
-  line-height: 1.7;
+  font-size: 11.5px;
+  line-height: 1.75;
 }
 
 .empty-state {
