@@ -810,3 +810,13 @@ ul, ol {
     background: #fdfaf2 !important;
   }
 }
+
+/* 项目经历里「角色 + 项目地址」之间补一个竖线分隔符。
+   地址是 <a>，而模板的分隔符规则都只认 span（span + span::before、
+   span:not(:last-child)::after），所以角色作为最后一个 span 后面永远缺一格。
+   地址独占一行的模板（蓝屿、素笺等）会各自把这条关掉。 */
+.resume-paper .is-project_experience .paper-item-sub span:has(+ a)::after {
+  content: "|";
+  margin: 0 2.6mm;
+  color: inherit;
+}
