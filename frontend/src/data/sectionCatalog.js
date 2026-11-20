@@ -73,7 +73,10 @@ export const SECTION_META = {
       }),
       period('就读时间'),
       field('courses', '主修课程', 'tags', { span: 24, placeholder: '输入后回车添加，例如：数据结构' }),
-      textarea('note', '补充说明', '奖学金、交换经历等（选填）')
+      field('note', '补充说明', 'richtext', {
+        span: 24,
+        placeholder: '奖学金、交换经历、研究方向等（选填），支持分点与格式。'
+      })
     ]
   },
   work_experience: {

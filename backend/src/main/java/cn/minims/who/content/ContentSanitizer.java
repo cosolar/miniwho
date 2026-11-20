@@ -21,7 +21,12 @@ public class ContentSanitizer {
     private static final Pattern MONTH = Pattern.compile("^\\d{4}-(0[1-9]|1[0-2])$");
     private static final Set<String> URL_KEYS = Set.of("link", "website", "github");
     private static final Safelist SAFELIST = Safelist.none()
-            .addTags("p", "br", "strong", "b", "em", "i", "u", "s", "ul", "ol", "li");
+            // strike 是浏览器 execCommand('strikeThrough') 实际生成的标签，和 s 一起收。
+            .addTags("p", "br", "strong", "b", "em", "i", "u", "s", "strike", "ul", "ol", "li")
+            // 只认列表标记样式（实心圆 / 菱形 / 括号序号 / 罗马数字等），渲染层靠它决定标记形态；
+            // 无序列表（ul）和有序列表（ol）都可能带这个属性，漏掉任一都会让样式保存后丢失。
+            .addAttributes("ul", "data-list")
+            .addAttributes("ol", "data-list");
 
     private final Json json;
 

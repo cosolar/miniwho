@@ -224,7 +224,7 @@ const headerSummarySection = computed(() => (
 ))
 const headerSummaryHtml = computed(() => DOMPurify.sanitize(
   headerSummarySection.value?.items?.[0]?.fields?.content || '',
-  { ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'ul', 'ol', 'li'], ALLOWED_ATTR: [] }
+  { ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'ul', 'ol', 'li'], ALLOWED_ATTR: ['data-list'] }
 ))
 const labeledHeader = computed(() => ['formal', 'timeline'].includes(config.value.layout))
 // 「手机 138…」比裸号码更好扫读，所有官方版式统一带标签。
@@ -1559,6 +1559,121 @@ function breakable(value) {
 .layout-timeline .paper-header__summary ol {
   margin: 0;
   padding-left: 4.2mm;
+}
+
+.paper-header__summary :deep(ul[data-list="disc"]) {
+  list-style-type: disc;
+}
+
+.paper-header__summary :deep(ul[data-list="circle"]) {
+  list-style-type: circle;
+}
+
+.paper-header__summary :deep(ul[data-list="square"]) {
+  list-style-type: square;
+}
+
+.paper-header__summary :deep(ul[data-list="square-open"]) {
+  list-style-type: "□   ";
+}
+
+.paper-header__summary :deep(ul[data-list="square-open"] > li::marker) {
+  font-size: 0.62em;
+}
+
+.paper-header__summary :deep(ul[data-list="diamond"]) {
+  list-style-type: "◆   ";
+}
+
+.paper-header__summary :deep(ul[data-list="diamond-open"]) {
+  list-style-type: "◇   ";
+}
+
+.paper-header__summary :deep(ul[data-list="triangle"]) {
+  list-style-type: "▸   ";
+}
+
+.paper-header__summary :deep(ul[data-list="diamond"] > li::marker),
+.paper-header__summary :deep(ul[data-list="diamond-open"] > li::marker) {
+  font-size: 0.62em;
+}
+
+.paper-header__summary :deep(ul[data-list="check"] > li::marker) {
+  font-size: 0.75em;
+}
+
+.paper-header__summary :deep(ul[data-list="check"]) {
+  list-style-type: "✓   ";
+}
+
+.paper-header__summary :deep(ol[data-list="decimal"]) {
+  list-style-type: decimal;
+}
+
+.paper-header__summary :deep(ol[data-list="cjk"]) {
+  list-style-type: miniwho-cjk;
+}
+
+.paper-header__summary :deep(ol[data-list="roman-upper"]) {
+  list-style-type: upper-roman;
+}
+
+.paper-header__summary :deep(ol[data-list="roman-lower"]) {
+  list-style-type: lower-roman;
+}
+
+.paper-header__summary :deep(ol[data-list="alpha-upper"]) {
+  list-style-type: upper-alpha;
+}
+
+.paper-header__summary :deep(ol[data-list="alpha-lower"]) {
+  list-style-type: lower-alpha;
+}
+
+/* 页眉简介里也可能出现「（1）列表」，与纸面正文保持同一套括号序号。 */
+.paper-header__summary :deep(ol[data-list="paren"]) {
+  padding-left: 1.2em;
+  list-style: none;
+  counter-reset: paren-item;
+}
+
+.paper-header__summary :deep(ol[data-list="paren"] > li) {
+  position: relative;
+  counter-increment: paren-item;
+}
+
+/* 等宽字体只作用于序号标记，正文保持模板原字体；缩小字号让宽括号完整挂在左侧。 */
+.paper-header__summary :deep(ol[data-list="paren"] > li::before) {
+  content: "（" counter(paren-item) "）";
+  position: absolute;
+  right: calc(100% + 0.08em);
+  top: 0;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.62em;
+  line-height: 1.7;
+  white-space: nowrap;
+}
+
+.paper-header__summary :deep(ol[data-list="paren-right"]) {
+  padding-left: 1.2em;
+  list-style: none;
+  counter-reset: paren-right-item;
+}
+
+.paper-header__summary :deep(ol[data-list="paren-right"] > li) {
+  position: relative;
+  counter-increment: paren-right-item;
+}
+
+.paper-header__summary :deep(ol[data-list="paren-right"] > li::before) {
+  content: counter(paren-right-item) ")";
+  position: absolute;
+  right: calc(100% + 0.12em);
+  top: 0;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* 参考稿的证件照在页眉左侧，姓名与简介整体右移。 */

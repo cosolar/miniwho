@@ -1,3 +1,9 @@
+/* 富文本的「中文数字」列表：预定义值 cjk-ideographic 不带顿号，这里补一个后缀。 */
+@counter-style miniwho-cjk {
+  system: extends cjk-ideographic;
+  suffix: "、";
+}
+
 :root {
   --ink: #19221e;
   --ink-soft: #33403a;
@@ -526,6 +532,27 @@ ul, ol {
 
 .resume-paper .rich-content li {
   margin: 2px 0;
+}
+
+/* 富文本列表标记的颜色一律跟随模板主题色：用户只选形状（实心圆 / 菱形 / 括号序号 /
+   罗马数字…），颜色不属于用户选择，由模板决定。
+   - ::marker 管 list-style-type 生成的标记（含裸列表——示例数据/历史数据没有 data-list
+     的 <ul>/<ol>，它走浏览器原生 marker，默认继承正文深色，会出现「同一页里选过样式的
+     列表是主题色、没选过的裸列表却是黑点」的不一致）。
+   - ::before 管用计数器画的标记（括号序号，以及部分模板的裸列表装饰符号）。
+   模板包里针对 li::marker / li::before 的显式设色优先级更高，这里用全局 !important 压过，
+   让所有模板的列表标记颜色与主题色严格一致（模板包自身禁 !important，全局样式可以，
+   属于设计上允许的兜底手段）。放在 base.css 非 scoped，正文与页眉 summary 都生效。 */
+.resume-paper .paper-rich ul > li::marker,
+.resume-paper .paper-rich ol > li::marker,
+.resume-paper .rich-content ul > li::marker,
+.resume-paper .rich-content ol > li::marker {
+  color: var(--paper-accent) !important;
+}
+
+.resume-paper .paper-rich li::before,
+.resume-paper .rich-content li::before {
+  color: var(--paper-accent) !important;
 }
 
 .resume-paper .rich-content p {
