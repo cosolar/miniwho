@@ -1,5 +1,6 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { LIST_COLOR_PRESETS, listColorToken } from '../data/listColors'
 
 /**
  * 无序 / 有序的标记样式。value 写进 data-list（含默认的 disc / decimal），
@@ -28,6 +29,12 @@ const OL_STYLES = [
   { value: 'alpha-lower', label: '小写字母', lines: ['a.', 'b.', 'c.'] }
 ]
 
+/**
+ * 列表标记取色：工具栏上的「1.」按钮弹出小面板，点色块即选色（另含自定义取色）。
+ * 选中的 #rrggbb 写进 data-list-color；选「跟随模板主题色」删掉该属性，标记回到模板主题色。
+ * 真实着色由渲染层把该值设成列表的内联 --list-color，var(--list-color, 正文色) 接管。
+ */
+
 const props = defineProps({
   modelValue: { type: String, default: '' },
   placeholder: { type: String, default: '在这里输入内容。' },
@@ -38,11 +45,30 @@ const emit = defineEmits(['update:modelValue'])
 const editor = ref(null)
 const active = ref({})
 const menu = ref('')
+/** 编辑器内最后一次有效选区：取色面板点色块时编辑器已经失焦，靠它把光标放回去。 */
+const savedRange = ref(null)
+
+/**
+ * 打开已有内容时把 data-list-color 回填成内联 --list-color。
+ * 存档里只有 data-*（内联 style 会被后端清洗掉），不回填的话重新打开编辑器
+ * 标记就退回正文色，用户会以为「颜色没保存住」。
+ */
+function hydrateListColors() {
+  if (!editor.value) return
+  for (const list of editor.value.querySelectorAll('ul[data-list-color], ol[data-list-color]')) {
+    const token = listColorToken(list.dataset.listColor)
+    if (token) list.style.setProperty('--list-color', token)
+    else list.removeAttribute('data-list-color')
+  }
+}
 
 function sync(value) {
   if (!editor.value) return
   if (document.activeElement === editor.value) return
-  if (editor.value.innerHTML !== value) editor.value.innerHTML = value || ''
+  if (editor.value.innerHTML !== value) {
+    editor.value.innerHTML = value || ''
+    hydrateListColors()
+  }
 }
 
 watch(() => props.modelValue, sync)
@@ -54,6 +80,12 @@ function emitValue() {
   emit('update:modelValue', editor.value.innerHTML)
 }
 
+/**
+ * 执行浏览器原生命令。撤销 / 恢复也走这里（undo / redo）：contenteditable 自带历史栈，
+ * 打字、加粗、删改都记在里面，不需要自己维护一份。代价是我们用 DOM 直接改的
+ * 列表样式 / 标记颜色不进这个栈，撤销不会回退它们——所以每次改完都要 emitValue()，
+ * 让父组件拿到当前 HTML，避免和 history 里的快照对不上。
+ */
 function command(name, value = null) {
   editor.value?.focus()
   document.execCommand(name, false, value)
@@ -70,6 +102,28 @@ function activeList() {
   if (node.nodeType !== Node.ELEMENT_NODE) node = node.parentElement
   const list = node?.closest?.('li')?.parentElement
   return list && (list.tagName === 'OL' || list.tagName === 'UL') ? list : null
+}
+
+/**
+ * 记住编辑器内的选区。点工具栏上的按钮会把焦点移出 contenteditable，
+ * 浏览器随即清掉选区，activeList() 就找不到列表了——取色面板点下去「没反应」正是这个原因。
+ * 用 selectionchange 持续记录，比在按钮上逐个 @mousedown.prevent 更稳（原生取色输入框没法 prevent）。
+ */
+function rememberSelection() {
+  const selection = window.getSelection()
+  if (!selection || !selection.rangeCount || !editor.value) return
+  const range = selection.getRangeAt(0)
+  if (!editor.value.contains(range.commonAncestorContainer)) return
+  savedRange.value = range.cloneRange()
+}
+
+/** 把光标放回上次记录的选区；记录点已被重排掉时静默跳过。 */
+function restoreSelection() {
+  const selection = window.getSelection()
+  const range = savedRange.value
+  if (!selection || !range || !editor.value?.contains(range.startContainer)) return
+  selection.removeAllRanges()
+  selection.addRange(range)
 }
 
 /**
@@ -108,10 +162,34 @@ function applyList(kind, style) {
 }
 
 /**
+ * 给光标所在的列表设置标记颜色：把 #rrggbb 写进 data-list-color。
+ * 「主题色」（value 为 null / 空）删掉属性，标记回到模板主题色。
+ * 编辑器里同时设一条内联 --list-color，标记立刻所见即所得；
+ * 存档值只认 data-list-color，渲染层再据此设内联样式。
+ */
+function applyListColor(value) {
+  if (!editor.value) return
+  // 取色面板里的色块 / 原生取色框都会让编辑器失焦，先把光标放回列表再取列表。
+  editor.value.focus()
+  restoreSelection()
+  const list = activeList()
+  if (!list) return
+  const token = listColorToken(value)
+  if (token) {
+    list.dataset.listColor = token
+    list.style.setProperty('--list-color', token)
+  } else {
+    delete list.dataset.listColor
+    list.style.removeProperty('--list-color')
+  }
+  emitValue()
+  updateActive()
+}
+
+/**
  * 相邻的同款列表合成一个：用户逐段应用列表时，浏览器会为每段各建一个 <ol>，
  * 每个都从 1 开始。这里把前 / 后紧邻的同 tag、同 data-list 列表并进来，序号才能接着排。
- */
-function mergeAdjacentLists(list) {
+ */function mergeAdjacentLists(list) {
   const selection = window.getSelection()
   const anchorNode = selection?.anchorNode || null
   const anchorOffset = selection?.anchorOffset || 0
@@ -236,13 +314,14 @@ function updateActive() {
     strike: document.queryCommandState('strikeThrough'),
     unordered: isUl,
     ordered: isOl,
-    listStyle: list ? list.dataset.list || (isUl ? 'disc' : 'decimal') : ''
+    listStyle: list ? list.dataset.list || (isUl ? 'disc' : 'decimal') : '',
+    listColor: list ? (listColorToken(list.dataset.listColor) || '') : ''
   }
 }
 
 function onDocumentPointerDown(event) {
   if (!menu.value) return
-  if (event.target instanceof Element && event.target.closest('.list-control')) return
+  if (event.target instanceof Element && event.target.closest('.list-control, .color-control')) return
   menu.value = ''
 }
 
@@ -253,11 +332,13 @@ function onDocumentKeydown(event) {
 onMounted(() => {
   document.addEventListener('mousedown', onDocumentPointerDown)
   document.addEventListener('keydown', onDocumentKeydown)
+  document.addEventListener('selectionchange', rememberSelection)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', onDocumentPointerDown)
   document.removeEventListener('keydown', onDocumentKeydown)
+  document.removeEventListener('selectionchange', rememberSelection)
 })
 
 function handlePaste(event) {
@@ -355,14 +436,72 @@ function handleKeydown(event) {
           </div>
         </div>
       </div>
+      <div class="color-control">
+        <button
+          type="button"
+          class="color-btn"
+          title="设置序号颜色"
+          :class="{ active: active.unordered || active.ordered, open: menu === 'color' }"
+          :disabled="!active.unordered && !active.ordered"
+          @mousedown.prevent
+          @click="toggleMenu('color')"
+        >
+          <svg class="color-mark" viewBox="0 0 14 14" aria-hidden="true" :style="{ '--mark-color': active.listColor || 'var(--accent)' }">
+            <text class="color-mark__digit" x="1.7" y="9.2">1.</text>
+            <rect class="color-mark__bar" x="1.4" y="10.9" width="11.2" height="2" rx="1" />
+          </svg>
+          <svg class="caret-icon" viewBox="0 0 8 8" aria-hidden="true"><path d="M1.6 3l2.4 2.4L6.4 3" /></svg>
+        </button>
+        <div v-if="menu === 'color'" class="list-panel color-panel">
+          <p class="list-panel__title">序号颜色</p>
+          <button
+            type="button"
+            class="color-auto"
+            :class="{ selected: !active.listColor }"
+            @mousedown.prevent
+            @click="applyListColor(null)"
+          >
+            <span class="color-auto__dot" aria-hidden="true" />
+            跟随模板主题色
+          </button>
+          <div class="color-grid">
+            <button
+              v-for="color in LIST_COLOR_PRESETS"
+              :key="color"
+              type="button"
+              class="color-dot"
+              :class="{ selected: active.listColor === color }"
+              :style="{ '--dot': color }"
+              :title="color"
+              @mousedown.prevent
+              @click="applyListColor(color)"
+            />
+            <label class="color-dot color-dot--custom" title="自定义颜色">
+              <input type="color" :value="active.listColor || '#33403a'" @change="applyListColor($event.target.value)" />
+              <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 2.5v7M2.5 6h7" /></svg>
+            </label>
+          </div>
+        </div>
+      </div>
       <span class="toolbar-sep" />
-      <button type="button" class="clear-btn" title="清除格式" @mousedown.prevent @click="command('removeFormat')">
+      <button type="button" title="清除格式" @mousedown.prevent @click="command('removeFormat')">
         <svg class="tool-icon" viewBox="0 0 14 14" aria-hidden="true">
-          <path d="M1.8 11.2L4.9 3.4h1.3l3.1 7.8" />
-          <path d="M3.1 8.8h5.9" />
-          <path d="M9.6 3.4l3 3M12.6 3.4l-3 3" />
+          <rect x="3.2" y="6.1" width="8.4" height="4.4" rx="1.2" transform="rotate(-45 7.4 8.3)" />
+          <path d="M4.4 8.2l3.1 3.1" />
         </svg>
-        清格式
+      </button>
+      <span class="toolbar-sep" />
+      <button type="button" title="撤销" @mousedown.prevent @click="command('undo')">
+        <svg class="tool-icon" viewBox="0 0 14 14" aria-hidden="true">
+          <path d="M4.6 3.2L2.2 5.6l2.4 2.4" />
+          <path d="M2.2 5.6h6.4a3.4 3.4 0 0 1 0 6.8H5.2" />
+        </svg>
+      </button>
+      <button type="button" title="恢复" @mousedown.prevent @click="command('redo')">
+        <svg class="tool-icon" viewBox="0 0 14 14" aria-hidden="true">
+          <path d="M9.4 3.2l2.4 2.4-2.4 2.4" />
+          <path d="M11.8 5.6H5.4a3.4 3.4 0 0 0 0 6.8H8.8" />
+        </svg>
       </button>
       <span class="toolbar-tip">保存后自动过滤不安全标签</span>
     </div>
@@ -506,6 +645,166 @@ function handleKeydown(event) {
   stroke-linejoin: round;
 }
 
+/* 取色器：和列表按钮同构（图标 + 小箭头），图标是「1.」——直接说明它管的是序号颜色，
+   选中颜色后这个「1.」就按选中的颜色显示。 */
+.color-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.rich-toolbar button.color-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  min-width: 30px;
+  padding: 0 3px;
+}
+
+/* 「1.」说明作用对象是序号，下面的色条沿用「字体颜色」的成熟约定，并且永远是当前
+   生效的颜色（未选色时是主题色），一眼就能看出这是取色而不是又一个列表样式按钮。 */
+.color-mark {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.color-mark__digit {
+  fill: currentColor;
+  font-family: var(--mono);
+  font-size: 9.2px;
+  font-weight: 500;
+}
+
+.color-mark__bar {
+  fill: var(--mark-color, var(--accent));
+}
+
+.rich-toolbar button.color-btn:hover .caret-icon,
+.rich-toolbar button.color-btn.open .caret-icon {
+  color: var(--accent);
+}
+
+.rich-toolbar button.color-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.rich-toolbar button.color-btn:disabled:hover {
+  border-color: transparent;
+  background: transparent;
+}
+
+/* 色板面板：比列表样式面板窄一些，六个一行刚好放下 30 个预设色。 */
+.list-panel.color-panel {
+  width: 214px;
+}
+
+.rich-toolbar .color-auto {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 26px;
+  margin: 0 0 8px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fffefb;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rich-toolbar .color-auto:hover {
+  border-color: rgba(10, 125, 118, 0.4);
+  background: #fff;
+}
+
+.rich-toolbar .color-auto.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(10, 125, 118, 0.3) inset;
+}
+
+/* 主题色是模板给的，编辑器里不知道具体色值，用一小段渐变示意「跟着模板走」。 */
+.color-auto__dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: conic-gradient(from 200deg, var(--accent), var(--copper), var(--gold), var(--accent));
+  box-shadow: 0 0 0 1px rgba(25, 34, 30, 0.1) inset;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.rich-toolbar .color-dot {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  border: 1px solid rgba(25, 34, 30, 0.12);
+  border-radius: 50%;
+  background: var(--dot, transparent);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.rich-toolbar .color-dot:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(25, 34, 30, 0.18);
+}
+
+/* 选中态用「白色内圈 + 主题色外环」的环状描边，叠在任何底色上都能看清。 */
+.rich-toolbar .color-dot.selected {
+  box-shadow: 0 0 0 2px #fffefb, 0 0 0 3.5px var(--accent);
+}
+
+.rich-toolbar .color-dot--custom {
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--line-strong);
+  background: #fffefb;
+  color: var(--muted);
+}
+
+.rich-toolbar .color-dot--custom:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.color-dot--custom svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+/* 原生取色框铺满整个圆形按钮但完全透明，点哪儿都能唤起系统取色面板。 */
+.color-dot--custom input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+
 .list-panel {
   position: absolute;
   top: calc(100% + 7px);
@@ -611,12 +910,7 @@ function handleKeydown(event) {
   stroke-linejoin: round;
 }
 
-.rich-toolbar button.clear-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-
+/* 工具栏按钮统一 26px 方形，图标居中；撤销 / 恢复与清除格式都是纯图标，靠 title 说明。 */
 .tool-icon {
   width: 13px;
   height: 13px;
@@ -683,6 +977,20 @@ function handleKeydown(event) {
 
 .rich-body :deep(li) {
   margin: 1px 0;
+}
+
+/* 用户给列表选过颜色时，编辑器里也按这个颜色显示标记，所见即所得。
+   颜色以内联 --list-color 设在该列表上（见 applyListColor），
+   ::marker / ::before 都用 var(--list-color, 正文色) 着色，编辑器与纸面同一套逻辑；
+   未选色时 --list-color 未定义，回落到当前正文颜色。 */
+
+.rich-body :deep(li)::marker {
+  color: var(--list-color, currentColor);
+}
+
+.rich-body :deep(ol[data-list="paren"] > li::before),
+.rich-body :deep(ol[data-list="paren-right"] > li::before) {
+  color: var(--list-color, currentColor);
 }
 
 .rich-body :deep(ul[data-list="disc"]) {

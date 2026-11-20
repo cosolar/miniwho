@@ -1,6 +1,10 @@
 <script setup>
 import { computed } from 'vue'
 import DOMPurify from 'dompurify'
+import { registerDompurifyListColor } from '../data/listColors'
+
+// 清洗后把列表的 data-list-color 回填成内联 --list-color（模块顶层注册一次，钩子全局生效）。
+registerDompurifyListColor(DOMPurify)
 import PaperIcon from './PaperIcon.vue'
 import { isCustomType, isItemBlank, periodText, formatMonth, salaryText, metaOf } from '../data/sectionCatalog'
 import { itemMediaUrl } from '../api/client'
@@ -45,7 +49,7 @@ function sideLines(item) {
 const safe = (html) => DOMPurify.sanitize(html || '', {
   ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'ul', 'ol', 'li'],
   // data-list 只用来选择列表标记（圆点 / 方块 / 括号 / 罗马数字等），没有脚本能力。
-  ALLOWED_ATTR: ['data-list']
+  ALLOWED_ATTR: ['data-list', 'data-list-color']
 })
 
 function prettyLink(url) {

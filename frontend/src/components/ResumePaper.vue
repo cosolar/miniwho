@@ -1,6 +1,10 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DOMPurify from 'dompurify'
+import { registerDompurifyListColor } from '../data/listColors'
+
+// 清洗后把列表的 data-list-color 回填成内联 --list-color（模块顶层注册一次，钩子全局生效）。
+registerDompurifyListColor(DOMPurify)
 import PaperSection from './PaperSection.vue'
 import PaperIcon from './PaperIcon.vue'
 import { TEMPLATE_FALLBACKS, configOf } from '../data/templatePresets'
@@ -224,7 +228,7 @@ const headerSummarySection = computed(() => (
 ))
 const headerSummaryHtml = computed(() => DOMPurify.sanitize(
   headerSummarySection.value?.items?.[0]?.fields?.content || '',
-  { ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'ul', 'ol', 'li'], ALLOWED_ATTR: ['data-list'] }
+  { ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'ul', 'ol', 'li'], ALLOWED_ATTR: ['data-list', 'data-list-color'] }
 ))
 const labeledHeader = computed(() => ['formal', 'timeline'].includes(config.value.layout))
 // 「手机 138…」比裸号码更好扫读，所有官方版式统一带标签。

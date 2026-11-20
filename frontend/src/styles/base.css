@@ -547,13 +547,20 @@ ul, ol {
 .resume-paper .paper-rich ol > li::marker,
 .resume-paper .rich-content ul > li::marker,
 .resume-paper .rich-content ol > li::marker {
-  color: var(--paper-accent) !important;
+  color: var(--list-color, var(--paper-accent)) !important;
 }
 
 .resume-paper .paper-rich li::before,
 .resume-paper .rich-content li::before {
-  color: var(--paper-accent) !important;
+  color: var(--list-color, var(--paper-accent)) !important;
 }
+
+/* 列表标记颜色。用户在编辑器里给某个列表选色后，色值（#rrggbb）以内联
+   style="--list-color:#xxxxxx" 写在该列表上，上面两条规则就会用它着色。
+   后端清洗只放行 --list-color 这一条属性且值必须是 #rrggbb，其余内联样式仍被剥掉，
+   所以放开 style 不会引入任意 CSS。未设置时 --list-color 处于未定义状态，
+   var() 回落到模板主题色，所以「跟随主题色」这一档完全不需要额外处理。 */
+
 
 .resume-paper .rich-content p {
   margin: 0 0 4px;
