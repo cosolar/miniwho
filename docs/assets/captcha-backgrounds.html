@@ -3,20 +3,23 @@
 <head>
 <meta charset="UTF-8" />
 <title>滑块验证码底图源文件</title>
-<style>
-  /* 每张 600×360，对应 tianai 滑块底图尺寸。用 @2x 渲染后再缩小，边缘更干净。 */
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+<!--
+  滑块验证码底图的源文件。
 
-  :root {
-    --ink: #14231e;
-    --ink-2: #1d3128;
-    --paper: #f7f3e9;
-    --paper-2: #efe9db;
-    --teal: #2f9c8c;
-    --teal-soft: #6ec6b8;
-    --line: rgba(247, 243, 233, 0.16);
-    --muted: rgba(247, 243, 233, 0.56);
-  }
+  改这里的 HTML/CSS，然后用无头 Chrome 按 2 倍渲染，再切成 8 张 600x360 的 JPG
+  覆盖后端 src/main/resources/captcha/bg/bg-1.jpg ~ bg-8.jpg：
+
+    chrome --headless=new --hide-scrollbars --force-device-scale-factor=2 \
+           --window-size=600,2880 --screenshot=out.png captcha-backgrounds.html
+
+  然后按 720px 一张竖切、每张缩到 600x360 存成 JPG（质量 86 左右）即可。
+  底图尺寸固定在 600x360，换成别的尺寸拼图比例和判定都会跟着变。
+
+  版式是一整幅：不左右分栏，一张纸或一块墨色到底，巨大的淡色图形沉在背景里当纹样，
+  文字直接压在上面。这样拼图缺口落在哪都能靠底纹认出来，也不会被中缝切断。
+-->
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
     background: #fff;
@@ -30,604 +33,268 @@
     height: 360px;
     overflow: hidden;
     display: flex;
-    background: var(--ink);
-    color: var(--paper);
+    flex-direction: column;
+    padding: 40px 42px 34px;
   }
 
-  /* ---------- 左侧：纸面视觉区 ---------- */
-  .art {
-    position: relative;
-    width: 236px;
-    flex: 0 0 236px;
-    background: var(--paper);
-    display: grid;
-    place-items: center;
-    overflow: hidden;
+  /* ---------------- 浅色：一张纸 ---------------- */
+  .card.light {
+    background: #f7f3e8;
+    color: #14231e;
   }
 
-  /* 纸张顶边与左边投下的一层暖影，让米色区有厚度 */
-  .art::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background:
-      radial-gradient(120% 80% at 100% 0%, rgba(20, 35, 30, 0.06), transparent 62%),
-      radial-gradient(90% 60% at 0% 100%, rgba(47, 156, 140, 0.07), transparent 60%);
-    pointer-events: none;
-  }
-
-  /* 纸面上的细网格，像稿纸 */
-  .art::before {
+  /* 稿纸网格 */
+  .card.light::before {
     content: "";
     position: absolute;
     inset: 0;
     background-image:
-      linear-gradient(to right, rgba(20, 35, 30, 0.045) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(20, 35, 30, 0.045) 1px, transparent 1px);
-    background-size: 24px 24px;
-    mask-image: radial-gradient(80% 70% at 50% 50%, #000 30%, transparent 100%);
-    -webkit-mask-image: radial-gradient(80% 70% at 50% 50%, #000 30%, transparent 100%);
+      linear-gradient(to right, rgba(20, 35, 30, 0.055) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(20, 35, 30, 0.055) 1px, transparent 1px);
+    background-size: 26px 26px;
     pointer-events: none;
   }
 
-  /* ---------- 右侧：文案区 ---------- */
-  .copy {
-    position: relative;
-    flex: 1;
-    padding: 42px 40px 38px 36px;
-    display: flex;
-    flex-direction: column;
-    background:
-      radial-gradient(120% 100% at 0% 0%, rgba(47, 156, 140, 0.14), transparent 58%),
-      linear-gradient(150deg, var(--ink-2), var(--ink) 68%);
-    overflow: hidden;
-  }
-
-  /* 右上角一团极淡的光，避免整块死板的纯色 */
-  .copy::before {
+  /* 纸边一圈暖影，别让它像纯色块 */
+  .card.light::after {
     content: "";
     position: absolute;
-    width: 260px;
-    height: 260px;
-    right: -96px;
-    top: -118px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(110, 198, 184, 0.16), transparent 66%);
+    inset: 0;
+    background:
+      radial-gradient(90% 70% at 0% 0%, rgba(47, 156, 140, 0.07), transparent 62%),
+      radial-gradient(80% 60% at 100% 100%, rgba(20, 35, 30, 0.06), transparent 58%);
     pointer-events: none;
   }
 
+  /* ---------------- 深色：一块墨 ---------------- */
+  .card.dark {
+    background:
+      radial-gradient(110% 90% at 8% 0%, rgba(47, 156, 140, 0.16), transparent 58%),
+      linear-gradient(152deg, #1d3128, #11201b 72%);
+    color: #f7f3e8;
+  }
+
+  /* 深色底上的极细斜纹，给拼图一点可辨认的纹理 */
+  .card.dark::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(
+      135deg,
+      rgba(247, 243, 232, 0.028) 0 1px,
+      transparent 1px 9px
+    );
+    pointer-events: none;
+  }
+
+  /* ---------------- 背景巨字 / 巨形 ---------------- */
+  .mark {
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+    line-height: 0.78;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    user-select: none;
+  }
+
+  .card.light .mark { color: rgba(20, 35, 30, 0.062); }
+  .card.dark  .mark { color: rgba(247, 243, 232, 0.072); }
+
+  /* 都放在右侧中段：底部留给 MINIWHO 与编号，别互相压 */
+  .mark.mid-right    { right: 30px; top: 46%; transform: translateY(-50%); }
+  .mark.top-right    { right: -12px; top: 6%; }
+
+  /* 背景大图形（圆 / 靶 / 印章） */
+  .shape {
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+    border-radius: 50%;
+  }
+
+  .card.light .shape { border-color: rgba(47, 156, 140, 0.22); }
+  .card.dark  .shape { border-color: rgba(110, 198, 184, 0.2); }
+
+  /* ---------------- 前景文字 ---------------- */
   .kicker {
     position: relative;
+    z-index: 2;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 9px;
     font-size: 10px;
-    letter-spacing: 0.18em;
-    color: var(--muted);
+    letter-spacing: 0.2em;
   }
+
+  .card.light .kicker { color: rgba(20, 35, 30, 0.42); }
+  .card.dark  .kicker { color: rgba(247, 243, 232, 0.46); }
 
   .kicker .dot {
-    width: 4px;
-    height: 4px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
-    background: var(--teal-soft);
-  }
-
-  .kicker .idx {
-    margin-left: auto;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.1em;
-    color: rgba(247, 243, 233, 0.34);
-  }
-
-  .title {
-    position: relative;
-    margin-top: 18px;
-    font-size: 30px;
-    line-height: 1.32;
-    font-weight: 700;
-    letter-spacing: 0.01em;
-  }
-
-  .title em {
-    font-style: normal;
-    color: var(--teal-soft);
-  }
-
-  .desc {
-    position: relative;
-    margin-top: 22px;
-    font-size: 12.5px;
-    line-height: 1.9;
-    color: var(--muted);
-  }
-
-  .desc b {
-    color: rgba(247, 243, 233, 0.86);
-    font-weight: 600;
-  }
-
-  /* 改前 → 改后 的小对照 */
-  .swap {
-    position: relative;
-    margin-top: 24px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 12px;
-    line-height: 1.6;
-  }
-
-  .swap .bad,
-  .swap .good {
-    padding: 6px 10px;
-    border-radius: 6px;
-    max-width: 148px;
-  }
-
-  .swap .bad {
-    color: rgba(247, 243, 233, 0.44);
-    background: rgba(247, 243, 233, 0.05);
-    text-decoration: line-through;
-    text-decoration-color: rgba(247, 243, 233, 0.3);
-  }
-
-  .swap .good {
-    color: #bff0e6;
-    background: rgba(47, 156, 140, 0.2);
-    border: 1px solid rgba(110, 198, 184, 0.3);
-  }
-
-  .swap .arrow {
-    color: rgba(110, 198, 184, 0.7);
-    font-size: 13px;
-  }
-
-  .foot {
-    position: relative;
-    margin-top: auto;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 9.5px;
-    letter-spacing: 0.22em;
-    color: rgba(247, 243, 233, 0.3);
-  }
-
-  .foot .bar {
-    width: 18px;
-    height: 1px;
-    background: rgba(247, 243, 233, 0.24);
-  }
-
-  /* ================= 左侧视觉：几种形态 ================= */
-
-  /* 1. 简历纸缩影 */
-  .sheet {
-    position: relative;
-    z-index: 1;
-    width: 146px;
-    height: 196px;
-    border-radius: 3px;
-    background: #fffdf8;
-    box-shadow:
-      0 1px 2px rgba(20, 35, 30, 0.08),
-      0 12px 28px -12px rgba(20, 35, 30, 0.28);
-    padding: 16px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-  }
-
-  .sheet .avatar {
-    width: 22px;
-    height: 28px;
-    border-radius: 2px;
-    background: linear-gradient(150deg, var(--teal), #1f7466);
-    margin-bottom: 2px;
-  }
-
-  .sheet .name {
-    width: 56px;
-    height: 7px;
-    border-radius: 2px;
-    background: #1b2b25;
-  }
-
-  .sheet .role {
-    width: 40px;
-    height: 4px;
-    border-radius: 2px;
-    background: rgba(20, 35, 30, 0.22);
-    margin-bottom: 4px;
-  }
-
-  .sheet .rule {
-    height: 1px;
-    background: rgba(20, 35, 30, 0.1);
-    margin: 2px 0 3px;
-  }
-
-  .sheet .b { height: 4px; border-radius: 2px; background: rgba(20, 35, 30, 0.13); }
-  .sheet .b.w1 { width: 100%; }
-  .sheet .b.w2 { width: 84%; }
-  .sheet .b.w3 { width: 92%; }
-  .sheet .b.teal { background: rgba(47, 156, 140, 0.4); }
-
-  /* 2. 数据柱 */
-  .bars {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    align-items: flex-end;
-    gap: 12px;
-    height: 150px;
-  }
-
-  .bars i {
-    display: block;
-    width: 24px;
-    border-radius: 3px 3px 0 0;
-    background: rgba(20, 35, 30, 0.12);
-  }
-
-  .bars i.on {
-    background: linear-gradient(180deg, var(--teal-soft), var(--teal));
-    box-shadow: 0 8px 18px -8px rgba(47, 156, 140, 0.7);
-  }
-
-  /* 3. 时间轴 */
-  .timeline {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    padding-left: 18px;
-    width: 118px;
-  }
-
-  .timeline::before {
-    content: "";
-    position: absolute;
-    left: 3px;
-    top: 6px;
-    bottom: 6px;
-    width: 1.5px;
-    background: linear-gradient(180deg, var(--teal), rgba(47, 156, 140, 0.15));
-  }
-
-  .timeline .node {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .timeline .node::before {
-    content: "";
-    position: absolute;
-    left: -16px;
-    top: 3px;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: #fffdf8;
-    border: 1.5px solid var(--teal);
-  }
-
-  .timeline .node.on::before {
-    background: var(--teal);
-    box-shadow: 0 0 0 3px rgba(47, 156, 140, 0.16);
-  }
-
-  .timeline .node b {
-    width: 62px;
-    height: 6px;
-    border-radius: 2px;
-    background: rgba(20, 35, 30, 0.55);
-  }
-
-  .timeline .node span {
-    width: 44px;
-    height: 4px;
-    border-radius: 2px;
-    background: rgba(20, 35, 30, 0.16);
-  }
-
-  /* 4. 印章 + 靶心 */
-  .seal {
-    position: relative;
-    z-index: 1;
-    width: 130px;
-    height: 130px;
-    border-radius: 50%;
-    border: 1.5px dashed rgba(20, 35, 30, 0.2);
-    display: grid;
-    place-items: center;
-  }
-
-  .seal .inner {
-    width: 94px;
-    height: 94px;
-    border-radius: 50%;
-    background: linear-gradient(150deg, rgba(47, 156, 140, 0.16), rgba(47, 156, 140, 0.06));
-    border: 1.5px solid rgba(47, 156, 140, 0.45);
-    display: grid;
-    place-items: center;
-  }
-
-  .seal .center {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: linear-gradient(150deg, var(--teal-soft), var(--teal));
-    box-shadow: 0 6px 16px -6px rgba(47, 156, 140, 0.7);
-  }
-
-  .seal .tick {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-  }
-
-  /* 5. 缩放/对齐示意 */
-  .alignbox {
-    position: relative;
-    z-index: 1;
-    width: 132px;
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
-  }
-
-  .alignbox .row {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-  }
-
-  .alignbox .kv {
-    width: 22px;
-    height: 6px;
-    border-radius: 2px;
-    background: rgba(20, 35, 30, 0.34);
     flex: none;
   }
 
-  .alignbox .val {
-    height: 6px;
-    border-radius: 2px;
-    background: rgba(20, 35, 30, 0.22);
-    flex: 1;
+  .card.light .kicker .dot { background: #2f9c8c; }
+  .card.dark  .kicker .dot { background: #6ec6b8; }
+
+  .title {
+    position: relative;
+    z-index: 2;
+    margin-top: 22px;
+    font-size: 40px;
+    line-height: 1.26;
+    font-weight: 700;
+    letter-spacing: 0.005em;
+    max-width: 400px;
   }
 
-  .alignbox .row.on .kv { background: rgba(47, 156, 140, 0.9); }
-  .alignbox .row.on .val { background: rgba(47, 156, 140, 0.45); }
+  .title em { font-style: normal; }
 
-  /* 6. 关键词标签 */
-  .chips {
+  .card.light .title em { color: #1f8a7a; }
+  .card.dark  .title em { color: #6ec6b8; }
+
+  /* 举例：一行小字，用引号带出来，不做成按钮 */
+  .say {
     position: relative;
-    z-index: 1;
+    z-index: 2;
+    margin-top: 20px;
+    font-size: 13px;
+    line-height: 1.7;
+    max-width: 400px;
+  }
+
+  .card.light .say { color: rgba(20, 35, 30, 0.5); }
+  .card.dark  .say { color: rgba(247, 243, 232, 0.55); }
+
+  .say b { font-weight: 600; }
+
+  .card.light .say b { color: #14231e; }
+  .card.dark  .say b { color: rgba(247, 243, 232, 0.95); }
+
+  .say .arrow { margin: 0 6px; opacity: 0.6; }
+
+  /* 底部标识 */
+  .foot {
+    position: relative;
+    z-index: 2;
+    margin-top: auto;
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     gap: 9px;
-    width: 150px;
-    justify-content: center;
+    font-size: 9.5px;
+    letter-spacing: 0.24em;
   }
 
-  .chips .chip {
-    padding: 7px 12px;
-    border-radius: 100px;
+  .card.light .foot { color: rgba(20, 35, 30, 0.3); }
+  .card.dark  .foot { color: rgba(247, 243, 232, 0.3); }
+
+  .foot .bar {
+    width: 20px;
+    height: 1px;
+    background: currentColor;
+    opacity: 0.6;
+  }
+
+  /* 右下角的小印记：编号 */
+  .no {
+    position: absolute;
+    z-index: 2;
+    right: 40px;
+    bottom: 34px;
     font-size: 10px;
-    letter-spacing: 0.04em;
-    color: rgba(20, 35, 30, 0.5);
-    background: #fffdf8;
-    border: 1px solid rgba(20, 35, 30, 0.1);
-    box-shadow: 0 1px 2px rgba(20, 35, 30, 0.04);
+    letter-spacing: 0.18em;
+    font-variant-numeric: tabular-nums;
   }
 
-  .chips .chip.on {
-    color: #10564c;
-    background: rgba(47, 156, 140, 0.14);
-    border-color: rgba(47, 156, 140, 0.38);
-    font-weight: 600;
-  }
-
-  /* 7. 对勾圆章 */
-  .badge {
-    position: relative;
-    z-index: 1;
-    width: 140px;
-    height: 140px;
-    border-radius: 34px;
-    background: linear-gradient(155deg, #ffffff, #f2ece0);
-    box-shadow:
-      0 1px 2px rgba(20, 35, 30, 0.07),
-      0 14px 30px -14px rgba(20, 35, 30, 0.3);
-    display: grid;
-    place-items: center;
-  }
-
-  .badge svg { width: 56px; height: 56px; }
+  .card.light .no { color: rgba(20, 35, 30, 0.26); }
+  .card.dark  .no { color: rgba(247, 243, 232, 0.26); }
 </style>
 </head>
-<!--
-  滑块验证码底图的源文件。
-
-  改这里的 HTML/CSS，然后用无头 Chrome 按 2 倍渲染，再切成 8 张 600x360 的 JPG
-  覆盖后端 src/main/resources/captcha/bg/bg-1.jpg ~ bg-8.jpg：
-
-    chrome --headless=new --hide-scrollbars --force-device-scale-factor=2 \
-           --window-size=600,2880 --screenshot=out.png captcha-backgrounds.html
-
-  然后按 720px 一张竖切、每张缩到 600x360 存成 JPG（质量 86 左右）即可。
-  底图尺寸固定在 600x360，换成别的尺寸拼图比例和判定都会跟着变。
--->
 <body>
 
-<!-- 01 写结果 -->
-<div class="card" id="c1">
-  <div class="art">
-    <div class="sheet">
-      <div class="avatar"></div>
-      <div class="name"></div>
-      <div class="role"></div>
-      <div class="rule"></div>
-      <div class="b w1 teal"></div>
-      <div class="b w3"></div>
-      <div class="b w2"></div>
-      <div class="rule"></div>
-      <div class="b w2"></div>
-      <div class="b w1"></div>
-    </div>
-  </div>
-  <div class="copy">
-    <div class="kicker"><span class="dot"></span>简历小技巧<span class="idx">01</span></div>
-    <h1 class="title">写<em>结果</em>，<br />别只写职责</h1>
-    <div class="swap">
-      <span class="bad">负责用户增长</span>
-      <span class="arrow">→</span>
-      <span class="good">3 个月留存 21%</span>
-    </div>
-    <div class="foot"><span class="bar"></span>MINIWHO</div>
-  </div>
+<!-- 01 写结果 · 浅 -->
+<div class="card light" id="c1">
+  <div class="mark mid-right" style="font-size:168px">→</div>
+  <div class="kicker"><span class="dot"></span>简历小技巧</div>
+  <h1 class="title">写<em>结果</em>，<br />别只写职责</h1>
+  <p class="say">「负责用户增长」<span class="arrow">→</span><b>「3 个月把留存做到 21%」</b></p>
+  <div class="foot"><span class="bar"></span>MINIWHO</div>
+  <div class="no">01 / 08</div>
 </div>
 
-<!-- 02 数字说话 -->
-<div class="card" id="c2">
-  <div class="art">
-    <div class="bars">
-      <i style="height:38px"></i>
-      <i style="height:62px"></i>
-      <i class="on" style="height:96px"></i>
-      <i style="height:50px"></i>
-      <i style="height:74px"></i>
-    </div>
-  </div>
-  <div class="copy">
-    <div class="kicker"><span class="dot"></span>简历小技巧<span class="idx">02</span></div>
-    <h1 class="title">数字，<br />最有<em>说服力</em></h1>
-    <div class="swap">
-      <span class="bad">显著提升性能</span>
-      <span class="arrow">→</span>
-      <span class="good">响应 800ms → 120ms</span>
-    </div>
-    <div class="foot"><span class="bar"></span>MINIWHO</div>
-  </div>
+<!-- 02 数字 · 深 -->
+<div class="card dark" id="c2">
+  <div class="mark mid-right" style="font-size:138px">21%</div>
+  <div class="kicker"><span class="dot"></span>简历小技巧</div>
+  <h1 class="title">数字，<br />最有<em>说服力</em></h1>
+  <p class="say">「显著提升性能」<span class="arrow">→</span><b>「响应从 800ms 降到 120ms」</b></p>
+  <div class="foot"><span class="bar"></span>MINIWHO</div>
+  <div class="no">02 / 08</div>
 </div>
 
-<!-- 03 一岗一版 -->
-<div class="card" id="c3">
-  <div class="art">
-    <div class="seal">
-      <div class="inner"><div class="center"></div></div>
-    </div>
-  </div>
-  <div class="copy">
-    <div class="kicker"><span class="dot"></span>简历小技巧<span class="idx">03</span></div>
-    <h1 class="title">一岗，<br />改<em>一版</em></h1>
-    <p class="desc">对着 JD 换关键词，<br />别一份投遍所有公司。</p>
-    <div class="foot"><span class="bar"></span>MINIWHO</div>
-  </div>
+<!-- 03 一岗一版 · 浅 -->
+<div class="card light" id="c3">
+  <div class="shape" style="right:-6px;top:44%;transform:translateY(-50%);width:222px;height:222px;border:1.5px solid;"></div>
+  <div class="shape" style="right:23px;top:44%;transform:translateY(-50%);width:158px;height:158px;border:1.5px dashed;"></div>
+  <div class="shape" style="right:57px;top:44%;transform:translateY(-50%);width:80px;height:80px;background:rgba(47,156,140,.14);"></div>
+  <div class="kicker"><span class="dot"></span>简历小技巧</div>
+  <h1 class="title">一岗，<br />改<em>一版</em></h1>
+  <p class="say">对着 JD 换关键词，<b>别一份投遍所有公司</b>。</p>
+  <div class="foot"><span class="bar"></span>MINIWHO</div>
+  <div class="no">03 / 08</div>
 </div>
 
-<!-- 04 一页足够 -->
-<div class="card" id="c4">
-  <div class="art">
-    <div class="timeline">
-      <div class="node on"><b></b><span></span></div>
-      <div class="node"><b></b><span></span></div>
-      <div class="node"><b></b><span></span></div>
-      <div class="node"><b></b><span></span></div>
-    </div>
-  </div>
-  <div class="copy">
-    <div class="kicker"><span class="dot"></span>简历小技巧<span class="idx">04</span></div>
-    <h1 class="title">一页<em>就够</em></h1>
-    <p class="desc">应届生与三年以内，<br />没人会翻你的第二页。</p>
-    <div class="foot"><span class="bar"></span>MINIWHO</div>
-  </div>
+<!-- 04 一页就够 · 深 -->
+<div class="card dark" id="c4">
+  <div class="mark mid-right" style="font-size:196px">1</div>
+  <div class="kicker"><span class="dot"></span>简历小技巧</div>
+  <h1 class="title">一页<em>就够</em></h1>
+  <p class="say">应届生与三年以内，<b>没人会翻你的第二页</b>。</p>
+  <div class="foot"><span class="bar"></span>MINIWHO</div>
+  <div class="no">04 / 08</div>
 </div>
 
-<!-- 05 动词开头 -->
-<div class="card" id="c5">
-  <div class="art">
-    <div class="alignbox">
-      <div class="row on"><span class="kv"></span><span class="val"></span></div>
-      <div class="row"><span class="kv"></span><span class="val" style="flex:.7"></span></div>
-      <div class="row on"><span class="kv"></span><span class="val" style="flex:.86"></span></div>
-      <div class="row"><span class="kv"></span><span class="val" style="flex:.55"></span></div>
-      <div class="row on"><span class="kv"></span><span class="val" style="flex:.75"></span></div>
-    </div>
-  </div>
-  <div class="copy">
-    <div class="kicker"><span class="dot"></span>简历小技巧<span class="idx">05</span></div>
-    <h1 class="title">用<em>动词</em>开头</h1>
-    <p class="desc">主导、搭建、重构、落地——<br />比「参与了」有力得多。</p>
-    <div class="foot"><span class="bar"></span>MINIWHO</div>
-  </div>
+<!-- 05 动词开头 · 浅 -->
+<div class="card light" id="c5">
+  <div class="mark mid-right" style="font-size:124px">动词</div>
+  <div class="kicker"><span class="dot"></span>简历小技巧</div>
+  <h1 class="title">用<em>动词</em>开头</h1>
+  <p class="say">主导、搭建、重构、落地——<b>比「参与了」有力得多</b>。</p>
+  <div class="foot"><span class="bar"></span>MINIWHO</div>
+  <div class="no">05 / 08</div>
 </div>
 
-<!-- 06 留白 -->
-<div class="card" id="c6">
-  <div class="art">
-    <div class="badge">
-      <svg viewBox="0 0 56 56" fill="none">
-        <circle cx="28" cy="28" r="21" stroke="#2f9c8c" stroke-width="2" stroke-opacity=".28" />
-        <path d="M18.5 28.5l6.5 6.5L38 21.5" stroke="#2f9c8c" stroke-width="3.2"
-              stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
-    </div>
-  </div>
-  <div class="copy">
-    <div class="kicker"><span class="dot"></span>简历小技巧<span class="idx">06</span></div>
-    <h1 class="title">留白，<br />也是<em>内容</em></h1>
-    <p class="desc">塞得太满没人读得下去，<br />一页留三分空。</p>
-    <div class="foot"><span class="bar"></span>MINIWHO</div>
-  </div>
+<!-- 06 留白 · 深 -->
+<div class="card dark" id="c6">
+  <div class="shape" style="right:-4px;top:52%;transform:translateY(-50%);width:246px;height:246px;border:1.5px solid;"></div>
+  <div class="kicker"><span class="dot"></span>简历小技巧</div>
+  <h1 class="title">留白，<br />也是<em>内容</em></h1>
+  <p class="say">塞得太满没人读得下去，<b>一页留三分空</b>。</p>
+  <div class="foot"><span class="bar"></span>MINIWHO</div>
+  <div class="no">06 / 08</div>
 </div>
 
-<!-- 07 校对 -->
-<div class="card" id="c7">
-  <div class="art">
-    <div class="sheet">
-      <div class="name"></div>
-      <div class="role"></div>
-      <div class="rule"></div>
-      <div class="b w1"></div>
-      <div class="b w2 teal"></div>
-      <div class="b w3"></div>
-      <div class="rule"></div>
-      <div class="b w2"></div>
-      <div class="b w1"></div>
-    </div>
-  </div>
-  <div class="copy">
-    <div class="kicker"><span class="dot"></span>简历小技巧<span class="idx">07</span></div>
-    <h1 class="title">投之前，<br />再<em>读一遍</em></h1>
-    <p class="desc">错别字和日期错位，<br />是最容易被扣分的细节。</p>
-    <div class="foot"><span class="bar"></span>MINIWHO</div>
-  </div>
+<!-- 07 再读一遍 · 浅 -->
+<div class="card light" id="c7">
+  <div class="mark mid-right" style="font-size:158px">✓</div>
+  <div class="kicker"><span class="dot"></span>简历小技巧</div>
+  <h1 class="title">投之前，<br />再<em>读一遍</em></h1>
+  <p class="say">错别字和日期错位，<b>是最容易被扣分的细节</b>。</p>
+  <div class="foot"><span class="bar"></span>MINIWHO</div>
+  <div class="no">07 / 08</div>
 </div>
 
-<!-- 08 针对性 -->
-<div class="card" id="c8">
-  <div class="art">
-    <div class="chips">
-      <span class="chip on">数据分析</span>
-      <span class="chip">React</span>
-      <span class="chip on">用户增长</span>
-      <span class="chip">SQL</span>
-    </div>
-  </div>
-  <div class="copy">
-    <div class="kicker"><span class="dot"></span>简历小技巧<span class="idx">08</span></div>
-    <h1 class="title">把<em>关键词</em><br />写进简历</h1>
-    <p class="desc">HR 先搜词再读内容，<br />把岗位要的词摆到明面上。</p>
-    <div class="foot"><span class="bar"></span>MINIWHO</div>
-  </div>
+<!-- 08 关键词 · 深 -->
+<div class="card dark" id="c8">
+  <div class="mark mid-right" style="font-size:170px">#</div>
+  <div class="kicker"><span class="dot"></span>简历小技巧</div>
+  <h1 class="title">把<em>关键词</em><br />写进简历</h1>
+  <p class="say">HR 先搜词再读内容，<b>把岗位要的词摆到明面上</b>。</p>
+  <div class="foot"><span class="bar"></span>MINIWHO</div>
+  <div class="no">08 / 08</div>
 </div>
 
 </body>
