@@ -19,6 +19,9 @@ import java.util.regex.Pattern;
 public class ContentSanitizer {
 
     private static final Pattern MONTH = Pattern.compile("^\\d{4}-(0[1-9]|1[0-2])$");
+    // 列表标记色：只认 #rrggbb。data-* 属性本无脚本能力，但校验成固定格式可避免
+    // 正文里混进乱七八糟的字符串，渲染层据此设内联 --list-color 时也只会得到合法颜色。
+    private static final Pattern LIST_COLOR = Pattern.compile("^#[0-9a-fA-F]{6}$");
     private static final Set<String> URL_KEYS = Set.of("link", "website", "github");
     private static final Safelist SAFELIST = Safelist.none()
             // strike 是浏览器 execCommand('strikeThrough') 实际生成的标签，和 s 一起收。
@@ -26,7 +29,10 @@ public class ContentSanitizer {
             // 只认列表标记样式（实心圆 / 菱形 / 括号序号 / 罗马数字等），渲染层靠它决定标记形态；
             // 无序列表（ul）和有序列表（ol）都可能带这个属性，漏掉任一都会让样式保存后丢失。
             .addAttributes("ul", "data-list")
-            .addAttributes("ol", "data-list");
+            .addAttributes("ol", "data-list")
+            // 列表标记的自定义颜色：值是 #rrggbb，渲染层设成内联 --list-color 着色。
+            .addAttributes("ul", "data-list-color")
+            .addAttributes("ol", "data-list-color");
 
     private final Json json;
 
@@ -92,6 +98,26 @@ public class ContentSanitizer {
         return section;
     }
 
+    /**
+     * 富文本清洗：先按 Safelist 过滤标签与属性，再校验 data-list-color 的值。
+     * Safelist 只认属性名、不校验值，所以这里补一道：值不是 #rrggbb 的标记色直接剥掉，
+     * 避免正文里混进任意字符串（渲染层只把合法 hex 设成内联 --list-color）。
+     */
+    private String sanitizeRichHtml(String html) {
+        String cleaned = Jsoup.clean(html, "", SAFELIST);
+        if (!cleaned.contains("data-list-color")) {
+            return cleaned;
+        }
+        org.jsoup.nodes.Document doc = Jsoup.parseBodyFragment(cleaned);
+        for (org.jsoup.nodes.Element list : doc.body().select("ul[data-list-color], ol[data-list-color]")) {
+            String color = list.attr("data-list-color");
+            if (!LIST_COLOR.matcher(color).matches()) {
+                list.removeAttr("data-list-color");
+            }
+        }
+        return doc.body().html();
+    }
+
     public JsonNode sanitizeValue(JsonNode node, int depth, String key) {
         if (depth > 8) {
             throw cn.minims.who.common.BizException.badRequest("内容层级过深");
@@ -106,7 +132,7 @@ public class ContentSanitizer {
             }
             value = value.trim();
             if (SectionTypes.RICH_KEYS.contains(key)) {
-                value = Jsoup.clean(value, "", SAFELIST);
+                value = sanitizeRichHtml(value);
             }
             if (URL_KEYS.contains(key) && !value.isBlank()) {
                 if (!(value.startsWith("https://") || value.startsWith("http://")) || value.length() > 500) {

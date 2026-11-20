@@ -54,6 +54,35 @@ class ContentSanitizerRichTextTest {
     }
 
     @Test
+    void keepsListMarkerColor() {
+        // 列表标记的自定义色（#rrggbb）存在 data-list-color 上，保存后不能被剥掉，否则用户选的颜色会丢。
+        String content = sanitizedContent("<ul data-list=\"disc\" data-list-color=\"#a33a2f\"><li>第一条</li></ul>");
+
+        assertThat(content).contains("data-list-color=\"#a33a2f\"");
+        assertThat(content).contains("<li>第一条</li>");
+    }
+
+    @Test
+    void keepsOrderedListMarkerColor() {
+        // 有序列表同样可以单独设色。
+        String content = sanitizedContent("<ol data-list=\"paren\" data-list-color=\"#475569\"><li>第一条</li></ol>");
+
+        assertThat(content).contains("data-list-color=\"#475569\"");
+    }
+
+    @Test
+    void stripsInvalidListMarkerColor() {
+        // 标记色只认 #rrggbb：枚举名、任意字符串、非 hex 一律当作没设置，避免正文混入脏值。
+        String content = sanitizedContent(
+                "<ul data-list=\"disc\" data-list-color=\"brick\"><li>a</li></ul>"
+                        + "<ol data-list=\"paren\" data-list-color=\"red; background:url(x)\"><li>b</li></ol>");
+
+        assertThat(content).doesNotContain("data-list-color");
+        assertThat(content).contains("<li>a</li>");
+        assertThat(content).contains("<li>b</li>");
+    }
+
+    @Test
     void stillStripsOtherAttributesAndUnsafeTags() {
         String content = sanitizedContent(
                 "<ol class=\"paren-list\" style=\"color:red\"><li onclick=\"alert(1)\">内容</li></ol><script>alert(1)</script>");
