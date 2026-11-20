@@ -35,6 +35,8 @@ const usernameDraft = ref('')
 const usernameSaving = ref(false)
 const usernameDirty = computed(() => usernameDraft.value.trim() !== usernameState.username)
 const usernamePattern = /^[A-Za-z0-9_-]{5,20}$/
+/** 用户名错误就地显示在输入框下方，不弹全局 toast：这是字段级校验，位置应该在字段上。 */
+const usernameError = ref('')
 
 /** 与服务端 AccountAvatarService 的 1MB 闸门同一口径，改一处要改两处。 */
 const AVATAR_MAX_BYTES = 1024 * 1024
@@ -426,8 +428,9 @@ async function loadUsername() {
 
 async function saveUsername() {
   const next = usernameDraft.value.trim()
+  usernameError.value = ''
   if (!usernamePattern.test(next)) {
-    ElMessage.warning('用户名需为 5-20 位字母、数字、- 或 _')
+    usernameError.value = '用户名需为 5-20 位字母、数字、- 或 _'
     return
   }
   if (!usernameDirty.value) return
@@ -440,7 +443,8 @@ async function saveUsername() {
     if (auth.user) auth.user.username = usernameState.username
     ElMessage.success(`用户名已改为 ${usernameState.username}，本月还可修改 ${usernameState.changesLeft} 次`)
   } catch (error) {
-    notifyError(error, '用户名修改失败')
+    // 「已被占用」「本月次数用完」都是这个字段的问题，就地提示，别飘到右上角。
+    usernameError.value = error?.message || '用户名修改失败'
   } finally {
     usernameSaving.value = false
   }
@@ -507,6 +511,8 @@ onBeforeUnmount(() => {
                         maxlength="20"
                         placeholder="5-20 位字母、数字、- 或 _"
                         :disabled="usernameState.changesLeft <= 0"
+                        :class="{ 'is-error': usernameError }"
+                        @input="usernameError = ''"
                       >
                         <template #prefix><el-icon><User /></el-icon></template>
                       </el-input>
@@ -516,7 +522,8 @@ onBeforeUnmount(() => {
                         @click="saveUsername"
                       >保存</el-button>
                     </div>
-                    <span class="field-note">
+                    <span v-if="usernameError" class="field-error">{{ usernameError }}</span>
+                    <span v-else class="field-note">
                       用户名是登录凭证，区分大小写，全局唯一。每个自然月可修改 {{ usernameState.changesPerMonth }} 次，本月还剩 {{ usernameState.changesLeft }} 次。
                     </span>
                   </el-form-item>
@@ -1060,17 +1067,19 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
 }
 
+/* 字段级错误：位置和 .field-note 一致，只是换成告警色，输入框描边跟着变红 */
+.field-error {
+  margin-top: 5px;
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.username-row .is-error :deep(.el-input__wrapper) {
+  box-shadow: 0 0 0 1px var(--danger) inset;
+}
+
 /* 用户名一行：输入框 + 保存按钮，按钮跟输入框底部对齐 */
-.username-row {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-}
-
-.username-row .el-button {
-  flex: 0 0 auto;
-}
-
 .field-note {
   margin-top: 5px;
   color: var(--faint);

@@ -52,6 +52,8 @@ const form = reactive({
   nickname: ''
 })
 
+/** 后端回来的用户名冲突（已被占用）就地挂在用户名输入框上，不弹全局提示。 */
+const usernameTaken = ref('')
 const isRegister = computed(() => mode.value === 'register')
 const isReset = computed(() => mode.value === 'reset')
 const isEmailRegister = computed(() => isRegister.value && registerKind.value === 'email')
@@ -315,6 +317,12 @@ async function submit() {
     }
     router.push(redirect.value)
   } catch (error) {
+    const message = error?.message || ''
+    // 用户名冲突是字段级问题：挂在输入框下面，比右上角飘一条更容易对上号。
+    if (isRegister.value && message.includes('用户名')) {
+      usernameTaken.value = message
+      return
+    }
     notifyError(error, isRegister.value ? '注册失败' : '登录失败')
   } finally {
     loading.value = false
@@ -479,12 +487,18 @@ onMounted(async () => {
           class="auth-form"
           @submit.prevent="submit"
         >
-          <el-form-item v-if="!needsEmailCode" :label="isRegister ? '用户名' : '账号'" prop="username">
+          <el-form-item
+            v-if="!needsEmailCode"
+            :label="isRegister ? '用户名' : '账号'"
+            prop="username"
+            :error="usernameTaken"
+          >
             <el-input
               v-model="form.username"
               size="large"
               :placeholder="isRegister ? '5-20 位字母、数字、- 或 _' : '用户名或邮箱'"
               autocomplete="username"
+              @input="usernameTaken = ''"
             >
               <template #prefix><el-icon><User /></el-icon></template>
             </el-input>
@@ -513,13 +527,14 @@ onMounted(async () => {
             </el-form-item>
           </template>
 
-          <el-form-item v-if="isEmailRegister" label="用户名（选填）" prop="username">
+          <el-form-item v-if="isEmailRegister" label="用户名（选填）" prop="username" :error="usernameTaken">
             <el-input
               v-model="form.username"
               size="large"
               placeholder="5-20 位字母、数字、- 或 _，留空自动生成"
               maxlength="20"
               autocomplete="username"
+              @input="usernameTaken = ''"
             >
               <template #prefix><el-icon><User /></el-icon></template>
             </el-input>
