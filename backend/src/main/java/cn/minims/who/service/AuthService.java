@@ -74,7 +74,9 @@ public class AuthService {
         if (!authSettings.usernameRegisterEnabled()) {
             throw BizException.forbidden("管理员未开放用户名注册，请改用邮箱注册或联系管理员");
         }
-        String username = request.username().trim();
+        // 用户名统一小写存：唯一索引在 SQLite 上区分大小写、在 MySQL 上不区分，
+        // 不归一化的话同一个名字能按不同大小写注册出两个账号。
+        String username = request.username().trim().toLowerCase(Locale.ROOT);
         User existing = findByUsername(username);
         if (existing != null) {
             throw BizException.badRequest("该用户名已被使用");
@@ -484,7 +486,7 @@ public class AuthService {
     /** 登录标识既可以是用户名也可以是邮箱，两种登录页共用同一套判定。 */
     private User findLoginUser(String identifier) {
         String value = identifier == null ? "" : identifier.trim();
-        return value.contains("@") ? findByEmail(normalizeEmail(value)) : findByUsername(value);
+        return value.contains("@") ? findByEmail(normalizeEmail(value)) : findByUsernameIgnoreCase(value);
     }
 
     /** 验证码登录的三个前提：确实连错了 3 次、能收到信、站点也能发信。 */
@@ -521,6 +523,20 @@ public class AuthService {
     private User findByUsername(String username) {
         return userMapper.selectOne(new LambdaQueryWrapper<User>()
                 .eq(User::getUsername, username).last("limit 1"));
+    }
+
+    /**
+     * 登录时按用户名查账号，忽略大小写。
+     * MySQL 的默认排序规则本来就大小写不敏感，SQLite 的 `=` 却是敏感的——不统一的话，
+     * 同一个账号会出现「线上输 Admin 能登、本地登不上」这种按环境变化的行为。
+     */
+    private User findByUsernameIgnoreCase(String username) {
+        String value = username == null ? "" : username.trim().toLowerCase(Locale.ROOT);
+        if (value.isEmpty()) {
+            return null;
+        }
+        return userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .apply("lower(username) = {0}", value).last("limit 1"));
     }
 
     private User findByEmail(String email) {
