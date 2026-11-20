@@ -10,13 +10,17 @@ import cn.minims.who.common.LoginGuard;
 import cn.minims.who.entity.Resume;
 import cn.minims.who.entity.User;
 import cn.minims.who.entity.UserIdentity;
+import cn.minims.who.entity.UsernameChange;
 import cn.minims.who.mapper.ResumeMapper;
 import cn.minims.who.mapper.UserIdentityMapper;
 import cn.minims.who.mapper.UserMapper;
+import cn.minims.who.mapper.UsernameChangeMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -35,6 +39,8 @@ import static cn.minims.who.dto.AuthDtos.PasswordAfterCodeRequest;
 import static cn.minims.who.dto.AuthDtos.PasswordResetRequest;
 import static cn.minims.who.dto.AuthDtos.RegisterRequest;
 import static cn.minims.who.dto.AuthDtos.UpdateProfileRequest;
+import static cn.minims.who.dto.AuthDtos.UpdateUsernameRequest;
+import static cn.minims.who.dto.AuthDtos.UsernameVo;
 import static cn.minims.who.dto.AuthDtos.UserVo;
 
 @Service
@@ -49,15 +55,21 @@ public class AuthService {
     private final LoginGuard loginGuard;
     private final CaptchaService captchaService;
     private final AuditService auditService;
+    private final UsernameChangeMapper usernameChangeMapper;
 
     /** 验证码登录成功后留在这枚令牌上的改密票据：只对本次会话有效，用完即删。 */
+    /** 用户名每个自然月最多改 3 次：登录凭证不该被反复更换，又要给人改错的机会。 */
+    static final int USERNAME_CHANGES_PER_MONTH = 3;
+    /** 用户名是登录凭证，统一按东八区算自然月，和站点其它时间口径一致。 */
+    private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
+
     private static final String PASSWORD_TICKET = "password-change-after-code";
     private static final long PASSWORD_TICKET_MS = 30 * 60_000L;
 
     public AuthService(UserMapper userMapper, UserIdentityMapper identityMapper, ResumeMapper resumeMapper,
                        ResumeService resumeService, AuthSettingsService authSettings,
                        EmailCodeService emailCodeService, LoginGuard loginGuard, CaptchaService captchaService,
-                       AuditService auditService) {
+                       AuditService auditService, UsernameChangeMapper usernameChangeMapper) {
         this.userMapper = userMapper;
         this.identityMapper = identityMapper;
         this.resumeMapper = resumeMapper;
@@ -67,6 +79,7 @@ public class AuthService {
         this.loginGuard = loginGuard;
         this.captchaService = captchaService;
         this.auditService = auditService;
+        this.usernameChangeMapper = usernameChangeMapper;
     }
 
     @Transactional
@@ -74,9 +87,8 @@ public class AuthService {
         if (!authSettings.usernameRegisterEnabled()) {
             throw BizException.forbidden("管理员未开放用户名注册，请改用邮箱注册或联系管理员");
         }
-        // 用户名统一小写存：唯一索引在 SQLite 上区分大小写、在 MySQL 上不区分，
-        // 不归一化的话同一个名字能按不同大小写注册出两个账号。
-        String username = request.username().trim().toLowerCase(Locale.ROOT);
+        // 用户名区分大小写：原样保存用户输入，唯一性也按原样比对（MySQL 侧靠二进制排序规则保证）。
+        String username = request.username().trim();
         User existing = findByUsername(username);
         if (existing != null) {
             throw BizException.badRequest("该用户名已被使用");
@@ -125,7 +137,16 @@ public class AuthService {
             throw BizException.badRequest("该邮箱已注册，请直接登录");
         }
         User user = new User();
-        user.setUsername(allocateUsername(baseNameFrom(email)));
+        String wanted = request.username() == null ? "" : request.username().trim();
+        if (wanted.isEmpty()) {
+            // 没填就按邮箱前缀生成，生成结果随登录响应回给前端提示用户。
+            user.setUsername(allocateUsername(baseNameFrom(email)));
+        } else {
+            if (findByUsername(wanted) != null) {
+                throw BizException.badRequest("该用户名已被使用，换一个试试");
+            }
+            user.setUsername(wanted);
+        }
         user.setPasswordHash(BCrypt.hashpw(request.password()));
         user.setHasPassword(1);
         user.setEmail(email);
@@ -385,6 +406,69 @@ public class AuthService {
         return currentUser(userId);
     }
 
+    /** 用户名状态：当前用户名 + 本月还能改几次，个人中心据此渲染输入框与提示。 */
+    public UsernameVo usernameState(long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw BizException.notFound("账号不存在");
+        }
+        return new UsernameVo(user.getUsername(), changesLeft(userId), USERNAME_CHANGES_PER_MONTH);
+    }
+
+    /**
+     * 修改用户名：全局唯一（区分大小写），每个自然月最多 {@value #USERNAME_CHANGES_PER_MONTH} 次。
+     * <p>先查重再更新，并发下由唯一索引兜底；每次成功都落一条流水，配额直接数当月流水行数，
+     * 不额外维护计数器——少一处可能跑偏的状态。
+     */
+    @Transactional
+    public UsernameVo changeUsername(long userId, UpdateUsernameRequest request) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw BizException.notFound("账号不存在");
+        }
+        String next = request.username().trim();
+        if (next.equals(user.getUsername())) {
+            throw BizException.badRequest("新用户名与当前用户名相同");
+        }
+        int left = changesLeft(userId);
+        if (left <= 0) {
+            throw BizException.badRequest("用户名每个自然月最多修改 " + USERNAME_CHANGES_PER_MONTH + " 次，请下个月再试");
+        }
+        User owner = findByUsername(next);
+        if (owner != null && !owner.getId().equals(userId)) {
+            throw BizException.badRequest("该用户名已被使用，换一个试试");
+        }
+        try {
+            userMapper.update(null, new LambdaUpdateWrapper<User>()
+                    .eq(User::getId, userId)
+                    .set(User::getUsername, next)
+                    .set(User::getUpdatedAt, System.currentTimeMillis()));
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw BizException.badRequest("该用户名已被使用，换一个试试");
+        }
+        UsernameChange change = new UsernameChange();
+        change.setUserId(userId);
+        change.setOldUsername(user.getUsername());
+        change.setNewUsername(next);
+        usernameChangeMapper.insert(change);
+        auditService.recordUser(userId, null, AuditService.Actions.USERNAME_CHANGE, "user",
+                String.valueOf(userId), "修改用户名：" + user.getUsername() + " → " + next);
+        return new UsernameVo(next, left - 1, USERNAME_CHANGES_PER_MONTH);
+    }
+
+    /** 本月还剩几次改名机会。 */
+    private int changesLeft(long userId) {
+        long used = usernameChangeMapper.selectCount(new LambdaQueryWrapper<UsernameChange>()
+                .eq(UsernameChange::getUserId, userId)
+                .ge(UsernameChange::getCreatedAt, startOfMonth()));
+        return (int) Math.max(0, USERNAME_CHANGES_PER_MONTH - used);
+    }
+
+    /** 本自然月（东八区）的起点，毫秒时间戳。 */
+    private long startOfMonth() {
+        return LocalDate.now(ZONE).withDayOfMonth(1).atStartOfDay(ZONE).toInstant().toEpochMilli();
+    }
+
     /**
      * 发送换绑邮箱验证码：发给「新」地址。发码前先把明显的坑挡掉（与当前相同、已被占用），
      * 不让用户等一封注定作废的邮件；占用检查在保存时还会再做一遍，挡并发窗口。
@@ -486,7 +570,7 @@ public class AuthService {
     /** 登录标识既可以是用户名也可以是邮箱，两种登录页共用同一套判定。 */
     private User findLoginUser(String identifier) {
         String value = identifier == null ? "" : identifier.trim();
-        return value.contains("@") ? findByEmail(normalizeEmail(value)) : findByUsernameIgnoreCase(value);
+        return value.contains("@") ? findByEmail(normalizeEmail(value)) : findByUsername(value);
     }
 
     /** 验证码登录的三个前提：确实连错了 3 次、能收到信、站点也能发信。 */
@@ -525,19 +609,6 @@ public class AuthService {
                 .eq(User::getUsername, username).last("limit 1"));
     }
 
-    /**
-     * 登录时按用户名查账号，忽略大小写。
-     * MySQL 的默认排序规则本来就大小写不敏感，SQLite 的 `=` 却是敏感的——不统一的话，
-     * 同一个账号会出现「线上输 Admin 能登、本地登不上」这种按环境变化的行为。
-     */
-    private User findByUsernameIgnoreCase(String username) {
-        String value = username == null ? "" : username.trim().toLowerCase(Locale.ROOT);
-        if (value.isEmpty()) {
-            return null;
-        }
-        return userMapper.selectOne(new LambdaQueryWrapper<User>()
-                .apply("lower(username) = {0}", value).last("limit 1"));
-    }
 
     private User findByEmail(String email) {
         if (email == null || email.isEmpty()) {
@@ -573,7 +644,9 @@ public class AuthService {
         if (normalized.length() > 20) {
             normalized = normalized.substring(0, 20);
         }
-        while (normalized.length() < 3) {
+        // 用户名下限统一到 5 位：手填的和自动生成的要守同一条规则，否则生成出 3 位的名字，
+        // 用户想照着改成自己喜欢的长度时反而被规则挡住。
+        while (normalized.length() < 5) {
             normalized = normalized + "_";
         }
         String candidate = normalized;

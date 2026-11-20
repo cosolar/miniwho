@@ -31,6 +31,7 @@ public class AuditService {
         public static final String REGISTER = "auth.register";
         public static final String PASSWORD_CHANGE = "auth.password_change";
         public static final String EMAIL_CHANGE = "auth.email_change";
+        public static final String USERNAME_CHANGE = "auth.username_change";
         public static final String DELETION_REQUEST = "account.deletion_request";
         public static final String DELETION_CANCEL = "account.deletion_cancel";
         public static final String DELETION_PURGE = "account.deletion_purge";

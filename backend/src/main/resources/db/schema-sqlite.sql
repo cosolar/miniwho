@@ -22,6 +22,16 @@ CREATE TABLE IF NOT EXISTS users (
 -- 邮箱既是登录凭据也是账号归属依据，必须唯一；NULL 不受约束，第三方账号可以不留邮箱。
 CREATE UNIQUE INDEX IF NOT EXISTS uk_users_email ON users(email);
 
+-- 用户名修改流水：每月 3 次配额按当月行数统计，顺带留痕。
+CREATE TABLE IF NOT EXISTS username_changes (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      BIGINT      NOT NULL,
+    old_username VARCHAR(50),
+    new_username VARCHAR(50),
+    created_at   BIGINT      NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_username_changes_user ON username_changes(user_id, created_at);
+
 CREATE TABLE IF NOT EXISTS templates (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     code        VARCHAR(50)  NOT NULL UNIQUE,

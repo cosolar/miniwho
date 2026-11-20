@@ -29,6 +29,12 @@ const codeSending = ref(false)
 const resumes = ref([])
 const statsLoading = ref(true)
 const storage = ref(null)
+/** 用户名：登录凭证，全局唯一、区分大小写，每个自然月最多改 3 次（配额由服务端给）。 */
+const usernameState = reactive({ username: '', changesLeft: 0, changesPerMonth: 3 })
+const usernameDraft = ref('')
+const usernameSaving = ref(false)
+const usernameDirty = computed(() => usernameDraft.value.trim() !== usernameState.username)
+const usernamePattern = /^[A-Za-z0-9_-]{5,20}$/
 
 /** 与服务端 AccountAvatarService 的 1MB 闸门同一口径，改一处要改两处。 */
 const AVATAR_MAX_BYTES = 1024 * 1024
@@ -406,7 +412,42 @@ async function logout() {
   router.push('/')
 }
 
+async function loadUsername() {
+  try {
+    const data = await accountApi.username()
+    usernameState.username = data?.username || ''
+    usernameState.changesLeft = Number(data?.changesLeft ?? 0)
+    usernameState.changesPerMonth = Number(data?.changesPerMonth ?? 3)
+    usernameDraft.value = usernameState.username
+  } catch (error) {
+    notifyError(error, '用户名信息加载失败')
+  }
+}
+
+async function saveUsername() {
+  const next = usernameDraft.value.trim()
+  if (!usernamePattern.test(next)) {
+    ElMessage.warning('用户名需为 5-20 位字母、数字、- 或 _')
+    return
+  }
+  if (!usernameDirty.value) return
+  usernameSaving.value = true
+  try {
+    const data = await accountApi.changeUsername({ username: next })
+    usernameState.username = data?.username || next
+    usernameState.changesLeft = Number(data?.changesLeft ?? 0)
+    usernameDraft.value = usernameState.username
+    if (auth.user) auth.user.username = usernameState.username
+    ElMessage.success(`用户名已改为 ${usernameState.username}，本月还可修改 ${usernameState.changesLeft} 次`)
+  } catch (error) {
+    notifyError(error, '用户名修改失败')
+  } finally {
+    usernameSaving.value = false
+  }
+}
+
 onMounted(() => {
+  loadUsername()
   if (auth.user) {
     profile.nickname = auth.user.nickname || ''
     profile.email = auth.user.email || ''
@@ -460,10 +501,24 @@ onBeforeUnmount(() => {
               <el-form ref="profileRef" :model="profile" :rules="profileRules" label-position="top" @submit.prevent>
                 <div class="form-grid">
                   <el-form-item label="用户名">
-                    <el-input :model-value="auth.user?.username" disabled>
-                      <template #prefix><el-icon><User /></el-icon></template>
-                    </el-input>
-                    <span class="field-note">用户名是登录凭证，注册后暂不支持修改。</span>
+                    <div class="username-row">
+                      <el-input
+                        v-model="usernameDraft"
+                        maxlength="20"
+                        placeholder="5-20 位字母、数字、- 或 _"
+                        :disabled="usernameState.changesLeft <= 0"
+                      >
+                        <template #prefix><el-icon><User /></el-icon></template>
+                      </el-input>
+                      <el-button
+                        :loading="usernameSaving"
+                        :disabled="!usernameDirty || usernameState.changesLeft <= 0"
+                        @click="saveUsername"
+                      >保存</el-button>
+                    </div>
+                    <span class="field-note">
+                      用户名是登录凭证，区分大小写，全局唯一。每个自然月可修改 {{ usernameState.changesPerMonth }} 次，本月还剩 {{ usernameState.changesLeft }} 次。
+                    </span>
                   </el-form-item>
                   <el-form-item label="昵称" prop="nickname">
                     <el-input v-model="profile.nickname" maxlength="50" placeholder="怎么称呼你" />
@@ -992,6 +1047,28 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0 18px;
+}
+
+/* 用户名一行：输入框 + 保存按钮，按钮跟输入框底部对齐 */
+.username-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.username-row .el-button {
+  flex: 0 0 auto;
+}
+
+/* 用户名一行：输入框 + 保存按钮，按钮跟输入框底部对齐 */
+.username-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.username-row .el-button {
+  flex: 0 0 auto;
 }
 
 .field-note {

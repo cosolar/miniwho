@@ -39,6 +39,12 @@ export const accountApi = {
   changeEmailCode: (payload) => client.post('/account/email-code', payload),
   /** 磁盘用量与配额：要扫目录，所以不进 /auth/me，个人中心按需拉一次。 */
   storage: () => client.get('/account/storage'),
+
+  /** 用户名与本月剩余修改次数。 */
+  username: () => client.get('/account/username'),
+
+  /** 改用户名：全局唯一、区分大小写，每个自然月最多 3 次（配额由服务端判定）。 */
+  changeUsername: (payload) => client.put('/account/username', payload),
   /**
    * 账号头像的状态与签名链接。链接六小时过期，所以每次进页面现取，
    * 不进 /auth/me：那个接口的返回值会被缓存进 localStorage。

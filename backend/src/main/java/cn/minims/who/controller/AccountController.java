@@ -5,7 +5,9 @@ import cn.minims.who.common.AuthUtil;
 import cn.minims.who.dto.AuthDtos.ChangeEmailCodeRequest;
 import cn.minims.who.dto.AuthDtos.DeletionRequest;
 import cn.minims.who.dto.AuthDtos.DeletionVo;
+import cn.minims.who.dto.AuthDtos.UpdateUsernameRequest;
 import cn.minims.who.dto.AuthDtos.UserAvatarVo;
+import cn.minims.who.dto.AuthDtos.UsernameVo;
 import cn.minims.who.dto.SiteDtos.StorageVo;
 import cn.minims.who.service.AccountAvatarService;
 import cn.minims.who.service.AccountDeletionService;
@@ -21,6 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -78,6 +81,18 @@ public class AccountController {
     public ApiResponse<Void> deletionCode() {
         deletionService.sendCode(authUtil.userId());
         return ApiResponse.ok();
+    }
+
+    /** 用户名与本月剩余修改次数。 */
+    @GetMapping("/username")
+    public ApiResponse<UsernameVo> username() {
+        return ApiResponse.ok(authService.usernameState(authUtil.userId()));
+    }
+
+    /** 修改用户名：全局唯一（区分大小写），每个自然月最多 3 次。 */
+    @PutMapping("/username")
+    public ApiResponse<UsernameVo> changeUsername(@Valid @RequestBody UpdateUsernameRequest request) {
+        return ApiResponse.ok(authService.changeUsername(authUtil.userId(), request));
     }
 
     /** 发送换绑邮箱验证码：发给「新」地址；验证码随保存资料接口一起提交。 */

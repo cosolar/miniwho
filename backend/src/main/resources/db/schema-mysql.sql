@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS users (
     id             BIGINT PRIMARY KEY AUTO_INCREMENT,
-    username       VARCHAR(50)  NOT NULL,
+    -- 用户名区分大小写：二进制排序规则让 Admin 与 admin 是两个不同的账号。
+    username       VARCHAR(50)  CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
     password_hash  VARCHAR(100) NOT NULL,
     nickname       VARCHAR(50),
     email          VARCHAR(100),
@@ -20,6 +21,16 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at     BIGINT,
     UNIQUE KEY uk_users_username (username),
     UNIQUE KEY uk_users_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS username_changes (
+    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id      BIGINT      NOT NULL,
+    old_username VARCHAR(50),
+    new_username VARCHAR(50),
+    -- 配额按自然月统计这张表的行数，索引跟着 user_id + created_at 走。
+    created_at   BIGINT      NOT NULL,
+    KEY idx_username_changes_user (user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS templates (

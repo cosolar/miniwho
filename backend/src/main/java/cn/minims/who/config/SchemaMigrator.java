@@ -93,6 +93,16 @@ public class SchemaMigrator implements ApplicationRunner {
             try (Statement statement = connection.createStatement()) {
                 ensureAuditTable(statement, sqlite);
             }
+            // 用户名修改流水表（每月 3 次配额按这张表统计），存量库补建。
+            try (Statement statement = connection.createStatement()) {
+                ensureUsernameChangeTable(statement, sqlite);
+            }
+            // 用户名区分大小写：MySQL 默认排序规则不区分，存量库要把这一列改成二进制比较。
+            try (Statement statement = connection.createStatement()) {
+                ensureUsernameCaseSensitive(statement, sqlite);
+            } catch (SQLException e) {
+                log.warn("users.username 大小写敏感迁移失败（{}），唯一性与登录仍按数据库默认排序规则执行", e.getMessage());
+            }
             // 邮箱从「随便填」变成登录凭据，存量库要先清掉脏数据才能上唯一索引。
             try (Statement statement = connection.createStatement()) {
                 ensureEmailUniqueness(statement, sqlite);
@@ -109,6 +119,46 @@ public class SchemaMigrator implements ApplicationRunner {
         } catch (SQLException e) {
             throw new IllegalStateException("数据库结构升级失败，请确认数据库账号具备 ALTER 权限：" + e.getMessage(), e);
         }
+    }
+
+    private void ensureUsernameChangeTable(Statement statement, boolean sqlite) throws SQLException {
+        String ddl = sqlite
+                ? "CREATE TABLE IF NOT EXISTS username_changes (id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                + " user_id BIGINT NOT NULL, old_username VARCHAR(50), new_username VARCHAR(50),"
+                + " created_at BIGINT NOT NULL)"
+                : "CREATE TABLE IF NOT EXISTS username_changes (id BIGINT PRIMARY KEY AUTO_INCREMENT,"
+                + " user_id BIGINT NOT NULL, old_username VARCHAR(50) NULL, new_username VARCHAR(50) NULL,"
+                + " created_at BIGINT NOT NULL, KEY idx_username_changes_user (user_id, created_at))";
+        statement.executeUpdate(ddl);
+        if (sqlite) {
+            statement.executeUpdate(
+                    "CREATE INDEX IF NOT EXISTS idx_username_changes_user ON username_changes(user_id, created_at)");
+        }
+    }
+
+    /**
+     * 用户名要区分大小写：MySQL 建库时的 utf8mb4_unicode_ci 会让 Admin 与 admin 撞在同一个唯一索引上，
+     * 而 SQLite 默认的 BINARY 比较本来就是敏感的。这里把 MySQL 的 username 列换成 utf8mb4_bin，
+     * 让两种库的唯一性口径一致；已经是二进制排序规则时直接跳过。
+     */
+    private void ensureUsernameCaseSensitive(Statement statement, boolean sqlite) throws SQLException {
+        if (sqlite) {
+            return;
+        }
+        try (ResultSet rows = statement.executeQuery(
+                "SELECT COLLATION_NAME FROM information_schema.columns"
+                        + " WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'username'")) {
+            if (!rows.next()) {
+                return;
+            }
+            String collation = rows.getString(1);
+            if (collation != null && collation.endsWith("_bin")) {
+                return;
+            }
+            log.info("users.username 当前排序规则为 {}，改为 utf8mb4_bin 以区分大小写", collation);
+        }
+        statement.executeUpdate(
+                "ALTER TABLE users MODIFY username VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL");
     }
 
     private void ensureAuditTable(Statement statement, boolean sqlite) throws SQLException {

@@ -74,10 +74,12 @@ const subheading = computed(() => {
 
 const rules = computed(() => ({
   username: needsEmailCode.value
-    ? []
+    ? (isEmailRegister.value
+        ? [{ pattern: /^[A-Za-z0-9_-]{5,20}$/, message: '5-20 位字母、数字、- 或 _', trigger: 'blur' }]
+        : [])
     : [
         { required: true, message: '请输入用户名', trigger: 'blur' },
-        ...(isRegister.value ? [{ pattern: /^[a-zA-Z0-9_]{3,20}$/, message: '3-20 位字母、数字或下划线', trigger: 'blur' }] : [])
+        ...(isRegister.value ? [{ pattern: /^[A-Za-z0-9_-]{5,20}$/, message: '5-20 位字母、数字、- 或 _', trigger: 'blur' }] : [])
       ],
   email: needsEmailCode.value
     ? [
@@ -268,11 +270,12 @@ async function submit() {
     }
     if (isRegister.value) {
       if (isEmailRegister.value) {
-        await auth.registerWithEmail({
+        const created = await auth.registerWithEmail({
           email: form.email.trim(),
           password: form.password,
           code: form.code.trim(),
-          nickname: form.nickname.trim()
+          nickname: form.nickname.trim(),
+          username: form.username.trim()
         })
       } else {
         await auth.register({
@@ -281,7 +284,9 @@ async function submit() {
           nickname: form.nickname.trim()
         })
       }
-      ElMessage.success('账号已创建，你的第一份简历准备好了')
+      // 用户名是登录凭证：没自己填的话是系统按邮箱前缀生成的，必须明确告诉用户。
+      const assigned = created?.user?.username
+      ElMessage.success(assigned ? `账号已创建，登录用户名：${assigned}` : '账号已创建，你的第一份简历准备好了')
     } else if (isLoginByCode.value) {
       const data = await auth.loginByCode({
         username: form.username.trim(),
@@ -478,7 +483,7 @@ onMounted(async () => {
             <el-input
               v-model="form.username"
               size="large"
-              :placeholder="isRegister ? '3-20 位字母、数字或下划线' : '用户名或邮箱'"
+              :placeholder="isRegister ? '5-20 位字母、数字、- 或 _' : '用户名或邮箱'"
               autocomplete="username"
             >
               <template #prefix><el-icon><User /></el-icon></template>
@@ -507,6 +512,18 @@ onMounted(async () => {
               </el-input>
             </el-form-item>
           </template>
+
+          <el-form-item v-if="isEmailRegister" label="用户名（选填）" prop="username">
+            <el-input
+              v-model="form.username"
+              size="large"
+              placeholder="5-20 位字母、数字、- 或 _，留空自动生成"
+              maxlength="20"
+              autocomplete="username"
+            >
+              <template #prefix><el-icon><User /></el-icon></template>
+            </el-input>
+          </el-form-item>
 
           <el-form-item v-if="isRegister" label="昵称（选填）" prop="nickname">
             <el-input v-model="form.nickname" size="large" placeholder="希望我们怎么称呼你" maxlength="50" />

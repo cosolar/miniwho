@@ -67,7 +67,7 @@ public final class AuthDtos {
 
     public record RegisterRequest(
             @NotBlank(message = "请输入用户名")
-            @Pattern(regexp = "^[a-zA-Z0-9_]{3,20}$", message = "用户名需为 3-20 位字母、数字或下划线") String username,
+            @Pattern(regexp = "^[A-Za-z0-9_-]{5,20}$", message = "用户名需为 5-20 位字母、数字、- 或 _") String username,
             @NotBlank(message = "请输入密码") @Size(min = 6, max = 32, message = "密码长度需为 6-32 位") String password,
             @Size(max = 50) String nickname) {
     }
@@ -78,12 +78,17 @@ public final class AuthDtos {
             @Email(message = "邮箱格式不正确") @Size(max = 100) String email) {
     }
 
+    /**
+     * 邮箱注册。username 可选：填了就用它（校验格式与全局唯一），没填按邮箱前缀自动生成，
+     * 生成结果会在注册成功的响应里回给用户看。
+     */
     public record EmailRegisterRequest(
             @NotBlank(message = "请输入邮箱")
             @Email(message = "邮箱格式不正确") @Size(max = 100) String email,
             @NotBlank(message = "请输入密码") @Size(min = 6, max = 32, message = "密码长度需为 6-32 位") String password,
             @NotBlank(message = "请输入验证码") @Pattern(regexp = "^\\d{6}$", message = "验证码为 6 位数字") String code,
-            @Size(max = 50) String nickname) {
+            @Size(max = 50) String nickname,
+            @Pattern(regexp = "^[A-Za-z0-9_-]{5,20}$", message = "用户名需为 5-20 位字母、数字、- 或 _") String username) {
     }
 
     /**
@@ -122,6 +127,16 @@ public final class AuthDtos {
             @Size(max = 50) String nickname,
             @Email(message = "邮箱格式不正确") @Size(max = 100) String email,
             @Pattern(regexp = "^\\d{6}$", message = "验证码为 6 位数字") String code) {
+    }
+
+    /** 修改用户名：格式校验与全局唯一（区分大小写）在服务层再做一次。 */
+    public record UpdateUsernameRequest(
+            @NotBlank(message = "请输入用户名")
+            @Pattern(regexp = "^[A-Za-z0-9_-]{5,20}$", message = "用户名需为 5-20 位字母、数字、- 或 _") String username) {
+    }
+
+    /** 用户名与本月剩余修改次数：个人中心据此决定输入框是否可编辑、提示还剩几次。 */
+    public record UsernameVo(String username, int changesLeft, int changesPerMonth) {
     }
 
     /** 发送换绑邮箱验证码：发给「新」地址，收件人是待验证的归属者。 */
