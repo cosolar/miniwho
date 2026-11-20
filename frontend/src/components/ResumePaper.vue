@@ -75,7 +75,10 @@ function syncContactSeparators() {
       const wrapped = previous
         ? Math.min(box.bottom, previous.bottom) - Math.max(box.top, previous.top) <= 0.5
         : false
-      item.classList.toggle('paper-contact--line-start', wrapped)
+      // 有些模板把图标画在 ::before 上（mask 图形）而不是分隔符，标了行首反而会把图标一起隐藏。
+      const before = getComputedStyle(item, '::before')
+      const iconBefore = before.maskImage && before.maskImage !== 'none'
+      item.classList.toggle('paper-contact--line-start', wrapped && !iconBefore)
       previous = box
     })
   })
@@ -419,7 +422,7 @@ function breakable(value) {
                 v-if="contactHref(item)"
                 :href="contactHref(item)"
                 class="paper-contact"
-                :class="{ 'paper-contact--wide': isWideContact(item) }"
+                :class="[`paper-contact--${item.type.toLowerCase()}`, { 'paper-contact--wide': isWideContact(item) }]"
               >
                 <span v-if="labeledContacts" class="paper-contact__label" :class="{ 'paper-contact__label--text': item.plainLabel }">
                   <PaperIcon v-if="contactIcons && !item.plainLabel" :type="item.type" />
@@ -427,7 +430,7 @@ function breakable(value) {
                 </span>
                 <template v-for="(segment, index) in breakable(item.type === 'website' ? displayUrl(item.value) : item.value)" :key="index"><wbr v-if="index" />{{ segment }}</template>
               </a>
-              <span v-else class="paper-contact" :class="{ 'paper-contact--wide': isWideContact(item) }">
+              <span v-else class="paper-contact" :class="[`paper-contact--${item.type.toLowerCase()}`, { 'paper-contact--wide': isWideContact(item) }]">
                 <span v-if="labeledContacts" class="paper-contact__label" :class="{ 'paper-contact__label--text': item.plainLabel }">
                   <PaperIcon v-if="contactIcons && !item.plainLabel" :type="item.type" />
                   <template v-else>{{ contactLabels[item.type] }}</template>
