@@ -110,6 +110,16 @@ const redirect = computed(() => {
   if (typeof target === 'string' && target.startsWith('/') && !target.startsWith('//')) return target
   return '/dashboard'
 })
+/**
+ * 注册成功后的落点：去个人中心。
+ * 用户名和昵称都是系统给的，注册提示里也写着「可以到个人中心修改」——直接把人送到那儿，
+ * 比丢进空简历列表更顺；带了 redirect 参数的场景（比如被分享链接引过来）仍然优先。
+ */
+const landingAfterAuth = computed(() => {
+  const explicit = typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/')
+  if (explicit || !isRegister.value) return redirect.value
+  return '/profile'
+})
 
 function switchMode(next) {
   if (next === 'register' && !canRegister.value) return
@@ -318,7 +328,7 @@ async function submit() {
       }
       ElMessage.success('欢迎回来')
     }
-    router.push(redirect.value)
+    router.push(landingAfterAuth.value)
   } catch (error) {
     const message = error?.message || ''
     // 用户名冲突是字段级问题：挂在输入框下面，比右上角飘一条更容易对上号。
