@@ -10,7 +10,9 @@ import { resumeApi } from '../api'
 import { notifyError } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import { useTemplates } from '../composables/useTemplates'
-import { configOf, templateByCode } from '../data/templatePresets'
+import TemplateThumb from '../components/TemplateThumb.vue'
+import { useSampleResume } from '../composables/useSampleResume'
+import { TEMPLATE_CATEGORIES, configOf, templateByCode } from '../data/templatePresets'
 import { greeting, timeAgo } from '../utils/format'
 
 const router = useRouter()
@@ -31,6 +33,18 @@ const createForm = reactive({
   templateCode: 'qinghe',
   useSample: true
 })
+/** 弹窗里的版式预览用真实渲染，和模板中心同一套示例数据。 */
+const { content: sampleContent, avatar: sampleAvatar } = useSampleResume()
+const createCategory = ref('全部')
+/** 只列出当前确实有模板的分类，避免点进去是空的。 */
+const createCategories = computed(() => {
+  const used = new Set(templates.value.map((tpl) => tpl.category).filter(Boolean))
+  return TEMPLATE_CATEGORIES.filter((name) => name === '全部' || used.has(name))
+})
+const createTemplates = computed(() => (createCategory.value === '全部'
+  ? templates.value
+  : templates.value.filter((tpl) => tpl.category === createCategory.value)))
+const selectedTemplate = computed(() => templateByCode(createForm.templateCode, templates.value))
 
 const displayName = computed(() => auth.user?.nickname || auth.user?.username || '你')
 
@@ -342,7 +356,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <el-dialog v-model="createVisible" width="640px" align-center class="create-dialog" destroy-on-close>
+    <el-dialog v-model="createVisible" width="900px" align-center class="create-dialog" destroy-on-close>
       <template #header>
         <div class="create-head">
           <span class="mono">NEW RESUME</span>
@@ -351,34 +365,15 @@ onMounted(async () => {
         </div>
       </template>
 
-      <el-form label-position="top" class="create-form">
-        <el-form-item label="简历名称（选填）">
-          <el-input v-model="createForm.title" maxlength="50" show-word-limit placeholder="例如：后端开发 · 社招版" />
-        </el-form-item>
-
-        <div class="form-block">
-          <span class="form-label">版式</span>
-          <div class="template-choices">
-            <button
-              v-for="tpl in templates"
-              :key="tpl.code"
-              type="button"
-              class="template-choice"
-              :class="{ active: createForm.templateCode === tpl.code }"
-              :style="{ '--choice-accent': configOf(tpl).accent }"
-              @click="createForm.templateCode = tpl.code"
-            >
-              <span class="choice-swatch"></span>
-              <strong>{{ tpl.name }}</strong>
-              <small>{{ choiceHint(tpl) }}</small>
-            </button>
+      <div class="create-form">
+        <div class="create-top">
+          <div class="create-top__title">
+            <span class="form-label">简历名称（选填）</span>
+            <el-input v-model="createForm.title" maxlength="50" show-word-limit placeholder="例如：后端开发 · 社招版" />
           </div>
-        </div>
-
-        <div class="form-row">
           <div class="form-block">
             <span class="form-label">语言</span>
-            <el-radio-group v-model="createForm.language">
+            <el-radio-group v-model="createForm.language" size="small">
               <el-radio-button value="zh">中文</el-radio-button>
               <el-radio-button value="en">English</el-radio-button>
             </el-radio-group>
@@ -388,12 +383,52 @@ onMounted(async () => {
             <el-switch
               v-model="createForm.useSample"
               :disabled="createForm.language === 'en'"
-              active-text="使用示例"
-              inactive-text="从空白开始"
+              active-text="示例"
+              inactive-text="空白"
             />
           </div>
         </div>
-      </el-form>
+
+        <div class="create-body">
+          <div class="create-picker">
+            <div class="picker-head">
+              <span class="form-label">版式</span>
+              <div class="picker-filters">
+                <button
+                  v-for="name in createCategories"
+                  :key="name"
+                  type="button"
+                  class="filter-chip"
+                  :class="{ active: createCategory === name }"
+                  @click="createCategory = name"
+                >{{ name }}</button>
+              </div>
+            </div>
+            <div class="picker-list">
+              <button
+                v-for="tpl in createTemplates"
+                :key="tpl.code"
+                type="button"
+                class="picker-item"
+                :class="{ active: createForm.templateCode === tpl.code }"
+                @click="createForm.templateCode = tpl.code"
+              >
+                <span class="picker-dot" :style="{ background: configOf(tpl).accent }"></span>
+                <span class="picker-name">{{ tpl.name }}</span>
+                <span class="picker-cat">{{ choiceHint(tpl) }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="create-preview">
+            <TemplateThumb :content="sampleContent" :template="selectedTemplate" :avatar="sampleAvatar" />
+            <div class="preview-meta">
+              <strong>{{ selectedTemplate?.name }}</strong>
+              <span>{{ choiceHint(selectedTemplate) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <template #footer>
         <el-button @click="createVisible = false">取消</el-button>
@@ -1174,51 +1209,148 @@ onMounted(async () => {
   font-size: 12px;
 }
 
-.template-choices {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.template-choice {
+/* 新建简历弹窗：左边紧凑列表、右边真实预览。
+   60 套版式铺成 4 列小方块会又长又认不出，改成可滚动列表 + 大预览，一屏能比着选。 */
+.create-top {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 10px 11px;
+  align-items: flex-end;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.create-top__title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.create-top .form-block {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
+.create-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 268px;
+  gap: 18px;
+  align-items: start;
+}
+
+.create-picker {
+  min-width: 0;
+}
+
+.picker-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.picker-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.filter-chip {
+  padding: 3px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 999px;
   background: var(--paper);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
-.template-choice:hover {
+.filter-chip:hover {
   border-color: var(--line-strong);
+  color: var(--ink-soft);
 }
 
-.template-choice.active {
+.filter-chip.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.picker-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  max-height: 356px;
+  padding: 2px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.picker-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.picker-item:hover {
+  border-color: var(--line-strong);
+  background: #fff;
+}
+
+.picker-item.active {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
 
-.choice-swatch {
-  width: 16px;
-  height: 3px;
-  margin-bottom: 8px;
-  border-radius: 2px;
-  background: var(--choice-accent);
+.picker-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
 }
 
-.template-choice strong {
-  color: var(--ink);
-  font-size: 12px;
+.picker-name {
+  overflow: hidden;
   font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.template-choice small {
-  margin-top: 1px;
+.picker-cat {
+  flex: 0 0 auto;
+  margin-left: auto;
   color: var(--faint);
-  font-size: 9px;
+  font-size: 10px;
+}
+
+.create-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preview-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.preview-meta strong {
+  font-size: 13px;
+}
+
+.preview-meta span {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .form-row {
