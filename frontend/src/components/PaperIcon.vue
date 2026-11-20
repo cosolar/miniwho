@@ -17,6 +17,7 @@ const PATHS = {
   medal: 'M12 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12Zm-4 11.5L6 22l6-3 6 3-2-8.5-1.6 1.4L12 16.5l-4.4-1.6-1.6-1.4Z',
   paper: 'M6 2h9l4 4v16H6V2Zm8 1.5V7h3.5L14 3.5ZM8 10h8v1.8H8V10Zm0 3.5h8v1.8H8v-1.8Zm0 3.5h5v1.8H8v-1.8Z',
   heart: 'M12 20.7S4 15.9 4 11.1A4.4 4.4 0 0 1 12 8.3a4.4 4.4 0 0 1 8 2.8c0 4.8-8 9.6-8 9.6Z',
+  home: 'M4 11.6 12 4l8 7.6V20a1 1 0 0 1-1 1h-4.6v-5.6h-4.8V21H5a1 1 0 0 1-1-1v-8.4Z',
   target: 'M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18Zm0 3.2a5.8 5.8 0 1 0 0 11.6 5.8 5.8 0 0 0 0-11.6Zm0 3a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z',
   flag: 'M6 3h2v18H6V3Zm3 1h9l-2.2 3.5L18 11H9V4Z',
   tag: 'M3 3h8l10 10-8 8L3 11V3Zm3.5 2A1.8 1.8 0 1 0 8.3 6.8 1.8 1.8 0 0 0 6.5 5Z',
@@ -52,7 +53,11 @@ const BY_TYPE = {
   website: 'website',
   city: 'location',
   gender: 'gender',
-  birthday: 'cake'
+  birthday: 'cake',
+  nativePlace: 'home',
+  ethnicity: 'flag',
+  politics: 'star',
+  maritalStatus: 'heart'
 }
 
 const path = computed(() => PATHS[BY_TYPE[props.type] || 'tag'])

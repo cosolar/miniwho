@@ -13,7 +13,12 @@ import java.util.regex.Pattern;
  */
 public final class TemplateCssSanitizer {
 
-    public static final int MAX_CSS_CHARS = 16 * 1024;
+    /**
+     * 上限放宽到 24KB：带图标的模板要用 data URI 画 10 个联系项图形，每个图形本身就是
+     * 一条较长的 SVG，16KB 会把这类包直接挡在门外（玄墨/藏蓝已到 15.7KB）。
+     * 24KB 仍然是个很小的量级，不影响「不塞超大文本」这个初衷。
+     */
+    public static final int MAX_CSS_CHARS = 24 * 1024;
 
     /** 属性名：CSS 自定义属性或普通属性，允许厂商前缀，不接受 * 之类的 hack。 */
     private static final Pattern PROPERTY = Pattern.compile("^(--[A-Za-z0-9_-]{1,64}|[a-z][a-z0-9-]{1,40})$");

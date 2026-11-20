@@ -425,15 +425,15 @@ function breakable(value) {
                 class="paper-contact"
                 :class="[`paper-contact--${item.type.toLowerCase()}`, { 'paper-contact--wide': isWideContact(item) }]"
               >
-                <span v-if="labeledContacts" class="paper-contact__label" :class="{ 'paper-contact__label--text': item.plainLabel }">
-                  <PaperIcon v-if="contactIcons && !item.plainLabel" :type="item.type" />
+                <span v-if="labeledContacts" class="paper-contact__label" :class="{ 'paper-contact__label--text': item.plainLabel && !contactIcons }">
+                  <PaperIcon v-if="contactIcons" :type="item.type" />
                   <template v-else>{{ contactLabels[item.type] }}</template>
                 </span>
                 <template v-for="(segment, index) in breakable(item.type === 'website' ? displayUrl(item.value) : item.value)" :key="index"><wbr v-if="index" />{{ segment }}</template>
               </a>
               <span v-else class="paper-contact" :class="[`paper-contact--${item.type.toLowerCase()}`, { 'paper-contact--wide': isWideContact(item) }]">
-                <span v-if="labeledContacts" class="paper-contact__label" :class="{ 'paper-contact__label--text': item.plainLabel }">
-                  <PaperIcon v-if="contactIcons && !item.plainLabel" :type="item.type" />
+                <span v-if="labeledContacts" class="paper-contact__label" :class="{ 'paper-contact__label--text': item.plainLabel && !contactIcons }">
+                  <PaperIcon v-if="contactIcons" :type="item.type" />
                   <template v-else>{{ contactLabels[item.type] }}</template>
                 </span>
                 <template v-for="(segment, index) in breakable(item.value)" :key="index"><wbr v-if="index" />{{ segment }}</template>
