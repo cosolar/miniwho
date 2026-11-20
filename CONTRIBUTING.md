@@ -104,6 +104,17 @@ npm test
 | 版本号 | `backend/pom.xml`、`frontend/package.json`、`docs/API.md` 的版本行（文档里的镜像统一写 `latest`，不写具体版本） |
 | 用户可见的行为变化 | `docs/使用教程.md` |
 
+## 发版清单
+
+按顺序走，别跳步——先打 tag 再补版本号，构建出来的镜像会带着旧版本号，只能删远端 tag 重发一次。
+
+1. **改版本号**，四处必须一致：`backend/pom.xml`、`frontend/package.json`、`frontend/package-lock.json`（根节点与 `packages.""` 两处）、`docs/API.md` 顶部的「后端版本」行；
+2. **写 `CHANGELOG.md`**：新版本置顶，只写用户可见的变化，内部重构不写；改动涉及表结构或存量数据的单独标注；
+3. **跑测试**：`mvn -B test --file backend/pom.xml`，以及 `frontend` 下的 `npm test` 与 `npm run build`；
+4. **提交并推送**：`chore: bump version to x.y.z`；
+5. **打 tag**：`git tag -a vX.Y.Z -m vX.Y.Z` 后推送，`docker-publish` 据此发布镜像（`X.Y.Z`、`X.Y`、`latest` 三个标签）；
+6. **发布后核对**：`docker inspect` 里的 `org.opencontainers.image.revision` 应等于该 tag 指向的提交。README 的 docker 徽章由 shields.io 动态读取 Docker Hub，会滞后几分钟，不需要手改。
+
 ## 提交规范
 
 - **提交信息用英文**，祈使句，主题行不超过 72 字符、结尾不加句号；
