@@ -76,9 +76,7 @@ const subheading = computed(() => {
 
 const rules = computed(() => ({
   username: needsEmailCode.value
-    ? (isEmailRegister.value
-        ? [{ pattern: /^[A-Za-z0-9_-]{5,20}$/, message: '5-20 位字母、数字、- 或 _', trigger: 'blur' }]
-        : [])
+    ? []
     : [
         { required: true, message: '请输入用户名', trigger: 'blur' },
         ...(isRegister.value ? [{ pattern: /^[A-Za-z0-9_-]{5,20}$/, message: '5-20 位字母、数字、- 或 _', trigger: 'blur' }] : [])
@@ -271,26 +269,29 @@ async function submit() {
       return
     }
     if (isRegister.value) {
-      // 用户名是登录凭证：邮箱注册没自己填的话是系统按邮箱前缀生成的，必须明确告诉用户。
-      let assigned = ''
+      // 用户名与昵称都不在表单里填：用户名按邮箱前缀生成、昵称随机取，
+      // 两样都要在注册成功后明确告诉用户，并提示去个人中心改。
+      let created = null
       if (isEmailRegister.value) {
-        const created = await auth.registerWithEmail({
+        created = await auth.registerWithEmail({
           email: form.email.trim(),
           password: form.password,
-          code: form.code.trim(),
-          nickname: form.nickname.trim(),
-          username: form.username.trim()
+          code: form.code.trim()
         })
-        assigned = created?.user?.username || ''
       } else {
-        const created = await auth.register({
+        created = await auth.register({
           username: form.username.trim(),
-          password: form.password,
-          nickname: form.nickname.trim()
+          password: form.password
         })
-        assigned = created?.user?.username || form.username.trim()
       }
-      ElMessage.success(assigned ? `账号已创建，登录用户名：${assigned}` : '账号已创建，你的第一份简历准备好了')
+      const assigned = created?.user?.username || form.username.trim()
+      const nickname = created?.user?.nickname || ''
+      ElMessage.success({
+        message: assigned
+          ? `账号已创建：登录用户名 ${assigned}${nickname ? `，昵称「${nickname}」` : ''}。用户名和昵称都可以到「个人中心」修改。`
+          : '账号已创建，你的第一份简历准备好了',
+        duration: 6000
+      })
     } else if (isLoginByCode.value) {
       const data = await auth.loginByCode({
         username: form.username.trim(),
@@ -528,23 +529,6 @@ onMounted(async () => {
               </el-input>
             </el-form-item>
           </template>
-
-          <el-form-item v-if="isEmailRegister" label="用户名（选填）" prop="username" :error="usernameTaken">
-            <el-input
-              v-model="form.username"
-              size="large"
-              placeholder="5-20 位字母、数字、- 或 _，留空自动生成"
-              maxlength="20"
-              autocomplete="username"
-              @input="usernameTaken = ''"
-            >
-              <template #prefix><el-icon><User /></el-icon></template>
-            </el-input>
-          </el-form-item>
-
-          <el-form-item v-if="isRegister" label="昵称（选填）" prop="nickname">
-            <el-input v-model="form.nickname" size="large" placeholder="希望我们怎么称呼你" maxlength="50" />
-          </el-form-item>
 
           <el-form-item v-if="!isLoginByCode" :label="isReset ? '新密码' : '密码'" prop="password">
             <el-input

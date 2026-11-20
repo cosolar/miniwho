@@ -97,8 +97,9 @@ public class AuthService {
         user.setUsername(username);
         user.setPasswordHash(BCrypt.hashpw(request.password()));
         user.setHasPassword(1);
+        // 昵称不再由用户在注册表单里填：没传就随机取一个，注册后到个人中心改。
         String nickname = request.nickname() == null ? "" : request.nickname().trim();
-        user.setNickname(nickname.isBlank() ? username : nickname);
+        user.setNickname(nickname.isBlank() ? NicknamePool.random() : nickname);
         user.setRole("user");
         user.setStatus(1);
         insertUser(user, "该用户名已被使用");
@@ -155,7 +156,7 @@ public class AuthService {
         // 走过验证码的邮箱才算已验证，这是 GitHub 登录能否关联这个账号的前提。
         user.setEmailVerified(1);
         String nickname = request.nickname() == null ? "" : request.nickname().trim();
-        user.setNickname(nickname.isBlank() ? user.getUsername() : nickname);
+        user.setNickname(nickname.isBlank() ? NicknamePool.random() : nickname);
         user.setRole("user");
         user.setStatus(1);
         insertUser(user, "该邮箱已注册，请直接登录");
