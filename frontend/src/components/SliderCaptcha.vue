@@ -222,6 +222,11 @@ function close() {
   visible.value = false
 }
 
+/** 关闭动画结束后再复位定位，下次打开由 place() 重新计算。 */
+function onClosed() {
+  posStyle.value = {}
+}
+
 /**
  * 把弹窗摆到触发按钮旁边。
  *
@@ -282,7 +287,8 @@ watch(visible, (open) => {
       requestAnimationFrame(() => requestAnimationFrame(place))
     })
   } else {
-    posStyle.value = {}
+    // 关闭动画期间不能清定位变量：一清，margin 立刻从锚点位置切回居中，
+    // 弹窗会在淡出的同时往中间闪一下。定位留到动画结束（closed）再复位。
     drag = null
     window.removeEventListener('pointermove', onPointerMove)
     window.removeEventListener('pointerup', onPointerUp)
@@ -311,6 +317,7 @@ onBeforeUnmount(() => {
     class="slider-captcha"
     append-to-body
     :style="posStyle"
+    @closed="onClosed"
   >
     <template #header>
       <div class="slider-captcha__head">
