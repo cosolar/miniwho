@@ -165,11 +165,13 @@ const basicFacts = computed(() => {
 
 const contacts = computed(() => {
   const list = []
+  // 金石：主页单独占一行，且排在手机、邮箱之上；居住地等信息再按三列排在后面。
+  if (isRibbon.value && basic.value.website) list.push({ type: 'website', value: basic.value.website })
   if (basic.value.phone) list.push({ type: 'phone', value: basic.value.phone })
   if (basic.value.email) list.push({ type: 'email', value: basic.value.email })
   if (basic.value.city) list.push({ type: 'city', value: basic.value.city })
   list.push(...basicFacts.value)
-  if (basic.value.website) list.push({ type: 'website', value: basic.value.website })
+  if (basic.value.website && !isRibbon.value) list.push({ type: 'website', value: basic.value.website })
   if (basic.value.showGender && basic.value.gender && !isRibbon.value) list.push({ type: 'gender', value: basic.value.gender })
   if (basic.value.showAge && basic.value.birthday) {
     list.push({ type: 'birthday', value: isRibbon.value ? basic.value.birthday : basic.value.birthday.replace('-', '.') })
@@ -815,12 +817,27 @@ function breakable(value) {
   margin-right: 0;
 }
 
-/* 日期独占左栏，单位与岗位排在右侧，和参考稿的阅读顺序一致。 */
+/* 日期独占左栏，单位与岗位排在右侧，和参考稿的阅读顺序一致。
+   第三列留给工作地点：跟日期、单位同一行贴最右，副行不再重复。 */
 .layout-academic :deep(.paper-item) {
   display: grid;
-  grid-template-columns: 20mm minmax(0, 1fr);
+  grid-template-columns: 20mm minmax(0, 1fr) auto;
   column-gap: 3.5mm;
   align-items: start;
+}
+
+.layout-academic :deep(.is-work_experience .paper-item-city) {
+  display: inline;
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  color: #8a8a8a;
+  font-size: calc(var(--paper-base-size) * 0.8);
+  white-space: nowrap;
+}
+
+.layout-academic :deep(.is-work_experience .paper-item-sub__city) {
+  display: none;
 }
 
 .layout-academic :deep(.paper-item-head) {
@@ -1404,12 +1421,26 @@ function breakable(value) {
   height: 100%;
 }
 
-/* 日期独立左栏，两行显示也不挤压正文。 */
+/* 日期独立左栏，两行显示也不挤压正文；第三列放工作地点，跟日期、单位同一行。 */
 .layout-center :deep(.paper-item) {
   display: grid;
-  grid-template-columns: 17mm minmax(0, 1fr);
+  grid-template-columns: 17mm minmax(0, 1fr) auto;
   column-gap: 3.5mm;
   align-items: start;
+}
+
+.layout-center :deep(.is-work_experience .paper-item-city) {
+  display: inline;
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  color: #7c898d;
+  font-size: calc(var(--paper-base-size) * 0.78);
+  white-space: nowrap;
+}
+
+.layout-center :deep(.is-work_experience .paper-item-sub__city) {
+  display: none;
 }
 
 .layout-center :deep(.paper-item-head) {
@@ -2088,17 +2119,35 @@ function breakable(value) {
 /* 联系方式一行三栏，标签与值同色，读作「手机：138…」。 */
 .layout-ribbon .paper-contacts--labeled {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* 六列：手机、邮箱各占三列并排一行，主页独占整行，其余信息每项占两列（仍是一行三项）。 */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1.8mm 3mm;
   margin-top: 3.4mm;
   color: #2b3644;
   font-size: calc(var(--paper-base-size) * 0.95);
+  justify-items: start;
+  text-align: left;
 }
 
 .layout-ribbon .paper-contact {
   display: flex;
   gap: 0;
   min-width: 0;
+  grid-column: span 2;
+}
+
+/* 手机与邮箱并排；只填了其中一个时靠左占位，不会空出半边。
+   手机占两列（与居住地同宽），邮箱从第三列起，左边缘对齐下一行的籍贯。 */
+.layout-ribbon .paper-contact--phone {
+  grid-column: span 2;
+}
+
+.layout-ribbon .paper-contact--email {
+  grid-column: span 4;
+}
+
+.layout-ribbon .paper-contact--website {
+  grid-column: 1 / -1;
 }
 
 .layout-ribbon .paper-contact + .paper-contact::before {
@@ -3284,6 +3333,12 @@ function breakable(value) {
   margin-bottom: 9mm;
   padding: 1mm 34mm 5mm 0;
   border-bottom: 1mm solid #8a2a2f;
+}
+
+/* 照片 30mm 高、贴着页眉顶边绝对定位。基本信息项很少时页眉会比照片还矮，
+   照片就会越过下面那条红线。有照片时给页眉兜一个下限：30mm 照片 + 1mm 红线 + 1mm 余量。 */
+.layout-editorial .paper-header--photo {
+  min-height: 32mm;
 }
 
 .layout-editorial .paper-name {
