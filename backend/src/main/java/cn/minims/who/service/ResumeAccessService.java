@@ -33,6 +33,11 @@ public class ResumeAccessService {
     /** 公开签名通道只校验简历是否存在，鉴权由签名 token 负责。 */
     public Resume requireExisting(long resumeId) {
         Resume resume = resumeMapper.selectById(resumeId);
+        // 逻辑删除会把回收站里的简历过滤掉，但后台预览已删简历时头像仍走这条公开通道
+        // （签名 token 已经限定了 resumeId），这里把已删行也读出来，否则头像会 404。
+        if (resume == null) {
+            resume = resumeMapper.selectDeletedById(resumeId);
+        }
         if (resume == null) {
             throw BizException.notFound("简历不存在");
         }
